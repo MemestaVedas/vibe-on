@@ -34,6 +34,8 @@ lofty = "0.22"
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1.10", features = ["v4", "fast-rng"] }
+discord-rich-presence = "0.2"
+reqwest = { version = "0.12", features = ["json", "blocking"] }
 # Enable high optimization for dependencies in dev/debug mode
 # This is crucial for real-time audio decoding performance without stuttering
 [profile.dev.package."*"]

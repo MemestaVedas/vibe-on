@@ -1,18 +1,26 @@
 mod audio;
+mod cover_fetcher;
 mod database;
+mod discord_rpc;
 
 use std::path::Path;
-use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, State};
 
 use audio::state::PlayerStatus;
 use audio::{AudioPlayer, TrackInfo};
 use database::DatabaseManager;
+use discord_rpc::DiscordRpc;
+
+// Discord App ID
+const DISCORD_APP_ID: &str = "1463457295974535241";
 
 /// Global player state managed by Tauri
 pub struct AppState {
     player: Mutex<Option<AudioPlayer>>,
     db: Mutex<Option<DatabaseManager>>,
+    discord: Arc<DiscordRpc>,
+    current_cover_url: Arc<Mutex<Option<String>>>,
 }
 
 impl Default for AppState {
@@ -20,6 +28,8 @@ impl Default for AppState {
         Self {
             player: Mutex::new(None),
             db: Mutex::new(None),
+            discord: Arc::new(DiscordRpc::new(DISCORD_APP_ID)),
+            current_cover_url: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -48,6 +58,62 @@ fn get_or_init_db(state: &AppState, app_handle: &AppHandle) -> Result<(), String
 #[tauri::command]
 fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
     get_or_init_player(&state)?;
+
+    // Convert path string to Path
+    let path_obj = Path::new(&path);
+
+    // Try to get metadata for Discord
+    let _ = state.discord.connect();
+
+    // Reset current cover
+    if let Ok(mut url_guard) = state.current_cover_url.lock() {
+        *url_guard = None;
+    }
+
+    if let Ok((info, _)) = get_track_metadata_helper(&path) {
+        // Set initial activity
+        let _ = state.discord.set_activity(
+            &info.title,
+            &info.artist,
+            Some(info.duration_secs),
+            None,
+            Some(info.album.clone()),
+        );
+
+        let discord_clone = state.discord.clone();
+        let url_mutex_clone = state.current_cover_url.clone();
+        let artist = info.artist.clone();
+        let album = info.album.clone();
+        let title = info.title.clone();
+        let duration = info.duration_secs;
+
+        std::thread::spawn(move || {
+            if let Some(url) = cover_fetcher::search_cover(&artist, &album) {
+                // Save to state
+                if let Ok(mut guard) = url_mutex_clone.lock() {
+                    *guard = Some(url.clone());
+                }
+
+                // Update Discord
+                let _ = discord_clone.set_activity(
+                    &title,
+                    &artist,
+                    Some(duration),
+                    Some(url),
+                    Some(album),
+                );
+            }
+        });
+    } else {
+        let filename = path_obj
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Unknown Track");
+        let _ = state
+            .discord
+            .set_activity(filename, "Listening", None, None, None);
+    }
+
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
         player.play_file(&path)
@@ -60,6 +126,22 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
 fn pause(state: State<AppState>) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
+        let status = player.get_status();
+        let cover_url = state.current_cover_url.lock().unwrap().clone();
+
+        if let Some(track) = status.track {
+            let _ = state.discord.set_activity(
+                &format!("(Paused) {}", track.title),
+                &track.artist,
+                None, // No duration for pause
+                cover_url,
+                Some(track.album),
+            );
+        } else {
+            let _ = state
+                .discord
+                .set_activity("Paused", "Vibe Music Player", None, None, None);
+        }
         player.pause()
     } else {
         Ok(())
@@ -70,6 +152,18 @@ fn pause(state: State<AppState>) -> Result<(), String> {
 fn resume(state: State<AppState>) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
+        let status = player.get_status();
+        let cover_url = state.current_cover_url.lock().unwrap().clone();
+
+        if let Some(track) = status.track {
+            let _ = state.discord.set_activity(
+                &track.title,
+                &track.artist,
+                Some(track.duration_secs),
+                cover_url,
+                Some(track.album),
+            );
+        }
         player.resume()
     } else {
         Ok(())
@@ -80,6 +174,10 @@ fn resume(state: State<AppState>) -> Result<(), String> {
 fn stop(state: State<AppState>) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
+        let _ = state.discord.clear_activity();
+        if let Ok(mut url_guard) = state.current_cover_url.lock() {
+            *url_guard = None;
+        }
         player.stop()
     } else {
         Ok(())
@@ -204,15 +302,37 @@ fn scan_music_folder_helper(path: &Path) -> Vec<String> {
     files
 }
 
+// Helper to find external cover image in the directory
+fn find_external_cover(dir: &Path) -> Option<std::path::PathBuf> {
+    let filenames = [
+        "cover.jpg",
+        "cover.png",
+        "folder.jpg",
+        "folder.png",
+        "album.jpg",
+        "album.png",
+    ];
+    for name in filenames.iter() {
+        let p = dir.join(name);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    None
+}
+
 fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8>>), String> {
     use lofty::prelude::*;
     use lofty::probe::Probe;
 
     let path = Path::new(path_str);
-    let tagged_file = Probe::open(path)
+    let tagged_file_res = Probe::open(path)
         .map_err(|e| format!("Failed to probe file: {}", e))?
-        .read()
-        .map_err(|e| format!("Failed to read metadata: {}", e))?;
+        .read();
+
+    // Handle cases where reading tags fails but we still want the file
+    // For now we error out if read fails, as before.
+    let tagged_file = tagged_file_res.map_err(|e| format!("Failed to read metadata: {}", e))?;
 
     let properties = tagged_file.properties();
     let duration_secs = properties.duration().as_secs_f64();
@@ -244,10 +364,21 @@ fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8
     };
 
     // Extract picture
-    let cover_data = tagged_file
+    let mut cover_data = tagged_file
         .primary_tag()
         .and_then(|tag| tag.pictures().first())
         .map(|pic| pic.data().to_vec());
+
+    // Fallback to external cover if no embedded art
+    if cover_data.is_none() {
+        if let Some(parent) = path.parent() {
+            if let Some(cover_path) = find_external_cover(parent) {
+                if let Ok(data) = std::fs::read(cover_path) {
+                    cover_data = Some(data);
+                }
+            }
+        }
+    }
 
     Ok((
         TrackInfo {
