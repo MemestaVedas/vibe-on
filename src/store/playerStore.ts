@@ -21,6 +21,9 @@ interface PlayerStore {
     scanFolder: (path: string) => Promise<void>;
     loadLibrary: () => Promise<void>;
     setError: (error: string | null) => void;
+    nextTrack: () => Promise<void>;
+    prevTrack: () => Promise<void>;
+    getCurrentTrackIndex: () => number;
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({
@@ -125,4 +128,27 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     },
 
     setError: (error: string | null) => set({ error }),
+
+    getCurrentTrackIndex: () => {
+        const { status, library } = get();
+        if (!status.track) return -1;
+        return library.findIndex(t => t.path === status.track?.path);
+    },
+
+    nextTrack: async () => {
+        const { library, playFile, getCurrentTrackIndex } = get();
+        const currentIndex = getCurrentTrackIndex();
+        if (currentIndex >= 0 && currentIndex < library.length - 1) {
+            await playFile(library[currentIndex + 1].path);
+        }
+    },
+
+    prevTrack: async () => {
+        const { library, playFile, getCurrentTrackIndex } = get();
+        const currentIndex = getCurrentTrackIndex();
+        if (currentIndex > 0) {
+            await playFile(library[currentIndex - 1].path);
+        }
+    },
 }));
+
