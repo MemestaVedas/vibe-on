@@ -97,25 +97,30 @@ function AlbumCard({ album, onClick, onPlay }: { album: Album, onClick: () => vo
     const coverUrl = useCoverArt(album.cover);
 
     return (
-        <div className="bg-white/5 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:bg-white/10 hover:-translate-y-1 group" onClick={onClick}>
+        <div className="bg-white/5 rounded-xl p-4 cursor-pointer transition-colors duration-200 hover:bg-white/10 group" onClick={onClick}>
             <div className="aspect-square w-full mb-3 rounded-lg overflow-hidden relative shadow-lg">
                 {coverUrl ? (
-                    <img src={coverUrl} alt={album.name} className="w-full h-full object-cover" />
+                    <img src={coverUrl} alt={album.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[#2a2a4e] to-[#1f1f3a] flex items-center justify-center text-4xl text-white/10">♪</div>
+                    <div className="w-full h-full bg-gradient-to-br from-[#2a2a4e] to-[#1f1f3a] flex items-center justify-center text-4xl text-white/10 transition-transform duration-500 group-hover:scale-105">♪</div>
                 )}
+                {/* Dark overlay on hover */}
+                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
                 <div
-                    className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center opacity-0 translate-y-2.5 transition-all duration-200 shadow-lg group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 hover:bg-indigo-600"
+                    className="absolute bottom-3 right-3 w-12 h-12 rounded-full bg-indigo-500 text-white flex items-center justify-center translate-y-4 opacity-0 transition-all duration-300 shadow-xl group-hover:opacity-100 group-hover:translate-y-0 hover:scale-105 hover:bg-indigo-400"
                     onClick={(e) => {
                         e.stopPropagation();
                         onPlay();
                     }}
                 >
-                    ▶
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
+                        <path d="M8 5v14l11-7z" />
+                    </svg>
                 </div>
             </div>
             <div className="text-left">
-                <div className="text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1">{album.name}</div>
+                <div className="text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1 group-hover:text-indigo-400 transition-colors">{album.name}</div>
                 <div className="text-xs text-white/60 whitespace-nowrap overflow-hidden text-ellipsis">{album.artist}</div>
             </div>
         </div>

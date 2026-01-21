@@ -1,15 +1,16 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { usePlayerStore } from '../store/playerStore';
-import { useSettingsStore } from '../store/settingsStore';
+import { useThemeStore } from '../store/themeStore';
 
 interface SidebarProps {
-    view: 'tracks' | 'albums';
-    onViewChange: (view: 'tracks' | 'albums') => void;
+    view: 'tracks' | 'albums' | 'artists' | 'settings';
+    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings') => void;
 }
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
     const { scanFolder, currentFolder, library } = usePlayerStore();
-    const { albumArtStyle, setAlbumArtStyle } = useSettingsStore();
+    const { colors } = useThemeStore();
+    const { accent1 } = colors;
 
     const handleOpenFolder = async () => {
         try {
@@ -31,16 +32,11 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
         <aside className="w-[220px] h-full flex flex-col bg-black/20 border-r border-white/5">
             {/* Logo / Brand */}
             <div data-tauri-drag-region className="px-5 pt-6 pb-4">
-                <h1 className="text-xl font-bold text-white tracking-tight">Vibe</h1>
+                <h1 className="text-xl font-bold text-white tracking-tight">VIBE-ON!</h1>
             </div>
 
             {/* Navigation */}
             <nav className="flex-1 px-3 overflow-y-auto">
-                {/* Menu Section */}
-                <div className="mb-6">
-                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Menu</p>
-                    <NavItem icon="🏠" label="Home" active />
-                </div>
 
                 {/* Library Section */}
                 <div className="mb-6">
@@ -51,14 +47,22 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                         active={view === 'tracks'}
                         onClick={() => onViewChange('tracks')}
                         count={library.length}
+                        accentColor={accent1}
                     />
                     <NavItem
                         icon="💿"
                         label="Albums"
                         active={view === 'albums'}
                         onClick={() => onViewChange('albums')}
+                        accentColor={accent1}
                     />
-                    <NavItem icon="🎤" label="Artists" />
+                    <NavItem
+                        icon="🎤"
+                        label="Artists"
+                        active={view === 'artists'}
+                        onClick={() => onViewChange('artists')}
+                        accentColor={accent1}
+                    />
                 </div>
 
                 {/* Current Folder */}
@@ -74,22 +78,14 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
 
                 {/* Settings Section */}
                 <div className="mb-6">
-                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Settings</p>
-                    <div className="px-3 py-3 rounded-lg bg-white/5">
-                        <p className="text-xs text-white/70 mb-2">Album Art Style</p>
-                        <div className="flex gap-2">
-                            <StyleButton
-                                label="Vinyl"
-                                active={albumArtStyle === 'vinyl'}
-                                onClick={() => setAlbumArtStyle('vinyl')}
-                            />
-                            <StyleButton
-                                label="Full"
-                                active={albumArtStyle === 'full'}
-                                onClick={() => setAlbumArtStyle('full')}
-                            />
-                        </div>
-                    </div>
+                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Preferences</p> // Renamed section title
+                    <NavItem
+                        icon="⚙️"
+                        label="Settings"
+                        active={view === 'settings'}
+                        onClick={() => onViewChange('settings')}
+                        accentColor={accent1}
+                    />
                 </div>
             </nav>
 
@@ -111,21 +107,24 @@ function NavItem({
     label,
     active = false,
     onClick,
-    count
+    count,
+    accentColor
 }: {
     icon: string;
     label: string;
     active?: boolean;
     onClick?: () => void;
     count?: number;
+    accentColor?: string;
 }) {
     return (
         <button
             onClick={onClick}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${active
-                ? 'bg-white/10 text-white'
+                ? 'text-white' // Background handled by style
                 : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
+            style={active && accentColor ? { backgroundColor: accentColor } : active ? { backgroundColor: 'rgba(255, 255, 255, 0.1)' } : {}}
         >
             <span className="text-base">{icon}</span>
             <span className="flex-1 text-left">{label}</span>
@@ -136,25 +135,5 @@ function NavItem({
     );
 }
 
-function StyleButton({
-    label,
-    active,
-    onClick
-}: {
-    label: string;
-    active: boolean;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            onClick={onClick}
-            className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-200 ${active
-                ? 'bg-indigo-500 text-white'
-                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                }`}
-        >
-            {label}
-        </button>
-    );
-}
+
 

@@ -51,6 +51,27 @@ function TrackRow({ track, index, isActive, isPlaying, onClick }: {
     );
 }
 
+// Helper component for Sortable Headers
+function SortHeader({ label, sortKey, align = 'left' }: { label: string, sortKey: keyof TrackDisplay, align?: 'left' | 'right' }) {
+    const sort = usePlayerStore(state => state.sort);
+    const setSort = usePlayerStore(state => state.setSort);
+    const isActive = sort?.key === sortKey;
+
+    return (
+        <div
+            className={`flex items-center gap-1 cursor-pointer hover:text-white transition-colors ${align === 'right' ? 'justify-end' : 'justify-start'} ${isActive ? 'text-indigo-400' : ''}`}
+            onClick={() => setSort(sortKey)}
+        >
+            {label}
+            {isActive && (
+                <span className="text-[10px]">
+                    {sort?.direction === 'asc' ? '▲' : '▼'}
+                </span>
+            )}
+        </div>
+    );
+}
+
 export function TrackList() {
     const library = usePlayerStore(state => state.library);
     const playFile = usePlayerStore(state => state.playFile);
@@ -79,12 +100,12 @@ export function TrackList() {
 
     return (
         <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="grid grid-cols-[40px_2fr_1.5fr_1fr_60px] gap-4 px-4 mx-3 py-2 border-b border-white/5 text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">
+            <div className="grid grid-cols-[40px_2fr_1.5fr_1fr_60px] gap-4 px-4 mx-3 py-2 border-b border-white/5 text-xs font-semibold text-white/40 uppercase tracking-wider mb-2 select-none">
                 <span className="text-center">#</span>
-                <span>Title</span>
-                <span>Artist</span>
-                <span>Album</span>
-                <span className="text-right">Duration</span>
+                <SortHeader label="Title" sortKey="title" />
+                <SortHeader label="Artist" sortKey="artist" />
+                <SortHeader label="Album" sortKey="album" />
+                <SortHeader label="Duration" sortKey="duration_secs" align="right" />
             </div>
             <div className="flex-1 overflow-hidden">
                 <Virtuoso

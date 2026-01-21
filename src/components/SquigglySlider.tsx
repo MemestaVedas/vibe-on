@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 
 interface SquigglySliderProps {
@@ -7,28 +7,48 @@ interface SquigglySliderProps {
     onChange: (newValue: number) => void;
     isPlaying?: boolean;
     className?: string;
+    accentColor?: string;
 }
 
-export function SquigglySlider({ value, max, onChange, isPlaying = false, className = '' }: SquigglySliderProps) {
+export function SquigglySlider({ value, max, onChange, isPlaying = false, className = '', accentColor }: SquigglySliderProps) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [width, setWidth] = useState(400); // Default width to prevent layout shift
+
+    // Monitor container resizing to update wave density dynamically
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.contentRect.width > 0) {
+                    setWidth(entry.contentRect.width);
+                }
+            }
+        });
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     const progress = Math.min(1, Math.max(0, value / (max || 1)));
     const percent = progress * 100;
 
-    // Generate paths with identical point counts for smooth interpolation
+    // Generate paths based on ACTUAL container width
+    // This ensures constant wave density (wavelength) regardless of screen size
     const { straightPath, squigglyPath } = useMemo(() => {
-        const width = 400;
-        const points = 100; // Resolution of the line
-        const amplitude = 5;
-        const frequency = 0.15;
+        // Target wavelength: ~25px
+        // Frequency = 2*PI / wavelength
+        const wavelength = 25;
+        const frequency = (2 * Math.PI) / wavelength;
+        const amplitude = 4; // Height of wave
+        const step = 2; // Resolution (pixels per point) - lower is smoother but heavier
 
         let straight = `M 0 10`;
         let squiggly = `M 0 10`;
 
-        for (let i = 0; i <= points; i++) {
-            const x = (i / points) * width;
-
-            // Straight line (y=10)
+        // Generate points across the full width
+        for (let x = 0; x <= width; x += step) {
+            // Straight line
             straight += ` L ${x} 10`;
 
             // Sine wave
@@ -36,8 +56,12 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
             squiggly += ` L ${x} ${y}`;
         }
 
+        // Ensure the line ends exactly at the right edge
+        straight += ` L ${width} 10`;
+        squiggly += ` L ${width} ${10 + Math.sin(width * frequency) * amplitude}`;
+
         return { straightPath: straight, squigglyPath: squiggly };
-    }, []);
+    }, [width]);
 
     const currentPath = isPlaying ? squigglyPath : straightPath;
 
@@ -51,7 +75,7 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
             <svg
                 className="absolute inset-0 w-full h-full overflow-visible"
                 preserveAspectRatio="none"
-                viewBox="0 0 400 20"
+                viewBox={`0 0 ${width} 20`}
             >
                 <motion.path
                     d={currentPath}
@@ -61,7 +85,7 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
                     className="text-white/10"
                     vectorEffect="non-scaling-stroke"
                     animate={{ d: currentPath }}
-                    transition={{ duration: 0.8, type: "spring", bounce: 0.2 }} // Organic spring transition
+                    transition={{ duration: 0.8, type: "spring", bounce: 0.2 }}
                 />
             </svg>
 
@@ -71,17 +95,17 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
                 style={{ width: `${percent}%` }}
             >
                 <svg
-                    className="absolute top-0 left-0 w-full h-full overflow-visible"
-                    style={{ width: containerRef.current ? containerRef.current.clientWidth : '100%' }}
+                    className="absolute top-0 left-0 h-full overflow-visible"
+                    style={{ width: width }} // Must match the parent viewBox width
                     preserveAspectRatio="none"
-                    viewBox="0 0 400 20"
+                    viewBox={`0 0 ${width} 20`}
                 >
                     <motion.path
                         d={currentPath}
                         fill="none"
-                        stroke="currentColor"
+                        stroke={accentColor || "currentColor"}
                         strokeWidth="4"
-                        className="text-indigo-400"
+                        className={!accentColor ? "text-indigo-400 shadow-[0_0_10px_currentColor]" : "shadow-[0_0_10px_currentColor]"}
                         vectorEffect="non-scaling-stroke"
                         animate={{ d: currentPath }}
                         transition={{ duration: 0.8, type: "spring", bounce: 0.2 }}
@@ -89,7 +113,7 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
                 </svg>
             </div>
 
-            {/* Thumb (Optional, maybe just the line ending is enough, but a glowy dot is nice) */}
+            {/* Thumb (Glowy Dot) */}
             <div
                 className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none transform -translate-x-1/2"
                 style={{ left: `${percent}%` }}

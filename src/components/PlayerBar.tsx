@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { useImageColors } from '../hooks/useImageColors';
+import { useThemeStore } from '../store/themeStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { SquigglySlider } from './SquigglySlider';
 import { MarqueeText } from './MarqueeText';
 import { motion, AnimatePresence } from 'motion/react';
@@ -29,6 +30,8 @@ const fadeTransition = {
 
 export function PlayerBar() {
     const { status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack, getCurrentTrackIndex, library, playFile, seek } = usePlayerStore();
+    const { albumArtStyle, expandedArtMode } = useSettingsStore();
+    const { colors } = useThemeStore();
     const { state, track, position_secs, volume } = status;
     const lastStateRef = useRef(state);
 
@@ -76,8 +79,8 @@ export function PlayerBar() {
     const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
     const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
 
-    // Extract dynamic colors from album art
-    const { accent1, accent2, background } = useImageColors(coverUrl);
+    // Dynamic colors from global store
+    const { accent1, accent1Foreground, accent2, background } = colors;
 
     // State for interactive pill
     const [isHovered, setIsHovered] = useState(false);
@@ -92,7 +95,7 @@ export function PlayerBar() {
             className="fixed bottom-6 left-1/2 z-50"
             style={{ x: "-50%" }}
             animate={{
-                width: isHovered ? "90%" : 384,
+                width: isHovered ? "min(95vw, 800px)" : 384,
                 height: isHovered ? 96 : 56,
             }}
             onMouseEnter={() => setIsHovered(true)}
@@ -101,7 +104,8 @@ export function PlayerBar() {
             {/* Hovering Pill Container */}
             <motion.div
                 layout
-                className="w-full h-full bg-[#1c1c1e]/95 backdrop-blur-lg border border-white/10 rounded-full shadow-2xl relative overflow-hidden"
+                className="w-full h-full backdrop-blur-lg border border-white/10 rounded-full shadow-2xl relative overflow-hidden transition-colors duration-700"
+                style={{ backgroundColor: colors.backgroundRaw }} // Already contains alpha from hook
             >
                 {/* Background ambient glow - tint with dynamic color if available */}
                 <div
@@ -130,16 +134,23 @@ export function PlayerBar() {
                             transition={fadeTransition}
                             className="absolute inset-0 flex items-center px-6 gap-6 justify-between"
                         >
-                            {/* Left: Cover Art & Track Info - Fixed width to prevent pushing controls */}
-                            <div className="flex items-center gap-4 w-[25%] flex-shrink-0 relative z-10">
+                            {/* Left: Cover Art & Track Info */}
+                            <div className="flex items-center gap-4 w-[25%] flex-shrink-0 relative z-10 transition-all">
+                                {/* Pill Mode Cover Art */}
+                                {expandedArtMode === 'pill' && coverUrl && (
+                                    <div className="h-12 w-12 rounded-full overflow-hidden shadow-lg border border-white/10 flex-shrink-0 animate-[spin_8s_linear_infinite]">
+                                        <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+
                                 <div className="flex flex-col overflow-hidden min-w-0 flex-1">
                                     <MarqueeText text={track?.title || "Not Playing"} className="text-lg font-bold text-white leading-tight" />
                                     <div className="text-sm text-white/60 leading-tight truncate">{track?.artist || "Pick a song"}</div>
                                 </div>
                             </div>
 
-                            {/* Expanded Mode: Background Cover Art with fade */}
-                            {coverUrl && (
+                            {/* Background Mode Cover Art */}
+                            {expandedArtMode === 'background' && coverUrl && (
                                 <div className="absolute left-0 top-0 bottom-0 w-[50%] pointer-events-none rounded-l-full overflow-hidden">
                                     <img
                                         src={coverUrl}
@@ -160,8 +171,8 @@ export function PlayerBar() {
                                         <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
                                     </button>
                                     <button
-                                        className="w-12 h-12 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all"
-                                        style={{ backgroundColor: accent1 }} // High-contrast accent color
+                                        className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all"
+                                        style={{ backgroundColor: accent1, color: accent1Foreground }} // High-contrast dynamic colors
                                         onClick={handlePlayPause}
                                     >
                                         {state === 'Playing' ? (
@@ -177,7 +188,7 @@ export function PlayerBar() {
                                 <div className="w-full flex items-center gap-3">
                                     <span className="text-xs font-medium text-white/40 tabular-nums w-10 text-right">{formatTime(position_secs)}</span>
                                     <div className="flex-1">
-                                        <SquigglySlider value={position_secs} max={track?.duration_secs || 100} onChange={handleSeek} isPlaying={state === 'Playing'} />
+                                        <SquigglySlider value={position_secs} max={track?.duration_secs || 100} onChange={handleSeek} isPlaying={state === 'Playing'} accentColor={accent1} />
                                     </div>
                                     <span className="text-xs font-medium text-white/40 tabular-nums w-10">{track ? formatTime(track.duration_secs) : '0:00'}</span>
                                 </div>
@@ -201,7 +212,7 @@ export function PlayerBar() {
                             transition={fadeTransition}
                             className="absolute inset-0 flex items-center gap-4 pl-1 pr-6"
                         >
-                            {/* Minimal Mode: Vinyl-style Compact Cover - Flush Left */}
+                            {/* Minimal Mode: Compact Cover - Flush Left */}
                             <div
                                 className="relative h-[90%] aspect-square overflow-hidden shadow-lg border border-white/10 flex-shrink-0 ml-0.5 rounded-full"
                                 style={{
@@ -215,14 +226,17 @@ export function PlayerBar() {
                                         <span className="text-xs">♪</span>
                                     </div>
                                 )}
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black/80 border border-white/20" />
+                                {/* Vinyl Hole - Only show if style is 'vinyl' */}
+                                {albumArtStyle === 'vinyl' && (
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black/80 border border-white/20" />
+                                )}
                             </div>
 
                             {/* Compact Text */}
-                            <div className="flex items-center gap-2 overflow-hidden pr-2 flex-1 min-w-0 relative z-10">
-                                <MarqueeText text={track?.title || "Not Playing"} className="text-sm font-bold text-white flex-1 min-w-0" />
-                                <span className="text-sm text-white/40 flex-shrink-0">•</span>
-                                <span className="text-sm text-white/60 max-w-[80px] truncate flex-shrink-0">{track?.artist || "Artist"}</span>
+                            <div className="flex items-center gap-2 overflow-hidden pr-2 flex-1 min-w-0 relative z-10 justify-start">
+                                <MarqueeText text={track?.title || "Not Playing"} className="text-sm font-bold text-white min-w-0" />
+                                <span className="text-sm text-white/40 flex-shrink-0">-</span>
+                                <span className="text-sm text-white/60 max-w-[120px] truncate flex-shrink-0">{track?.artist || "Artist"}</span>
                             </div>
 
                             {/* Time Display */}

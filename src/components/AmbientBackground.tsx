@@ -1,20 +1,8 @@
-
-import { usePlayerStore } from '../store/playerStore';
-import { useCoverArt } from '../hooks/useCoverArt';
-import { useImageColors } from '../hooks/useImageColors';
+import { useThemeStore } from '../store/themeStore';
 
 export function AmbientBackground() {
-    // Optimization: Only subscribe to the track changes, not the playback status (position, etc.)
-    const track = usePlayerStore(state => state.status.track);
-    const library = usePlayerStore(state => state.library);
-
-    // Get cover URL
-    const currentIndex = library.findIndex(t => t.path === track?.path);
-    const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
-    const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
-
-    // Get dynamic colors from album art
-    const { background, backgroundRaw, accent1, accent2 } = useImageColors(coverUrl);
+    // Dynamic colors from global store
+    const { background, backgroundRaw, accent1, accent2 } = useThemeStore(state => state.colors);
 
     return (
         <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">

@@ -8,12 +8,14 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, State};
 
 use audio::state::PlayerStatus;
-use audio::{AudioPlayer, TrackInfo};
+use audio::{AudioPlayer, MediaCmd, MediaControlService, TrackInfo};
 use database::DatabaseManager;
 use discord_rpc::DiscordRpc;
 
 // Discord App ID
 const DISCORD_APP_ID: &str = "1463457295974535241";
+
+use std::sync::mpsc::Sender;
 
 /// Global player state managed by Tauri
 pub struct AppState {
@@ -21,6 +23,7 @@ pub struct AppState {
     db: Mutex<Option<DatabaseManager>>,
     discord: Arc<DiscordRpc>,
     current_cover_url: Arc<Mutex<Option<String>>>,
+    media_cmd_tx: Mutex<Option<Sender<MediaCmd>>>,
 }
 
 impl Default for AppState {
@@ -30,10 +33,10 @@ impl Default for AppState {
             db: Mutex::new(None),
             discord: Arc::new(DiscordRpc::new(DISCORD_APP_ID)),
             current_cover_url: Arc::new(Mutex::new(None)),
+            media_cmd_tx: Mutex::new(None),
         }
     }
 }
-
 /// Initialize the audio player
 fn get_or_init_player(state: &AppState) -> Result<(), String> {
     let mut player_guard = state.player.lock().unwrap();
@@ -120,7 +123,25 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
 
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
-        player.play_file(&path)
+        let result = player.play_file(&path);
+
+        // Update Windows Media Controls
+        if result.is_ok() {
+            if let Ok((info, _)) = get_track_metadata_helper(&path) {
+                if let Ok(tx_guard) = state.media_cmd_tx.lock() {
+                    if let Some(ref tx) = *tx_guard {
+                        let _ = tx.send(MediaCmd::SetMetadata {
+                            title: info.title.clone(),
+                            artist: info.artist.clone(),
+                            album: info.album.clone(),
+                        });
+                        let _ = tx.send(MediaCmd::SetPlaying);
+                    }
+                }
+            }
+        }
+
+        result
     } else {
         Err("Player not initialized".to_string())
     }
@@ -137,7 +158,7 @@ fn pause(state: State<AppState>) -> Result<(), String> {
             let _ = state.discord.set_activity(
                 &format!("(Paused) {}", track.title),
                 &track.artist,
-                None, // No duration for pause
+                None,
                 cover_url,
                 Some(track.album),
             );
@@ -146,6 +167,14 @@ fn pause(state: State<AppState>) -> Result<(), String> {
                 .discord
                 .set_activity("Paused", "Vibe Music Player", None, None, None);
         }
+
+        // Update Windows Media Controls
+        if let Ok(tx_guard) = state.media_cmd_tx.lock() {
+            if let Some(ref tx) = *tx_guard {
+                let _ = tx.send(MediaCmd::SetPaused);
+            }
+        }
+
         player.pause()
     } else {
         Ok(())
@@ -168,6 +197,14 @@ fn resume(state: State<AppState>) -> Result<(), String> {
                 Some(track.album),
             );
         }
+
+        // Update Windows Media Controls
+        if let Ok(tx_guard) = state.media_cmd_tx.lock() {
+            if let Some(ref tx) = *tx_guard {
+                let _ = tx.send(MediaCmd::SetPlaying);
+            }
+        }
+
         player.resume()
     } else {
         Ok(())
@@ -182,6 +219,14 @@ fn stop(state: State<AppState>) -> Result<(), String> {
         if let Ok(mut url_guard) = state.current_cover_url.lock() {
             *url_guard = None;
         }
+
+        // Update Windows Media Controls
+        if let Ok(tx_guard) = state.media_cmd_tx.lock() {
+            if let Some(ref tx) = *tx_guard {
+                let _ = tx.send(MediaCmd::SetStopped);
+            }
+        }
+
         player.stop()
     } else {
         Ok(())
@@ -435,7 +480,7 @@ pub fn run() {
             resume,
             stop,
             set_volume,
-            seek, // Added seek
+            seek,
             get_player_state,
             scan_music_folder,
             get_track_metadata,
@@ -443,8 +488,35 @@ pub fn run() {
             get_library_tracks,
             get_covers_dir,
         ])
+        .setup(|app| {
+            // Initialize Windows Media Controls with the main window handle
+            #[cfg(target_os = "windows")]
+            {
+                use tauri::Manager;
+
+                if let Some(window) = app.get_webview_window("main") {
+                    // Get HWND from the window
+                    let hwnd = window.hwnd().map(|h| h.0 as isize).unwrap_or(0);
+
+                    if hwnd != 0 {
+                        let tx = MediaControlService::start(app.handle().clone(), hwnd);
+                        let state = app.state::<AppState>();
+
+                        match state.media_cmd_tx.lock() {
+                            Ok(mut tx_guard) => {
+                                *tx_guard = Some(tx);
+                                println!("[MediaControls] Service started successfully");
+                            }
+                            Err(e) => {
+                                eprintln!("[MediaControls] Failed to lock mutex: {}", e);
+                            }
+                        };
+                    }
+                }
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
-            // Optional: Handle second instance launch arguments here
             println!("Second instance launched");
         }))
         .run(tauri::generate_context!())

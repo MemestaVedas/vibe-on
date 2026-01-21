@@ -12,6 +12,7 @@ interface PlayerStore {
     currentFolder: string | null;
     isLoading: boolean;
     error: string | null;
+    sort: { key: keyof TrackDisplay; direction: 'asc' | 'desc' } | null;
 
     // Actions
     playFile: (path: string) => Promise<void>;
@@ -27,7 +28,8 @@ interface PlayerStore {
     nextTrack: () => Promise<void>;
     prevTrack: () => Promise<void>;
     getCurrentTrackIndex: () => number;
-    addToHistory: (track: TrackDisplay) => void; // Newly added
+    addToHistory: (track: TrackDisplay) => void;
+    setSort: (key: keyof TrackDisplay) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -46,8 +48,39 @@ export const usePlayerStore = create<PlayerStore>()(
             currentFolder: null,
             isLoading: false,
             error: null,
+            sort: null,
 
             // Actions
+            setSort: (key: keyof TrackDisplay) => {
+                set((state) => {
+                    let direction: 'asc' | 'desc' = 'asc';
+                    if (state.sort?.key === key && state.sort.direction === 'asc') {
+                        direction = 'desc';
+                    }
+
+                    // Sort logic
+                    const sortedLibrary = [...state.library].sort((a, b) => {
+                        const valA = a[key];
+                        const valB = b[key];
+
+                        if (typeof valA === 'string' && typeof valB === 'string') {
+                            return direction === 'asc'
+                                ? valA.localeCompare(valB)
+                                : valB.localeCompare(valA);
+                        }
+                        if (typeof valA === 'number' && typeof valB === 'number') {
+                            return direction === 'asc' ? valA - valB : valB - valA;
+                        }
+                        return 0;
+                    });
+
+                    return {
+                        sort: { key, direction },
+                        library: sortedLibrary
+                    };
+                });
+            },
+
             addToHistory: (track: TrackDisplay) => {
                 set((state) => {
                     const filtered = state.history.filter((t) => t.path !== track.path);

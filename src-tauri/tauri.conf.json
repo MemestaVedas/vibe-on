@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "vibe-on",
+  "productName": "VIBE-ON!",
   "version": "0.1.0",
   "identifier": "moe.memesta.vibe-on",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "vibe-on",
+        "title": "VIBE-ON!",
         "width": 1000,
         "height": 700,
         "decorations": false,
