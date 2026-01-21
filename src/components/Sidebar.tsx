@@ -1,5 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { usePlayerStore } from '../store/playerStore';
+import { useSettingsStore } from '../store/settingsStore';
 
 interface SidebarProps {
     view: 'tracks' | 'albums';
@@ -8,6 +9,7 @@ interface SidebarProps {
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
     const { scanFolder, currentFolder, library } = usePlayerStore();
+    const { albumArtStyle, setAlbumArtStyle } = useSettingsStore();
 
     const handleOpenFolder = async () => {
         try {
@@ -69,6 +71,26 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                         </div>
                     </div>
                 )}
+
+                {/* Settings Section */}
+                <div className="mb-6">
+                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Settings</p>
+                    <div className="px-3 py-3 rounded-lg bg-white/5">
+                        <p className="text-xs text-white/70 mb-2">Album Art Style</p>
+                        <div className="flex gap-2">
+                            <StyleButton
+                                label="Vinyl"
+                                active={albumArtStyle === 'vinyl'}
+                                onClick={() => setAlbumArtStyle('vinyl')}
+                            />
+                            <StyleButton
+                                label="Full"
+                                active={albumArtStyle === 'full'}
+                                onClick={() => setAlbumArtStyle('full')}
+                            />
+                        </div>
+                    </div>
+                </div>
             </nav>
 
             {/* Add Folder Button */}
@@ -101,8 +123,8 @@ function NavItem({
         <button
             onClick={onClick}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${active
-                    ? 'bg-white/10 text-white'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                ? 'bg-white/10 text-white'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
         >
             <span className="text-base">{icon}</span>
@@ -113,3 +135,26 @@ function NavItem({
         </button>
     );
 }
+
+function StyleButton({
+    label,
+    active,
+    onClick
+}: {
+    label: string;
+    active: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-200 ${active
+                ? 'bg-indigo-500 text-white'
+                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                }`}
+        >
+            {label}
+        </button>
+    );
+}
+
