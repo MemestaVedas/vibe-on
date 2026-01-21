@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { SquigglySlider } from './SquigglySlider';
-import { motion, AnimatePresence } from 'motion/react';
+import { MarqueeText } from './MarqueeText';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Format seconds to MM:SS
 function formatTime(seconds: number): string {
@@ -17,12 +18,12 @@ const springTransition = {
     stiffness: 350,
     damping: 45,
     mass: 1,
-};
+} as const;
 
 // Fade transition for content
 const fadeTransition = {
     duration: 0.3,
-    ease: [0.4, 0, 0.2, 1],
+    ease: [0.4, 0, 0.2, 1] as const,
 };
 
 export function PlayerBar() {
@@ -125,22 +126,28 @@ export function PlayerBar() {
                             transition={fadeTransition}
                             className="absolute inset-0 flex items-center px-6 gap-6"
                         >
-                            {/* Left: Cover Art & Track Info */}
-                            <div className="flex items-center gap-4 min-w-[30%] relative z-10">
-                                <div className="relative w-16 h-16 rounded-full overflow-hidden shadow-lg border-2 border-white/10">
-                                    {coverUrl ? (
-                                        <img src={coverUrl ?? undefined} alt="Cover" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-500 flex justify-center items-center text-white/50">
-                                            <span className="text-2xl">♪</span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex flex-col overflow-hidden">
-                                    <div className="text-lg font-bold text-white leading-tight truncate">{track?.title || "Not Playing"}</div>
+                            {/* Left: Cover Art & Track Info - Fixed width to prevent pushing controls */}
+                            <div className="flex items-center gap-4 w-[25%] flex-shrink-0 relative z-10">
+                                <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                                    <MarqueeText text={track?.title || "Not Playing"} className="text-lg font-bold text-white leading-tight" />
                                     <div className="text-sm text-white/60 leading-tight truncate">{track?.artist || "Pick a song"}</div>
                                 </div>
                             </div>
+
+                            {/* Expanded Mode: Background Cover Art with fade */}
+                            {coverUrl && (
+                                <div className="absolute left-0 top-0 bottom-0 w-[50%] pointer-events-none rounded-l-full overflow-hidden">
+                                    <img
+                                        src={coverUrl}
+                                        alt=""
+                                        className="absolute inset-0 w-full h-full object-cover"
+                                        style={{
+                                            maskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 100%)',
+                                            WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 100%)',
+                                        }}
+                                    />
+                                </div>
+                            )}
 
                             {/* Center: Controls & Squiggly Progress */}
                             <div className="flex-1 flex flex-col items-center justify-center gap-2 relative z-10">
@@ -168,8 +175,8 @@ export function PlayerBar() {
                                 </div>
                             </div>
 
-                            {/* Right: Volume */}
-                            <div className="w-[20%] flex items-center justify-end gap-3 relative z-10">
+                            {/* Right: Volume - Fixed width */}
+                            <div className="w-[20%] flex-shrink-0 flex items-center justify-end gap-3 relative z-10">
                                 <svg className="w-5 h-5 text-white/50" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor" /></svg>
                                 <div className="w-24 flex items-center">
                                     <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
@@ -186,12 +193,12 @@ export function PlayerBar() {
                             transition={fadeTransition}
                             className="absolute inset-0 flex items-center gap-4 pl-1 pr-6"
                         >
-                            {/* Compact Cover - Flush Left */}
-                            <motion.div
-                                className="relative h-[90%] aspect-square rounded-full overflow-hidden shadow-lg border border-white/10 flex-shrink-0 ml-0.5"
-                                animate={{ rotate: state === 'Playing' ? 360 : 0 }}
-                                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                                style={{ animationPlayState: state === 'Playing' ? 'running' : 'paused' }}
+                            {/* Minimal Mode: Vinyl-style Compact Cover - Flush Left */}
+                            <div
+                                className="relative h-[90%] aspect-square overflow-hidden shadow-lg border border-white/10 flex-shrink-0 ml-0.5 rounded-full"
+                                style={{
+                                    animation: state === 'Playing' ? 'spin-vinyl 8s linear infinite' : 'none',
+                                }}
                             >
                                 {coverUrl ? (
                                     <img src={coverUrl ?? undefined} alt="Cover" className="w-full h-full object-cover" />
@@ -200,12 +207,14 @@ export function PlayerBar() {
                                         <span className="text-xs">♪</span>
                                     </div>
                                 )}
-                            </motion.div>
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black/80 border border-white/20" />
+                            </div>
+
                             {/* Compact Text */}
-                            <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden pr-2 flex-1">
-                                <span className="text-sm font-bold text-white max-w-[150px] truncate">{track?.title || "Not Playing"}</span>
-                                <span className="text-sm text-white/40">•</span>
-                                <span className="text-sm text-white/60 max-w-[120px] truncate">{track?.artist || "Artist"}</span>
+                            <div className="flex items-center gap-2 overflow-hidden pr-2 flex-1 min-w-0 relative z-10">
+                                <MarqueeText text={track?.title || "Not Playing"} className="text-sm font-bold text-white flex-1 min-w-0" />
+                                <span className="text-sm text-white/40 flex-shrink-0">•</span>
+                                <span className="text-sm text-white/60 max-w-[80px] truncate flex-shrink-0">{track?.artist || "Artist"}</span>
                             </div>
 
                             {/* Time Display */}

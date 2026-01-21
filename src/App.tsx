@@ -12,12 +12,36 @@ import { AlbumGrid } from './components/AlbumGrid';
 import { AmbientBackground } from './components/AmbientBackground';
 
 function App() {
-  const { loadLibrary } = usePlayerStore();
+  const { loadLibrary, status, pause, resume, playFile } = usePlayerStore();
   const [view, setView] = useState<'tracks' | 'albums'>('tracks');
 
   useEffect(() => {
     loadLibrary();
   }, [loadLibrary]);
+
+  // Global spacebar play/pause handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault(); // Prevent page scroll
+        if (status.state === 'Playing') {
+          pause();
+        } else if (status.state === 'Paused') {
+          resume();
+        } else if (status.state === 'Stopped' && status.track) {
+          playFile(status.track.path);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [status.state, status.track, pause, resume, playFile]);
 
   return (
     <div className="flex h-screen overflow-hidden relative">
