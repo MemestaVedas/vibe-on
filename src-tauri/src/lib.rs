@@ -5,7 +5,7 @@ mod discord_rpc;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use audio::state::PlayerStatus;
 use audio::{AudioPlayer, TrackInfo};
@@ -88,7 +88,9 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
         let duration = info.duration_secs;
 
         std::thread::spawn(move || {
+            println!("[Cover] Searching for: {} - {}", artist, album);
             if let Some(url) = cover_fetcher::search_cover(&artist, &album) {
+                println!("[Cover] Found URL: {}", url);
                 // Save to state
                 if let Ok(mut guard) = url_mutex_clone.lock() {
                     *guard = Some(url.clone());
@@ -102,6 +104,8 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
                     Some(url),
                     Some(album),
                 );
+            } else {
+                println!("[Cover] No cover found for: {} - {}", artist, album);
             }
         });
     } else {
