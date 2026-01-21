@@ -52,9 +52,17 @@ export function PlayerBar() {
     const hasPrev = currentIndex > 0;
     const hasNext = currentIndex >= 0 && currentIndex < library.length - 1;
 
+    // Calculate progress percentage for seek bar styling
+    const progressPercent = track ? (position_secs / track.duration_secs) * 100 : 0;
+
     // Get cover from library since player status doesn't include cover path
     const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
     const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
+
+    // Dynamic style for progress slider to show filled portion (WebKit doesn't support ::-webkit-slider-runnable-track progress)
+    const progressSliderStyle = {
+        background: `linear-gradient(to right, #667eea 0%, #764ba2 ${progressPercent}%, rgba(255, 255, 255, 0.2) ${progressPercent}%, rgba(255, 255, 255, 0.2) 100%)`
+    };
 
     return (
         <div className="player-bar">
@@ -121,6 +129,7 @@ export function PlayerBar() {
                         value={position_secs}
                         onChange={() => {/* TODO: Implement seek in backend */ }}
                         className="progress-slider"
+                        style={progressSliderStyle}
                         disabled={!track}
                     />
                     <span className="time">{track ? formatTime(track.duration_secs) : '0:00'}</span>

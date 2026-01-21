@@ -48,24 +48,41 @@ impl DiscordRpc {
         let mut client_guard = self.client.lock().map_err(|e| e.to_string())?;
 
         if let Some(client) = client_guard.as_mut() {
-            let assets = activity::Assets::new()
-                .large_image(image_url.as_deref().unwrap_or("vibe_icon"))
-                .large_text(album_name.as_deref().unwrap_or("Vibe Music Player"));
+            // Clone to owned strings to ensure they live long enough
+            let image_url_owned = image_url;
+            let album_name_owned = album_name;
+
+            let mut assets = activity::Assets::new();
+
+            // Set large image: use URL if provided, otherwise default icon
+            if let Some(ref url) = image_url_owned {
+                println!("[Discord] Setting large image URL: {}", url);
+                assets = assets.large_image(url);
+            } else {
+                println!("[Discord] No image URL, using default icon");
+                assets = assets.large_image("vibe_icon");
+            }
+
+            // Set hover text (tooltip): use Album name if provided, otherwise default
+            if let Some(ref album) = album_name_owned {
+                assets = assets.large_text(album);
+            } else {
+                assets = assets.large_text("Vibe Music Player");
+            }
 
             let mut activity = activity::Activity::new()
                 .details(details)
                 .state(state)
                 .assets(assets);
 
-            if let Some(duration) = duration_secs {
+            if let Some(_duration) = duration_secs {
                 let start = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs() as i64;
 
-                let end = start + duration as i64;
-
-                activity = activity.timestamps(activity::Timestamps::new().start(start).end(end));
+                // Only set start time to show elapsed time (not countdown)
+                activity = activity.timestamps(activity::Timestamps::new().start(start));
             }
 
             match client.set_activity(activity) {
