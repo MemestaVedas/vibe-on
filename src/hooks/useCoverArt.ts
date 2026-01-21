@@ -17,8 +17,8 @@ export function useCoverArt(coverPath: string | null | undefined) {
 
         const loadCover = async () => {
             try {
-                // Construct path - handle separators manually
-                const fullPath = `${coversDir}\\${coverPath}`;
+                // Construct path - use forward slash (works on macOS/Linux)
+                const fullPath = `${coversDir}/${coverPath}`;
 
                 const data = await readFile(fullPath);
                 const blob = new Blob([data]);

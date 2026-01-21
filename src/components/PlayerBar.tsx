@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import './PlayerBar.css';
@@ -11,8 +11,9 @@ function formatTime(seconds: number): string {
 }
 
 export function PlayerBar() {
-    const { status, pause, resume, stop, setVolume, refreshStatus } = usePlayerStore();
+    const { status, pause, resume, stop, setVolume, refreshStatus, nextTrack, prevTrack, getCurrentTrackIndex, library } = usePlayerStore();
     const { state, track, position_secs, volume } = status;
+    const lastStateRef = useRef(state);
 
     // Poll for status updates while playing
     useEffect(() => {
@@ -21,6 +22,19 @@ export function PlayerBar() {
             return () => clearInterval(interval);
         }
     }, [state, refreshStatus]);
+
+    // Auto-play next track when current track ends
+    useEffect(() => {
+        // Detect when track ends: state changes from Playing to Stopped
+        // and we have a track, and position is near the end
+        if (lastStateRef.current === 'Playing' && state === 'Stopped' && track) {
+            const isNearEnd = position_secs >= track.duration_secs - 1;
+            if (isNearEnd) {
+                nextTrack();
+            }
+        }
+        lastStateRef.current = state;
+    }, [state, track, position_secs, nextTrack]);
 
     const handlePlayPause = () => {
         if (state === 'Playing') {
@@ -34,9 +48,13 @@ export function PlayerBar() {
         setVolume(parseFloat(e.target.value));
     };
 
-    const progress = track ? (position_secs / track.duration_secs) * 100 : 0;
+    const currentIndex = getCurrentTrackIndex();
+    const hasPrev = currentIndex > 0;
+    const hasNext = currentIndex >= 0 && currentIndex < library.length - 1;
 
-    const coverUrl = useCoverArt(track?.cover_image);
+    // Get cover from library since player status doesn't include cover path
+    const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
+    const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
 
     return (
         <div className="player-bar">
@@ -62,6 +80,14 @@ export function PlayerBar() {
                 <div className="control-buttons">
                     <button
                         className="control-btn"
+                        onClick={prevTrack}
+                        disabled={!hasPrev}
+                        title="Previous track"
+                    >
+                        ⏮
+                    </button>
+                    <button
+                        className="control-btn play-btn"
                         onClick={handlePlayPause}
                         disabled={!track}
                     >
@@ -69,8 +95,17 @@ export function PlayerBar() {
                     </button>
                     <button
                         className="control-btn"
+                        onClick={nextTrack}
+                        disabled={!hasNext}
+                        title="Next track"
+                    >
+                        ⏭
+                    </button>
+                    <button
+                        className="control-btn stop-btn"
                         onClick={stop}
                         disabled={!track}
+                        title="Stop"
                     >
                         ⏹
                     </button>
@@ -78,12 +113,16 @@ export function PlayerBar() {
 
                 <div className="progress-container">
                     <span className="time">{formatTime(position_secs)}</span>
-                    <div className="progress-bar">
-                        <div
-                            className="progress-fill"
-                            style={{ width: `${Math.min(progress, 100)}%` }}
-                        />
-                    </div>
+                    <input
+                        type="range"
+                        min="0"
+                        max={track?.duration_secs || 100}
+                        step="0.1"
+                        value={position_secs}
+                        onChange={() => {/* TODO: Implement seek in backend */ }}
+                        className="progress-slider"
+                        disabled={!track}
+                    />
                     <span className="time">{track ? formatTime(track.duration_secs) : '0:00'}</span>
                 </div>
             </div>
