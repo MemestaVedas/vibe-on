@@ -1,0 +1,224 @@
+.album-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 24px;
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.album-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.album-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-4px);
+}
+
+.album-cover-container {
+    aspect-ratio: 1;
+    width: 100%;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.album-card-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.album-card-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #2a2a4e 0%, #1f1f3a 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    color: rgba(255, 255, 255, 0.1);
+}
+
+.album-hover-play {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #667eea;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.album-cover-container:hover .album-hover-play {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.album-hover-play:hover {
+    transform: scale(1.1);
+    background: #764ba2;
+}
+
+.album-card-info {
+    text-align: left;
+}
+
+.album-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.album-card-artist {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Detail View */
+.album-detail-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(20, 20, 35, 0.8) 0%, rgba(10, 10, 20, 0.95) 100%);
+}
+
+.album-detail-header {
+    padding: 32px;
+    background: linear-gradient(180deg, rgba(102, 126, 234, 0.1) 0%, rgba(20, 20, 35, 0) 100%);
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    cursor: pointer;
+    margin-bottom: 24px;
+    padding: 0;
+}
+
+.back-btn:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+.album-hero {
+    display: flex;
+    gap: 32px;
+    align-items: flex-end;
+}
+
+.hero-cover {
+    width: 200px;
+    height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    object-fit: cover;
+}
+
+.hero-cover-placeholder {
+    width: 200px;
+    height: 200px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 64px;
+    color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.hero-info h1 {
+    font-size: 48px;
+    font-weight: 800;
+    margin: 0 0 8px;
+    line-height: 1.1;
+    background: linear-gradient(to right, #fff, #ccc);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero-info h2 {
+    font-size: 24px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0 0 16px;
+}
+
+.hero-info p {
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 24px;
+}
+
+.play-album-btn {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 24px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.play-album-btn:hover {
+    transform: scale(1.05);
+    background: #764ba2;
+}
+
+.album-tracks-list {
+    padding: 0 32px 32px;
+    overflow-y: auto;
+}
+
+.album-track-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 60px;
+    padding: 12px 16px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.album-track-row:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.track-num {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.track-duration {
+    text-align: right;
+    color: rgba(255, 255, 255, 0.4);
+}

@@ -1,0 +1,87 @@
+.titlebar {
+    height: 38px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    user-select: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.titlebar-buttons {
+    display: flex;
+    gap: 8px;
+    width: 60px;
+    /* Balance the center title */
+}
+
+.titlebar-button {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.titlebar-button svg {
+    width: 6px;
+    height: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.titlebar-buttons:hover .titlebar-button svg {
+    opacity: 1;
+}
+
+/* MacOS Colors */
+.titlebar-button.close {
+    background-color: #FF5F57;
+    border: 1px solid #E0443E;
+}
+
+.titlebar-button.minimize {
+    background-color: #FEBC2E;
+    border: 1px solid #D89E24;
+}
+
+.titlebar-button.maximize {
+    background-color: #28C840;
+    border: 1px solid #1AAB29;
+}
+
+.titlebar-button:active {
+    filter: brightness(0.9);
+}
+
+.titlebar-title {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    letter-spacing: 0.5px;
+    width: 100%;
+    text-align: center;
+    /* Ensure it doesn't block dragging */
+    pointer-events: none;
+}
+
+/* Placeholder to balance the layout */
+.titlebar-placeholder {
+    width: 60px;
+}
