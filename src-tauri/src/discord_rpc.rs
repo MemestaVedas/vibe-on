@@ -48,21 +48,9 @@ impl DiscordRpc {
         let mut client_guard = self.client.lock().map_err(|e| e.to_string())?;
 
         if let Some(client) = client_guard.as_mut() {
-            let mut assets = activity::Assets::new();
-
-            // Set large image: use URL if provided, otherwise default icon
-            if let Some(url) = image_url {
-                assets = assets.large_image(&url);
-            } else {
-                assets = assets.large_image("vibe_icon");
-            }
-
-            // Set hover text (tooltip): use Album name if provided, otherwise default
-            if let Some(album) = album_name {
-                assets = assets.large_text(&album);
-            } else {
-                assets = assets.large_text("Vibe Music Player");
-            }
+            let assets = activity::Assets::new()
+                .large_image(image_url.as_deref().unwrap_or("vibe_icon"))
+                .large_text(album_name.as_deref().unwrap_or("Vibe Music Player"));
 
             let mut activity = activity::Activity::new()
                 .details(details)

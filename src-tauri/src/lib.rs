@@ -5,7 +5,7 @@ mod discord_rpc;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use audio::state::PlayerStatus;
 use audio::{AudioPlayer, TrackInfo};

@@ -1,17 +1,19 @@
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ItunesResponse {
-    resultCount: i32,
+    result_count: i32,
     results: Vec<ItunesResult>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ItunesResult {
-    artworkUrl100: Option<String>,
-    collectionName: Option<String>,
-    artistName: Option<String>,
+    #[serde(rename = "artworkUrl100")] // rename_all might fail for numbers? explicit safety
+    artwork_url_100: Option<String>,
+    collection_name: Option<String>,
+    artist_name: Option<String>,
 }
 
 pub fn search_cover(artist: &str, album: &str) -> Option<String> {
@@ -39,7 +41,7 @@ pub fn search_cover(artist: &str, album: &str) -> Option<String> {
             if response.status().is_success() {
                 if let Ok(itunes_data) = response.json::<ItunesResponse>() {
                     if let Some(first_result) = itunes_data.results.first() {
-                        if let Some(url) = &first_result.artworkUrl100 {
+                        if let Some(url) = &first_result.artwork_url_100 {
                             // Upgrade quality to 512x512
                             let high_res = url.replace("100x100bb", "512x512bb");
                             return Some(high_res);
