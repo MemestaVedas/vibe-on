@@ -5,7 +5,7 @@ mod discord_rpc;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use audio::state::PlayerStatus;
 use audio::{AudioPlayer, MediaCmd, MediaControlService, TrackInfo};
@@ -464,6 +464,49 @@ fn get_track_metadata(path: String) -> Result<TrackInfo, String> {
 }
 
 // ============================================================================
+// YouTube Music Integration
+// ============================================================================
+
+#[tauri::command]
+async fn open_yt_music(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::WebviewUrl;
+    use tauri::WebviewWindowBuilder;
+
+    // Check if window already exists
+    if let Some(window) = app.get_webview_window("ytmusic") {
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    // Spawn window creation to not block the main thread
+    tauri::async_runtime::spawn(async move {
+        let result = WebviewWindowBuilder::new(
+            &app,
+            "ytmusic",
+            WebviewUrl::External("https://music.youtube.com".parse().unwrap()),
+        )
+        .title("YouTube Music")
+        .inner_size(1200.0, 800.0)
+        .decorations(true)
+        .resizable(true)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        .devtools(true) // Enable devtools for debugging
+        .on_navigation(|url| {
+            // Allow all navigation for YouTube Music
+            println!("[YTMusic] Navigating to: {}", url);
+            true
+        })
+        .build();
+
+        if let Err(e) = result {
+            eprintln!("[YTMusic] Failed to create window: {}", e);
+        }
+    });
+
+    Ok(())
+}
+
+// ============================================================================
 // App Entry Point
 // ============================================================================
 
@@ -487,6 +530,7 @@ pub fn run() {
             init_library,
             get_library_tracks,
             get_covers_dir,
+            open_yt_music,
         ])
         .setup(|app| {
             // Initialize Windows Media Controls with the main window handle

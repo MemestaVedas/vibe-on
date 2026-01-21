@@ -31,7 +31,6 @@ impl DiscordRpc {
             }
             Err(e) => {
                 eprintln!("Failed to connect to Discord RPC: {}", e);
-                // Don't return error to simple allow app to run without discord
                 Ok(())
             }
         }
@@ -42,33 +41,18 @@ impl DiscordRpc {
         details: &str,
         state: &str,
         duration_secs: Option<f64>,
-        image_url: Option<String>,
-        album_name: Option<String>,
+        _image_url: Option<String>,
+        _album_name: Option<String>,
     ) -> Result<(), String> {
         let mut client_guard = self.client.lock().map_err(|e| e.to_string())?;
 
         if let Some(client) = client_guard.as_mut() {
-            // Clone to owned strings to ensure they live long enough
-            let image_url_owned = image_url;
-            let album_name_owned = album_name;
-
             let mut assets = activity::Assets::new();
 
-            // Set large image: use URL if provided, otherwise default icon
-            if let Some(ref url) = image_url_owned {
-                println!("[Discord] Setting large image URL: {}", url);
-                assets = assets.large_image(url);
-            } else {
-                println!("[Discord] No image URL, using default icon");
-                assets = assets.large_image("vibe_icon");
-            }
-
-            // Set hover text (tooltip): use Album name if provided, otherwise default
-            if let Some(ref album) = album_name_owned {
-                assets = assets.large_text(album);
-            } else {
-                assets = assets.large_text("Vibe Music Player");
-            }
+            // Per user request: use the default app icon only
+            assets = assets
+                .large_image("vibe_icon")
+                .large_text("Vibe Music Player");
 
             let mut activity = activity::Activity::new()
                 .details(details)
@@ -81,7 +65,6 @@ impl DiscordRpc {
                     .unwrap_or_default()
                     .as_secs() as i64;
 
-                // Only set start time to show elapsed time (not countdown)
                 activity = activity.timestamps(activity::Timestamps::new().start(start));
             }
 
@@ -102,11 +85,8 @@ impl DiscordRpc {
 
         if let Some(client) = client_guard.as_mut() {
             let _ = client.close();
-            // Re-connecting usually requires new client or reconnect
-            // For now just clearing activity might be enough?
-            // client.clear_activity(); // Not always available or reliable
         }
-        *client_guard = None; // Force reconnect next time
+        *client_guard = None;
         Ok(())
     }
 }

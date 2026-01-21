@@ -12,7 +12,18 @@ interface SquigglySliderProps {
 
 export function SquigglySlider({ value, max, onChange, isPlaying = false, className = '', accentColor }: SquigglySliderProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [width, setWidth] = useState(400); // Default width to prevent layout shift
+    const [width, setWidth] = useState(400);
+    const [localValue, setLocalValue] = useState<number | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // Sync local value with prop when NOT dragging
+    useEffect(() => {
+        if (!isDragging) {
+            setLocalValue(null);
+        }
+    }, [isDragging, value]);
+
+    const displayValue = localValue !== null ? localValue : value;
 
     // Monitor container resizing to update wave density dynamically
     useEffect(() => {
@@ -30,43 +41,51 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
         return () => observer.disconnect();
     }, []);
 
-    const progress = Math.min(1, Math.max(0, value / (max || 1)));
+    const progress = Math.min(1, Math.max(0, displayValue / (max || 1)));
     const percent = progress * 100;
 
     // Generate paths based on ACTUAL container width
-    // This ensures constant wave density (wavelength) regardless of screen size
     const { straightPath, squigglyPath } = useMemo(() => {
-        // Target wavelength: ~25px
-        // Frequency = 2*PI / wavelength
+        // Fallback for invalid width
+        const safeWidth = typeof width === 'number' && !isNaN(width) && width > 0 ? width : 400;
+
         const wavelength = 25;
         const frequency = (2 * Math.PI) / wavelength;
-        const amplitude = 4; // Height of wave
-        const step = 2; // Resolution (pixels per point) - lower is smoother but heavier
+        const amplitude = 4;
+        const step = 2;
 
         let straight = `M 0 10`;
         let squiggly = `M 0 10`;
 
-        // Generate points across the full width
-        for (let x = 0; x <= width; x += step) {
-            // Straight line
+        for (let x = 0; x <= safeWidth; x += step) {
             straight += ` L ${x} 10`;
-
-            // Sine wave
             const y = 10 + Math.sin(x * frequency) * amplitude;
             squiggly += ` L ${x} ${y}`;
         }
 
-        // Ensure the line ends exactly at the right edge
-        straight += ` L ${width} 10`;
-        squiggly += ` L ${width} ${10 + Math.sin(width * frequency) * amplitude}`;
+        straight += ` L ${safeWidth} 10`;
+        squiggly += ` L ${safeWidth} ${10 + Math.sin(safeWidth * frequency) * amplitude}`;
 
-        return { straightPath: straight, squigglyPath: squiggly };
+        return {
+            straightPath: straight || "M 0 10 L 400 10",
+            squigglyPath: squiggly || "M 0 10 L 400 10"
+        };
     }, [width]);
 
-    const currentPath = isPlaying ? squigglyPath : straightPath;
+    const currentPath = (isPlaying ? squigglyPath : straightPath) || "M 0 10 L 400 10";
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        onChange(parseFloat(e.target.value));
+    const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
+        const val = parseFloat((e.target as HTMLInputElement).value);
+        setLocalValue(val);
+        setIsDragging(true);
+    };
+
+    const handleMouseUp = () => {
+        if (localValue !== null) {
+            onChange(localValue);
+        }
+        setIsDragging(false);
+        setLocalValue(null);
     };
 
     return (
@@ -96,7 +115,7 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
             >
                 <svg
                     className="absolute top-0 left-0 h-full overflow-visible"
-                    style={{ width: width }} // Must match the parent viewBox width
+                    style={{ width: width }}
                     preserveAspectRatio="none"
                     viewBox={`0 0 ${width} 20`}
                 >
@@ -127,9 +146,11 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
                 min="0"
                 max={max}
                 step="0.1"
-                value={value}
-                onChange={handleChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                value={displayValue}
+                onInput={handleInput}
+                onMouseUp={handleMouseUp}
+                onTouchEnd={handleMouseUp}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50 pointer-events-auto"
             />
         </div>
     );

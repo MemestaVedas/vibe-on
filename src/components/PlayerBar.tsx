@@ -45,9 +45,11 @@ export function PlayerBar() {
 
     // Auto-play next track when current track ends
     useEffect(() => {
+        // Since backend now transitions to 'Stopped' naturally, we check if we were just playing
         if (lastStateRef.current === 'Playing' && state === 'Stopped' && track) {
-            const isNearEnd = position_secs >= track.duration_secs - 1;
-            if (isNearEnd) {
+            // Check if we reached the end (backend now caps position at duration)
+            const isFinished = position_secs >= track.duration_secs - 0.5;
+            if (isFinished) {
                 nextTrack();
             }
         }

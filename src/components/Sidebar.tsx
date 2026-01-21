@@ -78,12 +78,27 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
 
                 {/* Settings Section */}
                 <div className="mb-6">
-                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Preferences</p> // Renamed section title
+                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Preferences</p>
                     <NavItem
                         icon="⚙️"
                         label="Settings"
                         active={view === 'settings'}
                         onClick={() => onViewChange('settings')}
+                        accentColor={accent1}
+                    />
+                </div>
+
+                {/* Online Music Section */}
+                <div className="mb-6">
+                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Online</p>
+                    <NavItem
+                        icon="▶️"
+                        label="YouTube Music"
+                        active={false}
+                        onClick={async () => {
+                            const { invoke } = await import('@tauri-apps/api/core');
+                            invoke('open_yt_music').catch(console.error);
+                        }}
                         accentColor={accent1}
                     />
                 </div>

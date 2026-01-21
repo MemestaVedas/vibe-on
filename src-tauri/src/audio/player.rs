@@ -133,7 +133,8 @@ impl AudioThread {
         let stream_handle = Arc::new(stream_handle);
 
         loop {
-            match command_rx.recv() {
+            // Use timeout to allow polling for track completion
+            match command_rx.recv_timeout(std::time::Duration::from_millis(100)) {
                 Ok(AudioCommand::Play(path)) => {
                     audio.handle_play(&path, &stream_handle);
                 }
@@ -156,7 +157,27 @@ impl AudioThread {
                     let status = audio.get_status();
                     let _ = tx.send(status);
                 }
-                Ok(AudioCommand::Shutdown) | Err(_) => {
+                Ok(AudioCommand::Shutdown) => {
+                    break;
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    // Check if track finished
+                    if audio.state == PlayerState::Playing {
+                        if let Some(ref sink) = audio.sink {
+                            // Grace period: Only check for completion if we've been playing for at least 500ms
+                            let elapsed = audio
+                                .play_start_time
+                                .map(|t| t.elapsed().as_millis())
+                                .unwrap_or(0);
+
+                            if elapsed > 500 && sink.empty() {
+                                println!("[Audio] Track finished naturally");
+                                audio.handle_stop();
+                            }
+                        }
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                     break;
                 }
             }
@@ -320,13 +341,20 @@ impl AudioThread {
     }
 
     fn get_status(&self) -> PlayerStatus {
-        let position_secs = {
+        let mut position_secs = {
             let current = self
                 .play_start_time
                 .map(|start| start.elapsed().as_secs_f64())
                 .unwrap_or(0.0);
             self.accumulated_time + current
         };
+
+        // Cap position to duration to prevent exceeding
+        if let Some(ref track) = self.current_track {
+            if position_secs > track.duration_secs {
+                position_secs = track.duration_secs;
+            }
+        }
 
         PlayerStatus {
             state: self.state,
