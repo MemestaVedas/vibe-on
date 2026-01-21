@@ -44,7 +44,7 @@ export function RightPanel() {
             </div>
 
             {/* Queue / Up Next */}
-            <div className="flex-1 p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
+            <div className="flex-1 p-5 overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                     <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Up Next</p>
                     <button className="text-[10px] text-indigo-400 hover:text-indigo-300">See all</button>
