@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, forwardRef } from 'react';
+import { VirtuosoGrid } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import type { TrackDisplay } from '../types';
-import './AlbumGrid.css';
+
 
 interface Album {
     name: string;
@@ -12,7 +13,8 @@ interface Album {
 }
 
 export function AlbumGrid() {
-    const { library, playFile } = usePlayerStore();
+    const library = usePlayerStore(state => state.library);
+    const playFile = usePlayerStore(state => state.playFile);
     const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
 
     // Group tracks by album
@@ -55,16 +57,34 @@ export function AlbumGrid() {
     }
 
     return (
-        <div className="album-grid">
-            {albums.map(album => (
+        <VirtuosoGrid
+            style={{ height: '100%' }}
+            data={albums}
+            overscan={200}
+            components={{
+                List: forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(({ style, children, ...props }, ref) => (
+                    <div
+                        ref={ref}
+                        {...props}
+                        style={{ ...style, width: '100%' }}
+                        className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-5 p-5 pb-24 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20"
+                    >
+                        {children}
+                    </div>
+                )),
+                Item: ({ children, ...props }) => (
+                    <div {...props} style={{ padding: 0, margin: 0 }}>{children}</div>
+                )
+            }}
+            itemContent={(_, album) => (
                 <AlbumCard
                     key={`${album.name}-${album.artist}`}
                     album={album}
                     onClick={() => setSelectedAlbum(`${album.name}-${album.artist}`)}
                     onPlay={() => handlePlayAlbum(album)}
                 />
-            ))}
-        </div>
+            )}
+        />
     );
 }
 
@@ -72,23 +92,26 @@ function AlbumCard({ album, onClick, onPlay }: { album: Album, onClick: () => vo
     const coverUrl = useCoverArt(album.cover);
 
     return (
-        <div className="album-card" onClick={onClick}>
-            <div className="album-cover-container">
+        <div className="bg-white/5 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:bg-white/10 hover:-translate-y-1 group" onClick={onClick}>
+            <div className="aspect-square w-full mb-3 rounded-lg overflow-hidden relative shadow-lg">
                 {coverUrl ? (
-                    <img src={coverUrl} alt={album.name} className="album-card-cover" />
+                    <img src={coverUrl} alt={album.name} className="w-full h-full object-cover" />
                 ) : (
-                    <div className="album-card-placeholder">♪</div>
+                    <div className="w-full h-full bg-gradient-to-br from-[#2a2a4e] to-[#1f1f3a] flex items-center justify-center text-4xl text-white/10">♪</div>
                 )}
-                <div className="album-hover-play" onClick={(e) => {
-                    e.stopPropagation();
-                    onPlay();
-                }}>
+                <div
+                    className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center opacity-0 translate-y-2.5 transition-all duration-200 shadow-lg group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 hover:bg-indigo-600"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPlay();
+                    }}
+                >
                     ▶
                 </div>
             </div>
-            <div className="album-card-info">
-                <div className="album-card-title">{album.name}</div>
-                <div className="album-card-artist">{album.artist}</div>
+            <div className="text-left">
+                <div className="text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1">{album.name}</div>
+                <div className="text-xs text-white/60 whitespace-nowrap overflow-hidden text-ellipsis">{album.artist}</div>
             </div>
         </div>
     );
@@ -99,33 +122,36 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
     const coverUrl = useCoverArt(album.cover);
 
     return (
-        <div className="album-detail-view">
-            <div className="album-detail-header">
-                <button className="back-btn" onClick={onBack}>
-                    ← Back to Albums
+        <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-b from-[#141423cc] to-[#0a0a14f2]">
+            <div className="p-8 bg-gradient-to-b from-indigo-500/10 to-transparent">
+                <button className="bg-none border-none text-white/60 text-sm cursor-pointer mb-6 p-0 hover:text-white hover:underline flex items-center gap-1" onClick={onBack}>
+                    <span>←</span> Back to Albums
                 </button>
-                <div className="album-hero">
+                <div className="flex gap-8 items-end">
                     {coverUrl ? (
-                        <img src={coverUrl} alt={album.name} className="hero-cover" />
+                        <img src={coverUrl} alt={album.name} className="w-[200px] h-[200px] rounded-lg shadow-2xl object-cover" />
                     ) : (
-                        <div className="hero-cover-placeholder">♪</div>
+                        <div className="w-[200px] h-[200px] rounded-lg bg-white/10 flex items-center justify-center text-6xl text-white/20 shadow-2xl">♪</div>
                     )}
-                    <div className="hero-info">
-                        <h1>{album.name}</h1>
-                        <h2>{album.artist}</h2>
-                        <p>{album.tracks.length} tracks</p>
-                        <button className="play-album-btn" onClick={onPlay}>
+                    <div className="flex flex-col gap-2 mb-2">
+                        <h1 className="text-5xl font-extrabold m-0 leading-tight bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">{album.name}</h1>
+                        <h2 className="text-2xl font-medium text-white/80 m-0 mb-4">{album.artist}</h2>
+                        <p className="text-white/60 m-0 mb-6">{album.tracks.length} tracks</p>
+                        <button
+                            className="bg-indigo-500 text-white border-none py-3 px-8 rounded-full text-base font-semibold cursor-pointer transition-all duration-200 shadow-lg hover:scale-105 hover:bg-indigo-600 w-fit"
+                            onClick={onPlay}
+                        >
                             Play Album
                         </button>
                     </div>
                 </div>
             </div>
-            <div className="album-tracks-list">
+            <div className="px-8 pb-8 overflow-y-auto pb-[100px] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                 {album.tracks.map((track, i) => (
-                    <div key={track.id} className="album-track-row" onClick={() => playFile(track.path)}>
-                        <span className="track-num">{i + 1}</span>
-                        <span className="track-name">{track.title}</span>
-                        <span className="track-duration">
+                    <div key={track.id} className="grid grid-cols-[40px_1fr_60px] py-3 px-4 rounded text-white/80 cursor-pointer transition-colors duration-100 hover:bg-white/10 hover:text-white" onClick={() => playFile(track.path)}>
+                        <span className="text-white/40">{i + 1}</span>
+                        <span className="font-medium">{track.title}</span>
+                        <span className="text-right text-white/40 font-mono text-xs pt-1">
                             {Math.floor(track.duration_secs / 60)}:
                             {Math.floor(track.duration_secs % 60).toString().padStart(2, '0')}
                         </span>

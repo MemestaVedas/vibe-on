@@ -432,6 +432,10 @@ pub fn run() {
             get_library_tracks,
             get_covers_dir,
         ])
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
+            // Optional: Handle second instance launch arguments here
+            println!("Second instance launched");
+        }))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
