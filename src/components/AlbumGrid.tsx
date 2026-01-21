@@ -38,8 +38,13 @@ export function AlbumGrid() {
     }, [library]);
 
     const handlePlayAlbum = (album: Album) => {
+        console.log("Play Album clicked:", album.name);
         if (album.tracks.length > 0) {
-            playFile(album.tracks[0].path);
+            const firstTrackPath = album.tracks[0].path;
+            console.log("Playing first track:", firstTrackPath);
+            playFile(firstTrackPath);
+        } else {
+            console.warn("Album has no tracks:", album.name);
         }
     };
 
@@ -67,7 +72,7 @@ export function AlbumGrid() {
                         ref={ref}
                         {...props}
                         style={{ ...style, width: '100%' }}
-                        className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-5 p-5 pb-24 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20"
+                        className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-5 p-5 pb-24"
                     >
                         {children}
                     </div>
@@ -146,7 +151,7 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
                     </div>
                 </div>
             </div>
-            <div className="px-8 pb-8 overflow-y-auto pb-[100px] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            <div className="px-8 pb-8 overflow-y-auto pb-[100px]">
                 {album.tracks.map((track, i) => (
                     <div key={track.id} className="grid grid-cols-[40px_1fr_60px] py-3 px-4 rounded text-white/80 cursor-pointer transition-colors duration-100 hover:bg-white/10 hover:text-white" onClick={() => playFile(track.path)}>
                         <span className="text-white/40">{i + 1}</span>

@@ -4,8 +4,9 @@ import { useCoverArt } from '../hooks/useCoverArt';
 import { useImageColors } from '../hooks/useImageColors';
 
 export function AmbientBackground() {
-    const { status, library } = usePlayerStore();
-    const track = status.track;
+    // Optimization: Only subscribe to the track changes, not the playback status (position, etc.)
+    const track = usePlayerStore(state => state.status.track);
+    const library = usePlayerStore(state => state.library);
 
     // Get cover URL
     const currentIndex = library.findIndex(t => t.path === track?.path);
@@ -28,28 +29,26 @@ export function AmbientBackground() {
         <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-[#0b0c0e]">
             {/* Dark overlay to ensure text readability */}
             <div className="absolute inset-0 bg-black/40 z-10" />
-            <div className="absolute inset-0 bg-[#0b0c0e]/60 z-10 backdrop-blur-[100px]" />
 
-            {/* Animated Blobs */}
-            <div className="absolute inset-0 z-0 opacity-60">
-                {/* Blob 1 */}
-                <div
-                    className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full mix-blend-screen filter blur-[80px] opacity-70 animate-blob"
-                    style={{ backgroundColor: color1, transition: 'background-color 2s ease' }}
-                />
+            {/* REMOVED: potentially expensive global backdrop blur 
+               <div className="absolute inset-0 bg-[#0b0c0e]/60 z-10 backdrop-blur-[100px]" /> 
+            */}
 
-                {/* Blob 2 */}
-                <div
-                    className="absolute top-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full mix-blend-screen filter blur-[80px] opacity-70 animate-blob animation-delay-2000"
-                    style={{ backgroundColor: color2, transition: 'background-color 2s ease' }}
-                />
+            {/* Instead, we use a lighter overlay without the blur, relying on the blobs' own blur */}
+            <div className="absolute inset-0 bg-[#0b0c0e]/40 z-10" />
 
-                {/* Blob 3 */}
-                <div
-                    className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] rounded-full mix-blend-screen filter blur-[80px] opacity-70 animate-blob animation-delay-4000"
-                    style={{ backgroundColor: color3, transition: 'background-color 2s ease' }}
-                />
-            </div>
+            {/* 2D Flat Gradient Background (No Blue/GPU heavy filters) */}
+            <div
+                className="absolute inset-0 z-0 transition-colors duration-1000 ease-in-out"
+                style={{
+                    background: `
+                        radial-gradient(circle at 0% 0%, ${color1}40 0%, transparent 50%),
+                        radial-gradient(circle at 100% 0%, ${color2}40 0%, transparent 50%),
+                        radial-gradient(circle at 100% 100%, ${color3}40 0%, transparent 50%),
+                        radial-gradient(circle at 0% 100%, ${color1}40 0%, transparent 50%)
+                    `
+                }}
+            />
 
             {/* Noise Texture */}
             <div className="absolute inset-0 z-20 opacity-[0.03] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIj48ZmlsdGVyIGlkPSJnoiPjZmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjY1IiBudW1PY3RhdmVzPSIzIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI2cpIiBvcGFjaXR5PSIxIi8+PC9zdmc+')]" />
