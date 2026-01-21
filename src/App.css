@@ -69,6 +69,36 @@
   animation-delay: 4s;
 }
 
+/* Vinyl spinning animation for album art */
+@keyframes spin-vinyl {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Marquee bounce-back animation for long titles (Spotify-style) */
+@keyframes marquee-bounce {
+
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+
+  45%,
+  55% {
+    transform: translateX(var(--marquee-distance));
+  }
+
+  85%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
 /* Custom Minimal Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
