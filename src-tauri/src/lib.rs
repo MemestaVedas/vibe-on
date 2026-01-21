@@ -199,6 +199,16 @@ fn set_volume(value: f32, state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn seek(value: f64, state: State<AppState>) -> Result<(), String> {
+    let player_guard = state.player.lock().unwrap();
+    if let Some(ref player) = *player_guard {
+        player.seek(value)
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
 fn get_player_state(state: State<AppState>) -> PlayerStatus {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
@@ -425,6 +435,7 @@ pub fn run() {
             resume,
             stop,
             set_volume,
+            seek, // Added seek
             get_player_state,
             scan_music_folder,
             get_track_metadata,

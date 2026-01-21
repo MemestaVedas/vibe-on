@@ -91,6 +91,22 @@
   background-color: rgba(255, 255, 255, 0.3);
 }
 
-::-webkit-scrollbar-corner {
-  background: transparent;
+/* Marquee Animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  animation: marquee 10s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
 }

@@ -2,7 +2,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 
 export function RightPanel() {
-    const { status, library } = usePlayerStore();
+    const { status, library, history, playFile } = usePlayerStore(); // Destructure history and playFile
     const { track } = status;
 
     // Get cover from library
@@ -10,8 +10,8 @@ export function RightPanel() {
     const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
     const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
 
-    // Get recently played (just show some tracks from library for now)
-    const recentTracks = library.slice(0, 5);
+    // Get recently played from store (limit to 10 for display)
+    const recentTracks = history.slice(0, 10);
 
     return (
         <aside className="w-[280px] h-full flex flex-col bg-black/20 border-l border-white/5 overflow-hidden">
@@ -46,17 +46,20 @@ export function RightPanel() {
             {/* Queue / Up Next */}
             <div className="flex-1 p-5 overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
-                    <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Up Next</p>
-                    <button className="text-[10px] text-indigo-400 hover:text-indigo-300">See all</button>
+                    <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Recently Played</p>
                 </div>
 
                 <div className="space-y-2">
+                    {recentTracks.length === 0 && (
+                        <p className="text-xs text-white/30 italic text-center py-4">Start playing to populate history</p>
+                    )}
                     {recentTracks.map((t, i) => (
                         <QueueItem
-                            key={t.path}
+                            key={`${t.path}-${i}`} // Use unique key potentially
                             track={t}
                             isActive={t.path === track?.path}
                             index={i + 1}
+                            onClick={() => playFile(t.path)} // Enable click to play
                         />
                     ))}
                 </div>
@@ -65,15 +68,19 @@ export function RightPanel() {
     );
 }
 
-function QueueItem({ track, isActive, index }: {
+function QueueItem({ track, isActive, index, onClick }: {
     track: { title: string; artist: string; cover_image?: string | null };
     isActive: boolean;
     index: number;
+    onClick?: () => void;
 }) {
     const coverUrl = useCoverArt(track.cover_image);
 
     return (
-        <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isActive ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+        <div
+            onClick={onClick}
+            className={`flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer ${isActive ? 'bg-white/10' : 'hover:bg-white/5'}`}
+        >
             <div className="w-10 h-10 rounded-md overflow-hidden bg-white/5 flex-shrink-0">
                 {coverUrl ? (
                     <img src={coverUrl} alt="" className="w-full h-full object-cover" />

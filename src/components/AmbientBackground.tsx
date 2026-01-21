@@ -13,45 +13,33 @@ export function AmbientBackground() {
     const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
     const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
 
-    // Get extracted colors
-    const { colors } = useImageColors(coverUrl);
-
-    // Default Vibe theme colors
-    const defaultColors = ['#ff00cc', '#333399', '#ff00cc'];
-    const activeColors = colors.length > 0 ? colors : defaultColors;
-
-    // Safe access to colors for the blobs
-    const color1 = activeColors[0] || activeColors[0];
-    const color2 = activeColors[1] || activeColors[0];
-    const color3 = activeColors[2] || activeColors[1] || activeColors[0];
+    // Get dynamic colors from album art
+    const { background, backgroundRaw, accent1, accent2 } = useImageColors(coverUrl);
 
     return (
-        <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-[#0b0c0e]">
-            {/* Dark overlay to ensure text readability */}
-            <div className="absolute inset-0 bg-black/40 z-10" />
+        <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
+            {/* Base dark layer */}
+            <div className="absolute inset-0 bg-[#0a0a0f]" />
 
-            {/* REMOVED: potentially expensive global backdrop blur 
-               <div className="absolute inset-0 bg-[#0b0c0e]/60 z-10 backdrop-blur-[100px]" /> 
-            */}
-
-            {/* Instead, we use a lighter overlay without the blur, relying on the blobs' own blur */}
-            <div className="absolute inset-0 bg-[#0b0c0e]/40 z-10" />
-
-            {/* 2D Flat Gradient Background (No Blue/GPU heavy filters) */}
+            {/* Dynamic gradient background based on album art */}
             <div
-                className="absolute inset-0 z-0 transition-colors duration-1000 ease-in-out"
+                className="absolute inset-0 transition-all duration-1000 ease-out"
                 style={{
                     background: `
-                        radial-gradient(circle at 0% 0%, ${color1}40 0%, transparent 50%),
-                        radial-gradient(circle at 100% 0%, ${color2}40 0%, transparent 50%),
-                        radial-gradient(circle at 100% 100%, ${color3}40 0%, transparent 50%),
-                        radial-gradient(circle at 0% 100%, ${color1}40 0%, transparent 50%)
+                        radial-gradient(ellipse at 0% 0%, ${backgroundRaw}40 0%, transparent 50%),
+                        radial-gradient(ellipse at 100% 0%, ${accent1}30 0%, transparent 50%),
+                        radial-gradient(ellipse at 100% 100%, ${accent2}25 0%, transparent 50%),
+                        radial-gradient(ellipse at 0% 100%, ${backgroundRaw}35 0%, transparent 50%),
+                        radial-gradient(ellipse at 50% 50%, ${background}60 0%, transparent 70%)
                     `
                 }}
             />
 
-            {/* Noise Texture */}
-            <div className="absolute inset-0 z-20 opacity-[0.03] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIj48ZmlsdGVyIGlkPSJnoiPjZmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjY1IiBudW1PY3RhdmVzPSIzIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI2cpIiBvcGFjaXR5PSIxIi8+PC9zdmc+')]" />
+            {/* Dark overlay to ensure text readability */}
+            <div className="absolute inset-0 bg-black/50" />
+
+            {/* Noise Texture for subtle grain */}
+            <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIj48ZmlsdGVyIGlkPSJnIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC42NSIgbnVtT2N0YXZlcz0iMyIgc3RpdGNoVGlsZXM9InN0aXRjaCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbHRlcj0idXJsKCNnKSIgb3BhY2l0eT0iMSIvPjwvc3ZnPg==')]" />
         </div>
     );
 }

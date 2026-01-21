@@ -19,6 +19,7 @@ pub enum AudioCommand {
     Resume,
     Stop,
     SetVolume(f32),
+    Seek(f64), // New command
     GetStatus(Sender<PlayerStatus>),
     Shutdown,
 }
@@ -72,6 +73,12 @@ impl AudioPlayer {
         self.command_tx
             .send(AudioCommand::SetVolume(value))
             .map_err(|e| format!("Failed to send volume command: {}", e))
+    }
+
+    pub fn seek(&self, seconds: f64) -> Result<(), String> {
+        self.command_tx
+            .send(AudioCommand::Seek(seconds))
+            .map_err(|e| format!("Failed to send seek command: {}", e))
     }
 
     pub fn get_status(&self) -> PlayerStatus {
@@ -141,6 +148,9 @@ impl AudioThread {
                 }
                 Ok(AudioCommand::SetVolume(value)) => {
                     audio.handle_set_volume(value);
+                }
+                Ok(AudioCommand::Seek(seconds)) => {
+                    audio.handle_seek(seconds);
                 }
                 Ok(AudioCommand::GetStatus(tx)) => {
                     let status = audio.get_status();
@@ -292,6 +302,20 @@ impl AudioThread {
         self.volume = value.clamp(0.0, 1.0);
         if let Some(ref sink) = self.sink {
             sink.set_volume(self.volume);
+        }
+    }
+
+    fn handle_seek(&mut self, seconds: f64) {
+        if let Some(ref mut sink) = self.sink {
+            if sink
+                .try_seek(std::time::Duration::from_secs_f64(seconds))
+                .is_ok()
+            {
+                self.accumulated_time = seconds;
+                if self.state == PlayerState::Playing {
+                    self.play_start_time = Some(Instant::now());
+                }
+            }
         }
     }
 

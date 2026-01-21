@@ -17,6 +17,8 @@
         "height": 700,
         "decorations": false,
         "transparent": true,
+        "resizable": true,
+        "maximizable": true,
         "shadow": true
       }
     ],
