@@ -74,4 +74,51 @@
     .animate-spin-slow {
         animation: spin 8s linear infinite;
     }
+
+    /* Wave Masks */
+    /* Wave width is 12px. We use 14px to be safe. */
+
+    /* MASK FOR RIGHT EDGE: Visible on Left, Wave on Right */
+    /* Pattern: Rect that covers 0 to 100%, but right edge is wave. */
+    /* SVG: <path d="M 0 0 H 6 Q 1 10 6 20 T 6 40 H 0 Z" fill="black"/> (Hidden on left?? No mask logic: White/Black opaque is Visible, Transparent is Hidden) */
+    /* We want the CONTENT to be visible. So the mask should be OPAQUE where content is. */
+    /* Left side is content. So we need a shape that fills the left side. */
+    /* Path: Start Top Left (0,0) -> Right Wave Top (6,0) -> Wave -> Right Wave Bottom (6,40) -> Bottom Left (0,40) -> Close. */
+    /* Wave: M 6 0 Q 1 10 6 20 T 6 40. This curves LEFT (min x~1.5). */
+    /* So if we fill LEFT of this curve, the edge will be convex/concave matching the separator. */
+
+    .mask-wave-right {
+        mask-image: url("data:image/svg+xml,%3Csvg width='12' height='40' viewBox='0 0 12 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z' fill='black'/%3E"), linear-gradient(to right, black calc(100% - 12px), transparent calc(100% - 12px));
+        mask-position: right top, left top;
+        mask-repeat: repeat-y, no-repeat;
+        mask-size: 12px 40px, 100% 100%;
+        mask-composite: add;
+        /* Combine the wave edge with the solid block */
+    }
+
+    /* MASK FOR LEFT EDGE: Visible on Right, Wave on Left */
+    /* We need the shape that fills the RIGHT side of the wave. */
+    /* Path: Start Top Right (12,0) -> Wave Top (6,0) -> Wave -> Wave Bottom (6,40) -> Bottom Right (12,40) -> Close. */
+    .mask-wave-left {
+        mask-image: url("data:image/svg+xml,%3Csvg width='12' height='40' viewBox='0 0 12 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 12 0 L 6 0 Q 1 10 6 20 T 6 40 L 12 40 Z' fill='black'/%3E"), linear-gradient(to left, black calc(100% - 12px), transparent calc(100% - 12px));
+        mask-position: left top, right top;
+        mask-repeat: repeat-y, no-repeat;
+        mask-size: 12px 40px, 100% 100%;
+        mask-composite: add;
+    }
+
+    /* Combined for middle panel (both edges) */
+    .mask-wave-both {
+        mask-image:
+            url("data:image/svg+xml,%3Csvg width='12' height='40' viewBox='0 0 12 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 12 0 L 6 0 Q 1 10 6 20 T 6 40 L 12 40 Z' fill='black'/%3E"),
+            /* Left Edge */
+            url("data:image/svg+xml,%3Csvg width='12' height='40' viewBox='0 0 12 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z' fill='black'/%3E"),
+            /* Right Edge */
+            linear-gradient(to right, transparent 12px, black 12px, black calc(100% - 12px), transparent calc(100% - 12px));
+        /* Center Block */
+        mask-position: left top, right top, center top;
+        mask-repeat: repeat-y, repeat-y, no-repeat;
+        mask-size: 12px 40px, 12px 40px, 100% 100%;
+        mask-composite: add;
+    }
 }

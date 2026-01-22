@@ -34,15 +34,21 @@ impl AudioPlayer {
     /// Create a new audio player with a dedicated audio thread
     pub fn new() -> Result<Self, String> {
         let (command_tx, command_rx) = channel::<AudioCommand>();
+        let (init_tx, init_rx) = std::sync::mpsc::sync_channel(0);
 
         let thread = thread::spawn(move || {
-            AudioThread::run(command_rx);
+            AudioThread::run(command_rx, init_tx);
         });
 
-        Ok(Self {
-            command_tx,
-            _thread: thread,
-        })
+        // Wait for initialization to complete
+        match init_rx.recv() {
+            Ok(Ok(())) => Ok(Self {
+                command_tx,
+                _thread: thread,
+            }),
+            Ok(Err(e)) => Err(format!("Audio initialization failed: {}", e)),
+            Err(_) => Err("Audio thread panicked during initialization".to_string()),
+        }
     }
 
     pub fn play_file(&self, path: &str) -> Result<(), String> {
@@ -110,15 +116,29 @@ struct AudioThread {
 }
 
 impl AudioThread {
-    fn run(command_rx: Receiver<AudioCommand>) {
+    fn run(
+        command_rx: Receiver<AudioCommand>,
+        init_tx: std::sync::mpsc::SyncSender<Result<(), String>>,
+    ) {
         // Initialize audio output on this thread
         let (stream, stream_handle) = match OutputStream::try_default() {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("Failed to open audio device: {}", e);
+                let err_msg = format!("Failed to open audio device: {}", e);
+                eprintln!("{}", err_msg);
+                let _ = init_tx.send(Err(err_msg));
                 return;
             }
         };
+
+        // Store stream_handle for creating sinks
+        let stream_handle = Arc::new(stream_handle);
+
+        // Signal success
+        if let Err(e) = init_tx.send(Ok(())) {
+            eprintln!("Failed to send init success: {}", e);
+            return;
+        }
 
         let mut audio = AudioThread {
             sink: None,
@@ -130,9 +150,6 @@ impl AudioThread {
             play_start_time: None,
             accumulated_time: 0.0,
         };
-
-        // Store stream_handle for creating sinks
-        let stream_handle = Arc::new(stream_handle);
 
         loop {
             // Use timeout to allow polling for track completion
@@ -187,6 +204,7 @@ impl AudioThread {
     }
 
     fn handle_play(&mut self, path: &str, stream_handle: &Arc<rodio::OutputStreamHandle>) {
+        println!("[AudioThread] Handling play for path: '{}'", path);
         // Stop current playback
         self.handle_stop();
 
@@ -196,7 +214,7 @@ impl AudioThread {
         let file = match File::open(path) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("Failed to open file: {}", e);
+                eprintln!("[AudioThread] Failed to open file: {}", e);
                 return;
             }
         };

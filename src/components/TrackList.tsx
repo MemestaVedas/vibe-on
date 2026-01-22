@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMusicNote, IconPlay } from './Icons';
+import { WavySeparator } from './WavySeparator';
 import type { TrackDisplay } from '../types';
 
 
@@ -26,7 +28,7 @@ function TrackRow({ track, index, isActive, isPlaying, onClick }: {
             onClick={onClick}
             className={`
                 group grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem] gap-4 items-center 
-                px-4 py-3 mx-2 rounded-lg cursor-pointer transition-colors
+                px-4 py-4 mx-2 rounded-xl cursor-pointer transition-colors
                 ${isActive
                     ? 'bg-secondary-container text-on-secondary-container'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
@@ -45,7 +47,7 @@ function TrackRow({ track, index, isActive, isPlaying, onClick }: {
             </span>
 
             <span className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden bg-surface-container shadow-sm">
+                <div className="w-12 h-12 shrink-0 rounded-md overflow-hidden bg-surface-container shadow-sm">
                     {coverUrl ? (
                         <img src={coverUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
                     ) : (
@@ -97,6 +99,18 @@ export function TrackList() {
     const isLoading = usePlayerStore(state => state.isLoading);
     const currentPath = usePlayerStore(state => state.status.track?.path);
     const isPlaying = usePlayerStore(state => state.status.state === 'Playing');
+    const searchQuery = usePlayerStore(state => state.searchQuery);
+
+    // Filter library based on search query
+    const filteredLibrary = useMemo(() => {
+        if (!searchQuery.trim()) return library;
+        const query = searchQuery.toLowerCase();
+        return library.filter(track =>
+            track.title.toLowerCase().includes(query) ||
+            track.artist.toLowerCase().includes(query) ||
+            track.album.toLowerCase().includes(query)
+        );
+    }, [library, searchQuery]);
 
     if (isLoading) {
         return (
@@ -120,28 +134,49 @@ export function TrackList() {
 
     return (
         <div className="flex flex-col h-full bg-surface">
-            <div className="grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem] gap-4 px-6 border-b border-outline-variant/10 bg-surface sticky top-0 z-10 backdrop-blur-sm bg-surface/90">
+            {/* Header - Non-sticky */}
+            <div className="grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem] gap-4 px-6 bg-surface">
                 <span className="py-3 text-center text-label-large font-medium text-on-surface-variant">#</span>
                 <SortHeader label="Title" sortKey="title" />
                 <SortHeader label="Artist" sortKey="artist" />
                 <SortHeader label="Album" sortKey="album" />
                 <SortHeader label="Duration" sortKey="duration_secs" align="right" />
             </div>
+            {/* Wavy separator below header */}
+            <div className="px-6">
+                <WavySeparator label="" color="var(--md-sys-color-outline-variant)" />
+            </div>
             <div className="flex-1">
                 <Virtuoso
                     style={{ height: '100%' }}
-                    data={library}
+                    data={filteredLibrary}
                     overscan={200}
-                    itemContent={(index, track) => (
-                        <TrackRow
-                            key={track.id}
-                            track={track}
-                            index={index}
-                            isActive={currentPath === track.path}
-                            isPlaying={isPlaying}
-                            onClick={() => playFile(track.path)}
-                        />
-                    )}
+                    itemContent={(index, track) => {
+                        // Check for album change
+                        const prevTrack = index > 0 ? filteredLibrary[index - 1] : null;
+                        const showSeparator = prevTrack && prevTrack.album !== track.album;
+
+                        // User asked for "1 ... 25 (separator) 26". So only between albums. 
+                        // If index==0, we might want it if we want to label the first group, but user example didn't explicitly ask.
+                        // Let's stick to "separating". So index > 0.
+
+                        return (
+                            <div key={track.id}>
+                                {showSeparator && (
+                                    <div className="px-6">
+                                        <WavySeparator label={track.album} color="var(--md-sys-color-primary)" />
+                                    </div>
+                                )}
+                                <TrackRow
+                                    track={track}
+                                    index={index}
+                                    isActive={currentPath === track.path}
+                                    isPlaying={isPlaying}
+                                    onClick={() => playFile(track.path)}
+                                />
+                            </div>
+                        );
+                    }}
                     components={{
                         Footer: () => <div className="h-24"></div>
                     }}

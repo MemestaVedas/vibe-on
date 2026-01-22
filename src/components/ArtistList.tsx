@@ -4,6 +4,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMicrophone, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
+import { motion } from 'framer-motion';
 
 interface Artist {
     name: string;
@@ -12,12 +13,49 @@ interface Artist {
     albumCount: number;
 }
 
+// M3 Very Sunny Shape for Play Button - positioned outside bottom right
+const VerySunnyPlayButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => (
+    <div
+        onClick={onClick}
+        className="absolute -bottom-2 -right-2 w-10 h-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30 cursor-pointer"
+    >
+        <svg viewBox="0 0 320 320" className="absolute w-full h-full drop-shadow-lg" style={{ color: 'var(--md-sys-color-primary)' }}>
+            <path d="M136.72 13.1925C147.26 -4.3975 172.74 -4.3975 183.28 13.1925L195.12 32.9625C201.27 43.2125 213.4 48.2425 224.99 45.3325L247.35 39.7325C267.24 34.7525 285.25 52.7626 280.27 72.6526L274.67 95.0126C271.76 106.603 276.79 118.733 287.04 124.883L306.81 136.723C324.4 147.263 324.4 172.743 306.81 183.283L287.04 195.123C276.79 201.273 271.76 213.403 274.67 224.993L280.27 247.353C285.25 267.243 267.24 285.253 247.35 280.273L224.99 274.673C213.4 271.763 201.27 276.793 195.12 287.043L183.28 306.813C172.74 324.403 147.26 324.403 136.72 306.813L124.88 287.043C118.73 276.793 106.6 271.763 95.0102 274.673L72.6462 280.273C52.7632 285.253 34.7472 267.243 39.7292 247.353L45.3332 224.993C48.2382 213.403 43.2143 201.273 32.9603 195.123L13.1873 183.283C-4.39575 172.743 -4.39575 147.263 13.1873 136.723L32.9603 124.883C43.2143 118.733 48.2382 106.603 45.3332 95.0126L39.7292 72.6526C34.7472 52.7626 52.7633 34.7525 72.6453 39.7325L95.0102 45.3325C106.6 48.2425 118.73 43.2125 124.88 32.9625L136.72 13.1925Z" fill="currentColor" />
+        </svg>
+        <IconPlay size={16} fill="var(--md-sys-color-on-primary)" className="relative z-10" />
+    </div>
+);
+
+// M3 Arch Shape Component (using SVG clip)
+const M3ArchImage = ({ src, alt, fallback }: { src: string | null, alt: string, fallback: React.ReactNode }) => {
+    const uniqueId = useMemo(() => `arch-${Math.random().toString(36).substr(2, 9)}`, []);
+
+    return (
+        <svg viewBox="0 0 304 304" className="w-full h-full">
+            <defs>
+                <clipPath id={uniqueId}>
+                    <path d="M304 253.72C304 259.83 304 262.89 303.69 265.46C301.31 285.51 285.51 301.31 265.46 303.69C262.89 304 259.83 304 253.72 304H50.281C44.169 304 41.113 304 38.544 303.69C18.495 301.31 2.68799 285.51 0.304993 265.46C-7.33137e-06 262.89 0 259.83 0 253.72V152C0 68.05 68.053 0 152 0C235.95 0 304 68.05 304 152V253.72Z" />
+                </clipPath>
+            </defs>
+            {src ? (
+                <image href={src} x="0" y="0" width="304" height="304" preserveAspectRatio="xMidYMid slice" clipPath={`url(#${uniqueId})`} />
+            ) : (
+                <g clipPath={`url(#${uniqueId})`}>
+                    <rect x="0" y="0" width="304" height="304" fill="var(--md-sys-color-surface-container-highest)" />
+                    <g transform="translate(128, 128)">
+                        {fallback}
+                    </g>
+                </g>
+            )}
+        </svg>
+    );
+};
+
 export function ArtistList() {
     const library = usePlayerStore(state => state.library);
     const playFile = usePlayerStore(state => state.playFile);
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
 
-    // Group tracks by artist
     const artists = useMemo(() => {
         const artistMap = new Map<string, Artist>();
 
@@ -33,13 +71,11 @@ export function ArtistList() {
             }
             const artist = artistMap.get(key)!;
             artist.tracks.push(track);
-            // Update cover if missing (prefer first found)
             if (!artist.cover && track.cover_image) {
                 artist.cover = track.cover_image;
             }
         });
 
-        // Calculate album counts
         for (const artist of artistMap.values()) {
             const albums = new Set(artist.tracks.map(t => t.album));
             artist.albumCount = albums.size;
@@ -106,25 +142,18 @@ function ArtistCard({ artist, onClick, onPlay }: { artist: Artist, onClick: () =
             onClick={onClick}
             className="group flex flex-col gap-3 p-3 rounded-[1.5rem] hover:bg-surface-container-high transition-colors cursor-pointer"
         >
-            <div className="aspect-square w-full relative rounded-full overflow-hidden shadow-elevation-1 group-hover:shadow-elevation-2 transition-shadow bg-surface-container">
-                {coverUrl ? (
-                    <img src={coverUrl} alt={artist.name} loading="lazy" className="w-full h-full object-cover" />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-surface-container-highest text-on-surface-variant/50">
-                        <IconMicrophone size={48} />
-                    </div>
-                )}
-
-                {/* Play Button Overlay */}
-                <div
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onPlay();
-                    }}
-                    className="absolute bottom-2 right-2 w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-elevation-2 hover:scale-105 active:scale-95 z-20"
-                >
-                    <IconPlay size={24} fill="currentColor" />
+            {/* Artist Image with M3 Arch Shape */}
+            <div className="aspect-square w-full relative">
+                <div className="w-full h-full">
+                    <M3ArchImage
+                        src={coverUrl}
+                        alt={artist.name}
+                        fallback={<IconMicrophone size={48} />}
+                    />
                 </div>
+
+                {/* Play Button - Very Sunny Shape - Outside bottom right */}
+                <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); onPlay(); }} />
             </div>
 
             <div className="px-1 text-center">
@@ -145,14 +174,12 @@ function ArtistDetailView({ artist, onBack, onPlay }: { artist: Artist, onBack: 
         <div className="flex flex-col h-full bg-surface">
             {/* Header */}
             <div className="p-8 flex gap-8 items-center bg-surface-container-low shrink-0">
-                <div className="w-52 h-52 shrink-0 rounded-full overflow-hidden shadow-elevation-3 bg-surface-container">
-                    {coverUrl ? (
-                        <img src={coverUrl} alt={artist.name} loading="lazy" className="w-full h-full object-cover" />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-surface-container-highest text-on-surface-variant/50">
-                            <IconMicrophone size={64} />
-                        </div>
-                    )}
+                <div className="w-52 h-52 shrink-0 shadow-elevation-3">
+                    <M3ArchImage
+                        src={coverUrl}
+                        alt={artist.name}
+                        fallback={<IconMicrophone size={64} />}
+                    />
                 </div>
 
                 <div className="flex flex-col gap-4 min-w-0 flex-1">
@@ -211,4 +238,3 @@ function ArtistDetailView({ artist, onBack, onPlay }: { artist: Artist, onBack: 
         </div>
     );
 }
-

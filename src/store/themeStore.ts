@@ -1,13 +1,40 @@
 import { create } from 'zustand';
 
 export interface ThemeColors {
-    background: string;
-    backgroundRaw: string;
-    accent1: string;
-    accent1Foreground: string;
-    accent2: string;
-    textPrimary: string;
-    textSecondary: string;
+    // Key Colors
+    primary: string;
+    onPrimary: string;
+    primaryContainer: string;
+    onPrimaryContainer: string;
+
+    secondary: string;
+    onSecondary: string;
+    secondaryContainer: string;
+    onSecondaryContainer: string;
+
+    tertiary: string;
+    onTertiary: string;
+    tertiaryContainer: string;
+    onTertiaryContainer: string;
+
+    // Neutral / Surfaces
+    surface: string;
+    onSurface: string;
+    surfaceVariant: string;
+    onSurfaceVariant: string;
+
+    // Surface Containers (New M3)
+    surfaceContainerLowest: string;
+    surfaceContainerLow: string;
+    surfaceContainer: string;
+    surfaceContainerHigh: string;
+    surfaceContainerHighest: string;
+
+    // Utility
+    outline: string;
+    outlineVariant: string;
+
+    sourceColor: string;
 }
 
 interface ThemeStore {
@@ -15,19 +42,41 @@ interface ThemeStore {
     setColors: (colors: ThemeColors) => void;
 }
 
-const DEFAULT_DARK = '#0a0a0f';
-const DEFAULT_ACCENT = '#6366f1';
-const DEFAULT_LIGHT = '#f5f5f5';
+// Default Fallback (Approximate Indigo/Violet Theme)
+const DEFAULT_THEME: ThemeColors = {
+    primary: '#bfc2ff',
+    onPrimary: '#1f225e',
+    primaryContainer: '#353975',
+    onPrimaryContainer: '#e0e0ff',
+
+    secondary: '#c6bfff',
+    onSecondary: '#29215c',
+    secondaryContainer: '#403974',
+    onSecondaryContainer: '#e4dfff',
+
+    tertiary: '#ffb0cd',
+    onTertiary: '#5e1135',
+    tertiaryContainer: '#7b294e',
+    onTertiaryContainer: '#ffd8e4',
+
+    surface: '#121216',
+    onSurface: '#e4e1e6',
+    surfaceVariant: '#46464f',
+    onSurfaceVariant: '#c7c5d0',
+
+    surfaceContainerLowest: '#0d0d11',
+    surfaceContainerLow: '#1a1a1f',
+    surfaceContainer: '#1e1e24',
+    surfaceContainerHigh: '#282830',
+    surfaceContainerHighest: '#33333f',
+
+    outline: '#918f9a',
+    outlineVariant: '#46464f',
+
+    sourceColor: '#6366f1'
+};
 
 export const useThemeStore = create<ThemeStore>((set) => ({
-    colors: {
-        background: DEFAULT_DARK,
-        backgroundRaw: DEFAULT_DARK,
-        accent1: DEFAULT_ACCENT,
-        accent1Foreground: '#ffffff',
-        accent2: '#8b5cf6',
-        textPrimary: DEFAULT_LIGHT,
-        textSecondary: 'rgba(255, 255, 255, 0.6)',
-    },
+    colors: DEFAULT_THEME,
     setColors: (colors) => set({ colors }),
 }));
