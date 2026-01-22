@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
+import { useLyricsStore } from '../store/lyricsStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useThemeStore } from '../store/themeStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -27,6 +28,39 @@ const fadeTransition = {
     duration: 0.3,
     ease: [0.4, 0, 0.2, 1] as const,
 };
+
+// Lyrics button component
+function LyricsButton({ track }: { track: { title: string; artist: string; duration_secs: number; path: string } | null }) {
+    const { showLyrics, toggleLyrics, fetchLyrics, isLoading } = useLyricsStore();
+
+    const handleClick = () => {
+        if (track) {
+            // Fetch lyrics if we have a track
+            fetchLyrics(track.artist, track.title, track.duration_secs, track.path);
+        }
+        toggleLyrics();
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            disabled={!track}
+            className={`p-2 rounded-full transition-all ${showLyrics
+                ? 'bg-white/20 text-white'
+                : 'text-white/50 hover:text-white hover:bg-white/10'
+                } ${!track ? 'opacity-30 cursor-not-allowed' : ''}`}
+            title="Lyrics"
+        >
+            {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 3C10.34 3 9 4.37 9 6.07V12c0 1.66 1.34 3 3 3s3-1.34 3-3V6.07C15 4.37 13.66 3 12 3zM10.5 12V6.07c0-.82.68-1.57 1.5-1.57s1.5.75 1.5 1.57V12c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5zM19 12h-1.5c0 2.76-2.24 5-5 5s-5-2.24-5-5H6c0 3.53 2.61 6.43 6 6.92V21h2v-2.08c3.39-.49 6-3.39 6-6.92z" />
+                </svg>
+            )}
+        </button>
+    );
+}
 
 export function PlayerBar() {
     const { status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack, getCurrentTrackIndex, library, playFile, seek } = usePlayerStore();
@@ -196,8 +230,11 @@ export function PlayerBar() {
                                 </div>
                             </div>
 
-                            {/* Right: Volume - Fixed width */}
+                            {/* Right: Lyrics + Volume - Fixed width */}
                             <div className="w-[20%] flex-shrink-0 flex items-center justify-end gap-3 relative z-10">
+                                {/* Lyrics Button */}
+                                <LyricsButton track={track} />
+
                                 <svg className="w-5 h-5 text-white/50" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor" /></svg>
                                 <div className="w-24 flex items-center">
                                     <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />

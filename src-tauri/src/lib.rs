@@ -2,6 +2,7 @@ mod audio;
 mod cover_fetcher;
 mod database;
 mod discord_rpc;
+mod lyrics_fetcher;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -464,6 +465,26 @@ fn get_track_metadata(path: String) -> Result<TrackInfo, String> {
 }
 
 // ============================================================================
+// Lyrics Integration
+// ============================================================================
+
+#[tauri::command]
+fn get_lyrics(
+    artist: String,
+    track: String,
+    duration: u32,
+) -> Result<lyrics_fetcher::LyricsResponse, String> {
+    // First try with duration (more accurate matching)
+    match lyrics_fetcher::fetch_lyrics(&artist, &track, duration) {
+        Ok(lyrics) => Ok(lyrics),
+        Err(_) => {
+            // Fallback: search without duration constraint
+            lyrics_fetcher::fetch_lyrics_fallback(&artist, &track)
+        }
+    }
+}
+
+// ============================================================================
 // YouTube Music Integration
 // ============================================================================
 
@@ -531,6 +552,7 @@ pub fn run() {
             get_library_tracks,
             get_covers_dir,
             open_yt_music,
+            get_lyrics,
         ])
         .setup(|app| {
             // Initialize Windows Media Controls with the main window handle

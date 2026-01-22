@@ -23,3 +23,16 @@ export interface PlayerStatus {
 export interface TrackDisplay extends TrackInfo {
   id: string; // Use path as unique ID
 }
+
+// Lyrics line with timestamp for synced lyrics
+export interface LyricsLine {
+  time: number;  // Timestamp in seconds
+  text: string;  // Lyric line content
+}
+
+// Lyrics response from backend
+export interface LyricsData {
+  syncedLyrics: string | null;  // LRC format string
+  plainLyrics: string | null;   // Plain text fallback
+  instrumental: boolean;
+}
