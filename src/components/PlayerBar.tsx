@@ -31,12 +31,12 @@ const fadeTransition = {
 
 // Lyrics button component
 function LyricsButton({ track }: { track: { title: string; artist: string; duration_secs: number; path: string } | null }) {
-    const { showLyrics, toggleLyrics, fetchLyrics, isLoading } = useLyricsStore();
+    const { showLyrics, toggleLyrics, loadCachedLyrics, isLoading } = useLyricsStore();
 
     const handleClick = () => {
         if (track) {
-            // Fetch lyrics if we have a track
-            fetchLyrics(track.artist, track.title, track.duration_secs, track.path);
+            // Load lyrics from backend cache (prefetched when song started playing)
+            loadCachedLyrics(track.path);
         }
         toggleLyrics();
     };

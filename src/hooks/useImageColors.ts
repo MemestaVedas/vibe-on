@@ -24,9 +24,9 @@ function rgbToRgba(rgb: RGB, alpha: number): string {
 // Default Colors
 // ============================================================================
 
-const DEFAULT_DARK = '#0a0a0f';
-const DEFAULT_LIGHT = '#f5f5f5';
-const DEFAULT_ACCENT = '#6366f1';
+// const DEFAULT_DARK = '#0a0a0f';
+// const DEFAULT_LIGHT = '#f5f5f5';
+// const DEFAULT_ACCENT = '#6366f1';
 
 export interface DynamicColors {
     background: string;

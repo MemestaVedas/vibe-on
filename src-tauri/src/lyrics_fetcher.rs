@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::time::{Duration, Instant};
 
 /// LRCLIB API response structure
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LyricsResponse {
     pub id: Option<i64>,
@@ -14,129 +16,317 @@ pub struct LyricsResponse {
     pub synced_lyrics: Option<String>,
 }
 
-/// Fetch lyrics from LRCLIB API
-/// Priority: synced lyrics > plain lyrics
-///
-/// API: GET https://lrclib.net/api/get?artist_name=X&track_name=Y&duration=Z
-pub fn fetch_lyrics(
+/// Try to find a local .lrc file next to the audio file
+/// This is INSTANT and should be tried first
+pub fn find_local_lrc(audio_path: &str) -> Option<LyricsResponse> {
+    let path = Path::new(audio_path);
+
+    // Try same name with .lrc extension
+    let lrc_path = path.with_extension("lrc");
+    if lrc_path.exists() {
+        println!("[Lyrics] Found local LRC file: {:?}", lrc_path);
+        if let Ok(content) = std::fs::read_to_string(&lrc_path) {
+            return Some(LyricsResponse {
+                id: None,
+                track_name: path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string()),
+                artist_name: None,
+                album_name: None,
+                duration: None,
+                instrumental: Some(false),
+                plain_lyrics: None,
+                synced_lyrics: Some(content),
+            });
+        }
+    }
+
+    // Try common LRC naming patterns in same directory
+    if let Some(parent) = path.parent() {
+        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+            // Try variations: "song.lrc", "Song.lrc", "SONG.lrc"
+            for name in &[format!("{}.lrc", stem), format!("{}.LRC", stem)] {
+                let lrc_path = parent.join(name);
+                if lrc_path.exists() {
+                    println!("[Lyrics] Found local LRC file: {:?}", lrc_path);
+                    if let Ok(content) = std::fs::read_to_string(&lrc_path) {
+                        return Some(LyricsResponse {
+                            id: None,
+                            track_name: Some(stem.to_string()),
+                            artist_name: None,
+                            album_name: None,
+                            duration: None,
+                            instrumental: Some(false),
+                            plain_lyrics: None,
+                            synced_lyrics: Some(content),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// Extract first artist from comma/feat-separated list
+fn extract_primary_artist(artist: &str) -> String {
+    let separators = [
+        ",", " feat ", " feat. ", " ft ", " ft. ", " & ", " x ", " and ", " with ",
+    ];
+    let mut result = artist.to_string();
+
+    for sep in separators {
+        if let Some(pos) = result.to_lowercase().find(sep) {
+            result = result[..pos].to_string();
+        }
+    }
+    result.trim().to_string()
+}
+
+/// Remove common suffixes like "(Official Audio)", "[Remastered]", etc.
+fn clean_track_name(track: &str) -> String {
+    let mut result = track.to_string();
+
+    while let Some(start) = result.find('(') {
+        if let Some(end) = result.find(')') {
+            if end > start {
+                result = format!("{}{}", &result[..start], &result[end + 1..]);
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    while let Some(start) = result.find('[') {
+        if let Some(end) = result.find(']') {
+            if end > start {
+                result = format!("{}{}", &result[..start], &result[end + 1..]);
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    result.trim().to_string()
+}
+
+/// Create HTTP client
+fn create_client() -> Result<reqwest::blocking::Client, String> {
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .user_agent("vibe-on/1.0 (https://github.com/vibe-on)")
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))
+}
+
+fn has_lyrics(resp: &LyricsResponse) -> bool {
+    resp.synced_lyrics.is_some() || resp.plain_lyrics.is_some()
+}
+
+fn try_exact_match(
+    client: &reqwest::blocking::Client,
     artist: &str,
     track: &str,
     duration_secs: u32,
-) -> Result<LyricsResponse, String> {
-    println!(
-        "[Lyrics] Fetching lyrics for: {} - {} ({}s)",
-        artist, track, duration_secs
-    );
-
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .user_agent("vibe-on/1.0 (https://github.com/vibe-on)")
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
-
-    // Build query parameters
+) -> Option<LyricsResponse> {
     let url = format!(
         "https://lrclib.net/api/get?artist_name={}&track_name={}&duration={}",
         urlencoding::encode(artist),
         urlencoding::encode(track),
         duration_secs
     );
+    println!("[Lyrics] → exact: {} - {}", artist, track);
 
-    println!("[Lyrics] Request URL: {}", url);
-
-    let response = client
+    client
         .get(&url)
         .send()
-        .map_err(|e| format!("Failed to fetch lyrics: {}", e))?;
-
-    let status = response.status();
-
-    if status.is_success() {
-        let lyrics: LyricsResponse = response
-            .json()
-            .map_err(|e| format!("Failed to parse lyrics response: {}", e))?;
-
-        if lyrics.synced_lyrics.is_some() {
-            println!("[Lyrics] Found synced lyrics!");
-        } else if lyrics.plain_lyrics.is_some() {
-            println!("[Lyrics] Found plain lyrics (no synced available)");
-        } else if lyrics.instrumental.unwrap_or(false) {
-            println!("[Lyrics] Track is instrumental");
-        } else {
-            println!("[Lyrics] No lyrics found in response");
-        }
-
-        Ok(lyrics)
-    } else if status.as_u16() == 404 {
-        println!("[Lyrics] No lyrics found for this track");
-        Err("No lyrics found".to_string())
-    } else {
-        Err(format!("LRCLIB API error: {}", status))
-    }
+        .ok()
+        .and_then(|r| {
+            if r.status().is_success() {
+                r.json::<LyricsResponse>().ok()
+            } else {
+                None
+            }
+        })
+        .filter(has_lyrics)
 }
 
-/// Try alternative search without duration (sometimes works better)
-pub fn fetch_lyrics_fallback(artist: &str, track: &str) -> Result<LyricsResponse, String> {
-    println!("[Lyrics] Trying fallback search without duration...");
-
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .user_agent("vibe-on/1.0 (https://github.com/vibe-on)")
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
-
-    // Search endpoint (returns multiple results)
+fn try_artist_track_search(
+    client: &reqwest::blocking::Client,
+    artist: &str,
+    track: &str,
+) -> Option<LyricsResponse> {
     let url = format!(
         "https://lrclib.net/api/search?artist_name={}&track_name={}",
         urlencoding::encode(artist),
         urlencoding::encode(track)
     );
+    println!("[Lyrics] → search: {} - {}", artist, track);
 
-    let response = client
+    client
         .get(&url)
         .send()
-        .map_err(|e| format!("Failed to fetch lyrics: {}", e))?;
-
-    if response.status().is_success() {
-        let results: Vec<LyricsResponse> = response
-            .json()
-            .map_err(|e| format!("Failed to parse search results: {}", e))?;
-
-        // Prefer result with synced lyrics
-        if let Some(with_synced) = results.iter().find(|r| r.synced_lyrics.is_some()) {
-            println!("[Lyrics] Found synced lyrics via search!");
-            return Ok(with_synced.clone());
-        }
-
-        // Fallback to any result with plain lyrics
-        if let Some(with_plain) = results.iter().find(|r| r.plain_lyrics.is_some()) {
-            println!("[Lyrics] Found plain lyrics via search");
-            return Ok(with_plain.clone());
-        }
-
-        if results.is_empty() {
-            Err("No lyrics found".to_string())
-        } else {
-            // Return first result even if no lyrics
-            Ok(results.into_iter().next().unwrap())
-        }
-    } else {
-        Err(format!("Search failed: {}", response.status()))
-    }
+        .ok()
+        .and_then(|r| {
+            if r.status().is_success() {
+                r.json::<Vec<LyricsResponse>>().ok()
+            } else {
+                None
+            }
+        })
+        .and_then(|results| {
+            results
+                .iter()
+                .find(|r| r.synced_lyrics.is_some())
+                .cloned()
+                .or_else(|| results.iter().find(|r| r.plain_lyrics.is_some()).cloned())
+        })
 }
 
-// Need to derive Clone for LyricsResponse to use in fallback search
-impl Clone for LyricsResponse {
-    fn clone(&self) -> Self {
-        LyricsResponse {
-            id: self.id,
-            track_name: self.track_name.clone(),
-            artist_name: self.artist_name.clone(),
-            album_name: self.album_name.clone(),
-            duration: self.duration,
-            instrumental: self.instrumental,
-            plain_lyrics: self.plain_lyrics.clone(),
-            synced_lyrics: self.synced_lyrics.clone(),
-        }
+fn try_generic_search(client: &reqwest::blocking::Client, query: &str) -> Option<LyricsResponse> {
+    let url = format!(
+        "https://lrclib.net/api/search?q={}",
+        urlencoding::encode(query)
+    );
+    println!("[Lyrics] → query: {}", query);
+
+    client
+        .get(&url)
+        .send()
+        .ok()
+        .and_then(|r| {
+            if r.status().is_success() {
+                r.json::<Vec<LyricsResponse>>().ok()
+            } else {
+                None
+            }
+        })
+        .and_then(|results| {
+            results
+                .iter()
+                .find(|r| r.synced_lyrics.is_some())
+                .cloned()
+                .or_else(|| results.iter().find(|r| r.plain_lyrics.is_some()).cloned())
+        })
+}
+
+/// Main function - LOCAL LRC FIRST, then API search
+pub fn fetch_lyrics(
+    artist: &str,
+    track: &str,
+    duration_secs: u32,
+) -> Result<LyricsResponse, String> {
+    println!("[Lyrics] Searching: {} - {}", artist, track);
+
+    let start = Instant::now();
+    let timeout = Duration::from_secs(10);
+    let client = create_client()?;
+
+    let clean_track = clean_track_name(track);
+    let primary_artist = extract_primary_artist(artist);
+
+    macro_rules! check_timeout {
+        () => {
+            if start.elapsed() > timeout {
+                println!("[Lyrics] ✗ Timeout");
+                return Err("Timeout".to_string());
+            }
+        };
     }
+
+    // Strategy 1: Exact match
+    if let Some(lyrics) = try_exact_match(&client, artist, track, duration_secs) {
+        println!("[Lyrics] ✓ Found exact match!");
+        return Ok(lyrics);
+    }
+    check_timeout!();
+
+    // Strategy 2: Clean track
+    if clean_track != track {
+        if let Some(lyrics) = try_exact_match(&client, artist, &clean_track, duration_secs) {
+            println!("[Lyrics] ✓ Found with clean track!");
+            return Ok(lyrics);
+        }
+        check_timeout!();
+    }
+
+    // Strategy 3: Primary artist
+    if primary_artist != artist {
+        if let Some(lyrics) = try_exact_match(&client, &primary_artist, track, duration_secs) {
+            println!("[Lyrics] ✓ Found with primary artist!");
+            return Ok(lyrics);
+        }
+        check_timeout!();
+    }
+
+    // Strategy 4: Search
+    if let Some(lyrics) = try_artist_track_search(&client, artist, track) {
+        println!("[Lyrics] ✓ Found via search!");
+        return Ok(lyrics);
+    }
+    check_timeout!();
+
+    // Strategy 5: Clean search
+    if clean_track != track || primary_artist != artist {
+        if let Some(lyrics) = try_artist_track_search(&client, &primary_artist, &clean_track) {
+            println!("[Lyrics] ✓ Found via clean search!");
+            return Ok(lyrics);
+        }
+        check_timeout!();
+    }
+
+    // Strategy 6: Generic query
+    let query = format!("{} {}", artist, track);
+    if let Some(lyrics) = try_generic_search(&client, &query) {
+        println!("[Lyrics] ✓ Found via generic!");
+        return Ok(lyrics);
+    }
+    check_timeout!();
+
+    // Strategy 7: Track only
+    if let Some(lyrics) = try_generic_search(&client, track) {
+        println!("[Lyrics] ✓ Found via track only!");
+        return Ok(lyrics);
+    }
+
+    println!("[Lyrics] ✗ Not found");
+    Err("No lyrics found".to_string())
+}
+
+/// Fetch with local file check first
+pub fn fetch_lyrics_with_local(
+    audio_path: &str,
+    artist: &str,
+    track: &str,
+    duration_secs: u32,
+) -> Result<LyricsResponse, String> {
+    // Check for local LRC file first (instant!)
+    if let Some(local) = find_local_lrc(audio_path) {
+        println!("[Lyrics] ✓ Using local LRC file!");
+        return Ok(local);
+    }
+
+    // Fall back to API search
+    fetch_lyrics(artist, track, duration_secs)
+}
+
+pub fn fetch_lyrics_fallback(artist: &str, track: &str) -> Result<LyricsResponse, String> {
+    let client = create_client()?;
+
+    if let Some(lyrics) = try_artist_track_search(&client, artist, track) {
+        return Ok(lyrics);
+    }
+
+    let query = format!("{} {}", artist, track);
+    if let Some(lyrics) = try_generic_search(&client, &query) {
+        return Ok(lyrics);
+    }
+
+    Err("No lyrics found".to_string())
 }

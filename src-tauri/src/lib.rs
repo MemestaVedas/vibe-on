@@ -18,6 +18,17 @@ const DISCORD_APP_ID: &str = "1463457295974535241";
 
 use std::sync::mpsc::Sender;
 
+/// Cached lyrics for current track
+#[derive(Clone, Default)]
+pub struct CachedLyrics {
+    pub track_path: String,
+    pub synced_lyrics: Option<String>,
+    pub plain_lyrics: Option<String>,
+    pub instrumental: bool,
+    pub is_fetching: bool,
+    pub error: Option<String>,
+}
+
 /// Global player state managed by Tauri
 pub struct AppState {
     player: Mutex<Option<AudioPlayer>>,
@@ -26,6 +37,7 @@ pub struct AppState {
     current_cover_url: Arc<Mutex<Option<String>>>,
     media_cmd_tx: Mutex<Option<Sender<MediaCmd>>>,
     last_rpc_update: Mutex<String>, // De-duplication key
+    lyrics_cache: Arc<Mutex<CachedLyrics>>,
 }
 
 impl Default for AppState {
@@ -37,6 +49,7 @@ impl Default for AppState {
             current_cover_url: Arc::new(Mutex::new(None)),
             media_cmd_tx: Mutex::new(None),
             last_rpc_update: Mutex::new(String::new()),
+            lyrics_cache: Arc::new(Mutex::new(CachedLyrics::default())),
         }
     }
 }
@@ -74,6 +87,70 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
     // Reset current cover
     if let Ok(mut url_guard) = state.current_cover_url.lock() {
         *url_guard = None;
+    }
+
+    // Reset lyrics cache and mark as fetching
+    if let Ok(mut lyrics_guard) = state.lyrics_cache.lock() {
+        println!("[Lyrics] Initializing cache for new track: {}", path);
+        *lyrics_guard = CachedLyrics {
+            track_path: path.clone(),
+            is_fetching: true,
+            ..Default::default()
+        };
+    } else {
+        println!("[Lyrics] Failed to lock lyrics cache!");
+    }
+
+    // Prefetch lyrics in background
+    if let Ok((info, _)) = get_track_metadata_helper(&path) {
+        let lyrics_cache = state.lyrics_cache.clone();
+        let artist = info.artist.clone();
+        let track_title = info.title.clone();
+        let duration = info.duration_secs as u32;
+        let track_path = path.clone();
+
+        std::thread::spawn(move || {
+            println!(
+                "[Lyrics] Prefetching lyrics for: {} - {}",
+                artist, track_title
+            );
+
+            let result = match lyrics_fetcher::fetch_lyrics(&artist, &track_title, duration) {
+                Ok(lyrics) => lyrics,
+                Err(_) => {
+                    // Fallback: search without duration constraint
+                    match lyrics_fetcher::fetch_lyrics_fallback(&artist, &track_title) {
+                        Ok(lyrics) => lyrics,
+                        Err(e) => {
+                            // Store error in cache
+                            if let Ok(mut guard) = lyrics_cache.lock() {
+                                if guard.track_path == track_path {
+                                    guard.is_fetching = false;
+                                    guard.error = Some(e);
+                                }
+                            }
+                            return;
+                        }
+                    }
+                }
+            };
+
+            // Store successful result in cache
+            if let Ok(mut guard) = lyrics_cache.lock() {
+                // Only update if still the same track
+                if guard.track_path == track_path {
+                    guard.synced_lyrics = result.synced_lyrics;
+                    guard.plain_lyrics = result.plain_lyrics;
+                    guard.instrumental = result.instrumental.unwrap_or(false);
+                    guard.is_fetching = false;
+                    guard.error = None;
+                    println!(
+                        "[Lyrics] Prefetch complete for: {} - {}",
+                        artist, track_title
+                    );
+                }
+            }
+        });
     }
 
     if let Ok((info, _)) = get_track_metadata_helper(&path) {
@@ -470,13 +547,75 @@ fn get_track_metadata(path: String) -> Result<TrackInfo, String> {
 // Lyrics Integration
 // ============================================================================
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CachedLyricsResponse {
+    pub synced_lyrics: Option<String>,
+    pub plain_lyrics: Option<String>,
+    pub instrumental: bool,
+    pub is_fetching: bool,
+    pub error: Option<String>,
+    pub track_path: String,
+}
+
+/// Get cached lyrics for the currently playing track
+/// Returns immediately with whatever is in the cache (may still be fetching)
+#[tauri::command]
+fn get_cached_lyrics(track_path: String, state: State<AppState>) -> CachedLyricsResponse {
+    println!("[Lyrics] get_cached_lyrics called for: {}", track_path);
+
+    if let Ok(guard) = state.lyrics_cache.lock() {
+        println!("[Lyrics] Cache state - track_path: {}, is_fetching: {}, has_synced: {}, has_plain: {}, error: {:?}",
+            guard.track_path,
+            guard.is_fetching,
+            guard.synced_lyrics.is_some(),
+            guard.plain_lyrics.is_some(),
+            guard.error
+        );
+
+        // Only return if the cached lyrics are for the requested track
+        if guard.track_path == track_path {
+            return CachedLyricsResponse {
+                synced_lyrics: guard.synced_lyrics.clone(),
+                plain_lyrics: guard.plain_lyrics.clone(),
+                instrumental: guard.instrumental,
+                is_fetching: guard.is_fetching,
+                error: guard.error.clone(),
+                track_path: guard.track_path.clone(),
+            };
+        } else {
+            println!(
+                "[Lyrics] Cache track mismatch: cached='{}', requested='{}'",
+                guard.track_path, track_path
+            );
+        }
+    }
+
+    // No cached lyrics for this track
+    CachedLyricsResponse {
+        synced_lyrics: None,
+        plain_lyrics: None,
+        instrumental: false,
+        is_fetching: false,
+        error: Some("No lyrics cached for this track".to_string()),
+        track_path,
+    }
+}
+
 #[tauri::command]
 fn get_lyrics(
+    audio_path: String,
     artist: String,
     track: String,
     duration: u32,
 ) -> Result<lyrics_fetcher::LyricsResponse, String> {
-    // First try with duration (more accurate matching)
+    // First check for local LRC file (instant!)
+    if let Some(local) = lyrics_fetcher::find_local_lrc(&audio_path) {
+        println!("[Lyrics] ✓ Using local LRC file!");
+        return Ok(local);
+    }
+
+    // Then try API with duration
     match lyrics_fetcher::fetch_lyrics(&artist, &track, duration) {
         Ok(lyrics) => Ok(lyrics),
         Err(_) => {
@@ -696,6 +835,7 @@ pub fn run() {
             set_yt_visibility,
             move_yt_window,
             get_lyrics,
+            get_cached_lyrics,
         ])
         .setup(|app| {
             // Initialize Windows Media Controls with the main window handle
