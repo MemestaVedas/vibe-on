@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use lofty::prelude::*;
 use lofty::probe::Probe;
-use rodio::{Decoder, OutputStream, Sink};
+use rodio::{Decoder, OutputStream, Sink, Source};
 
 use super::state::{PlayerState, PlayerStatus, TrackInfo};
 
@@ -103,6 +103,7 @@ struct AudioThread {
     _stream: OutputStream,
     state: PlayerState,
     current_track: Option<TrackInfo>,
+    current_path: Option<String>, // Store path for seek reload
     volume: f32,
     play_start_time: Option<Instant>,
     accumulated_time: f64,
@@ -124,6 +125,7 @@ impl AudioThread {
             _stream: stream,
             state: PlayerState::Stopped,
             current_track: None,
+            current_path: None,
             volume: 1.0,
             play_start_time: None,
             accumulated_time: 0.0,
@@ -151,7 +153,7 @@ impl AudioThread {
                     audio.handle_set_volume(value);
                 }
                 Ok(AudioCommand::Seek(seconds)) => {
-                    audio.handle_seek(seconds);
+                    audio.handle_seek(seconds, Some(&stream_handle));
                 }
                 Ok(AudioCommand::GetStatus(tx)) => {
                     let status = audio.get_status();
@@ -226,6 +228,7 @@ impl AudioThread {
         self.sink = Some(sink);
         self.state = PlayerState::Playing;
         self.current_track = Some(track_info);
+        self.current_path = Some(path.to_string_lossy().to_string());
         self.play_start_time = Some(Instant::now());
         self.accumulated_time = 0.0;
     }
@@ -326,17 +329,95 @@ impl AudioThread {
         }
     }
 
-    fn handle_seek(&mut self, seconds: f64) {
+    fn handle_seek(
+        &mut self,
+        seconds: f64,
+        stream_handle: Option<&Arc<rodio::OutputStreamHandle>>,
+    ) {
+        println!("[Audio] Seeking to {} seconds", seconds);
+
+        // First try native seek
         if let Some(ref mut sink) = self.sink {
-            if sink
-                .try_seek(std::time::Duration::from_secs_f64(seconds))
-                .is_ok()
-            {
-                self.accumulated_time = seconds;
-                if self.state == PlayerState::Playing {
-                    self.play_start_time = Some(Instant::now());
+            match sink.try_seek(std::time::Duration::from_secs_f64(seconds)) {
+                Ok(_) => {
+                    println!("[Audio] Native seek successful");
+                    self.accumulated_time = seconds;
+                    if self.state == PlayerState::Playing {
+                        self.play_start_time = Some(Instant::now());
+                    }
+                    return;
+                }
+                Err(e) => {
+                    println!("[Audio] Native seek failed: {:?}, trying reload method", e);
                 }
             }
+        }
+
+        // Fallback: reload file and skip to position
+        if let (Some(path), Some(stream_handle)) = (&self.current_path, stream_handle) {
+            let was_playing = self.state == PlayerState::Playing;
+            let track_info = self.current_track.clone();
+            let path = path.clone();
+
+            // Stop current playback
+            if let Some(sink) = self.sink.take() {
+                sink.stop();
+            }
+
+            // Reload and skip
+            let file = match File::open(&path) {
+                Ok(f) => f,
+                Err(e) => {
+                    eprintln!("[Audio] Seek reload failed: {}", e);
+                    return;
+                }
+            };
+
+            let reader = BufReader::with_capacity(128 * 1024, file);
+            let source = match Decoder::new(reader) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("[Audio] Seek decode failed: {}", e);
+                    return;
+                }
+            };
+
+            // Skip to the target position using skip_duration
+            let skipped_source = source.skip_duration(std::time::Duration::from_secs_f64(seconds));
+
+            let sink = match Sink::try_new(stream_handle) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("[Audio] Seek sink creation failed: {}", e);
+                    return;
+                }
+            };
+
+            sink.set_volume(self.volume);
+            sink.append(skipped_source);
+
+            if !was_playing {
+                sink.pause();
+            }
+
+            self.sink = Some(sink);
+            self.current_track = track_info;
+            self.current_path = Some(path);
+            self.accumulated_time = seconds;
+            self.state = if was_playing {
+                PlayerState::Playing
+            } else {
+                PlayerState::Paused
+            };
+            self.play_start_time = if was_playing {
+                Some(Instant::now())
+            } else {
+                None
+            };
+
+            println!("[Audio] Seek via reload successful");
+        } else {
+            println!("[Audio] Seek failed: no path or stream handle");
         }
     }
 

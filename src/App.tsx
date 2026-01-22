@@ -13,6 +13,7 @@ import { AlbumGrid } from './components/AlbumGrid';
 import { ArtistList } from './components/ArtistList';
 import { SettingsPage } from './components/SettingsPage';
 import { AmbientBackground } from './components/AmbientBackground';
+import { LyricsPanel } from './components/LyricsPanel';
 import { ThemeManager } from './components/ThemeManager';
 import { YouTubeMusic } from './components/YouTubeMusic';
 
@@ -103,6 +104,9 @@ function App() {
 
       {/* Player Bar */}
       <PlayerBar />
+
+      {/* Lyrics Panel Overlay */}
+      <LyricsPanel />
     </div>
   );
 }
