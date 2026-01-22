@@ -9,6 +9,7 @@ export interface TrackInfo {
   album: string;
   duration_secs: number;
   cover_image?: string | null;
+  cover_url?: string; // For streaming services
 }
 
 // Complete player status matching Rust struct

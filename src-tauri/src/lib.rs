@@ -5,7 +5,7 @@ mod discord_rpc;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use audio::state::PlayerStatus;
 use audio::{AudioPlayer, MediaCmd, MediaControlService, TrackInfo};
@@ -24,6 +24,7 @@ pub struct AppState {
     discord: Arc<DiscordRpc>,
     current_cover_url: Arc<Mutex<Option<String>>>,
     media_cmd_tx: Mutex<Option<Sender<MediaCmd>>>,
+    last_rpc_update: Mutex<String>, // De-duplication key
 }
 
 impl Default for AppState {
@@ -34,6 +35,7 @@ impl Default for AppState {
             discord: Arc::new(DiscordRpc::new(DISCORD_APP_ID)),
             current_cover_url: Arc::new(Mutex::new(None)),
             media_cmd_tx: Mutex::new(None),
+            last_rpc_update: Mutex::new(String::new()),
         }
     }
 }
@@ -468,41 +470,178 @@ fn get_track_metadata(path: String) -> Result<TrackInfo, String> {
 // ============================================================================
 
 #[tauri::command]
-async fn open_yt_music(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_yt_music(app: tauri::AppHandle, width: f64, height: f64) -> Result<(), String> {
+    use tauri::Manager;
     use tauri::WebviewUrl;
     use tauri::WebviewWindowBuilder;
 
-    // Check if window already exists
-    if let Some(window) = app.get_webview_window("ytmusic") {
-        let _ = window.set_focus();
+    // Check if webview already exists
+    if let Some(webview) = app.get_webview_window("ytmusic") {
+        let _ = webview.set_focus();
         return Ok(());
     }
 
-    // Spawn window creation to not block the main thread
-    tauri::async_runtime::spawn(async move {
-        let result = WebviewWindowBuilder::new(
-            &app,
-            "ytmusic",
-            WebviewUrl::External("https://music.youtube.com".parse().unwrap()),
-        )
-        .title("YouTube Music")
-        .inner_size(1200.0, 800.0)
-        .decorations(true)
-        .resizable(true)
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-        .devtools(true) // Enable devtools for debugging
-        .on_navigation(|url| {
-            // Allow all navigation for YouTube Music
-            println!("[YTMusic] Navigating to: {}", url);
-            true
-        })
-        .build();
+    let main_window = app
+        .get_webview_window("main")
+        .ok_or("Main window not found")?;
 
-        if let Err(e) = result {
-            eprintln!("[YTMusic] Failed to create window: {}", e);
+    // Create child webview attached to main window
+    // Initial size/position will be set by move_yt_window immediately after
+
+    // We update to WebviewWindowBuilder for Tauri v2 compatibility
+    let mut builder = WebviewWindowBuilder::new(
+        &app,
+        "ytmusic",
+        WebviewUrl::External("https://music.youtube.com".parse().unwrap())
+    )
+    .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+    .devtools(true)
+    .initialization_script(include_str!("yt_inject.js"))
+    .inner_size(width, height)
+    .visible(false); // Start hidden
+
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.parent(&main_window).map_err(|e| e.to_string())?;
+    }
+
+    builder.build().map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct YtStatus {
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub cover_url: String,
+    pub duration: f64,
+    pub progress: f64,
+    pub is_playing: bool,
+}
+
+#[tauri::command]
+fn update_yt_status(
+    status: YtStatus,
+    state: State<AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    // We construct a key to check effective change.
+    // Including is_playing is crucial.
+    // We DON'T include progress in the key because progress changes every second, but we don't want to re-set activity every second if the "Activity" itself (playing Song X) hasn't changed.
+    // However, for "Time Remaining" to be accurate if the user seeks, we might want to update.
+    // But re-setting activity continuously might be bad.
+    // Let's rely on Title+Artist+State change.
+
+    let key = format!("{}|{}|{}", status.title, status.artist, status.is_playing);
+
+    let mut should_update = false;
+    if let Ok(mut last) = state.last_rpc_update.lock() {
+        if *last != key {
+            *last = key;
+            should_update = true;
         }
-    });
+    }
 
+    if should_update {
+        let _ = state.discord.set_activity(
+            &status.title,
+            &status.artist,
+            if status.is_playing {
+                // Estimate end time based on progress
+                let remaining = status.duration - status.progress;
+                Some(remaining)
+            } else {
+                None
+            },
+            if status.cover_url.is_empty() {
+                None
+            } else {
+                Some(status.cover_url.clone())
+            },
+            Some(status.album.clone()),
+        );
+    }
+
+    // 2. Emit event to Frontend (so PlayerBar updates)
+    app.emit("player:update", &status)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn yt_control(action: String, value: Option<f64>, app: AppHandle) -> Result<(), String> {
+    // use tauri::Manager;
+    // Need to use get_webview for child webviews
+    if let Some(webview) = app.get_webview_window("ytmusic") {
+        let js = format!("window.ytControl('{}', {})", action, value.unwrap_or(0.0));
+        webview.eval(&js).map_err(|e: tauri::Error| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn set_yt_visibility(show: bool, app: AppHandle) -> Result<(), String> {
+    // use tauri::Manager;
+    if let Some(webview) = app.get_webview_window("ytmusic") {
+        if show {
+            webview.show().map_err(|e: tauri::Error| e.to_string())?;
+            webview
+                .set_focus()
+                .map_err(|e: tauri::Error| e.to_string())?;
+        } else {
+            webview.hide().map_err(|e: tauri::Error| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn move_yt_window(x: f64, y: f64, width: f64, height: f64, app: AppHandle) -> Result<(), String> {
+    // use tauri::Manager;
+    if let Some(webview) = app.get_webview_window("ytmusic") {
+        // For child webviews, bounds are relative to the parent window's content area (I think?).
+        // If x, y are screen coordinates (which they were before), we need to convert them?
+        // Or if the frontend sends us screen coordinates, we need to map them to window-relative coordinates.
+        // Wait, the previous implementation received Physical coordinates which were presumably screen coordinates.
+        // But for a child webview, we want coordinates relative to the Main Window.
+
+        // Frontend logic in YouTubeMusic.tsx:
+        // const x = winPos.x + Math.round(rect.x * factor);
+        // const y = winPos.y + Math.round(rect.y * factor);
+        // This calculates SCREEN coordinates.
+
+        // If we use Child Webview, we want RELATIVE coordinates (rect.x, rect.y).
+        // So we need to update the Frontend too.
+        // However, if we just use set_bounds with what we have, it might be offset by the window position.
+        // Let's assume x, y are correct logical coordinates relative to the window for now,
+        // OR we'll fix the frontend to send relative coordinates.
+        // Since we are changing the implementation significantly, we should update the frontend.
+
+        // Actually, let's keep the signature but expect RELATIVE coordinates (Logical) from now on?
+        // Or Physical relative.
+
+        // Let's assume input is Logical or Physical PIXELS.
+        // Webview::set_bounds takes a Rect.
+
+        // Use LogicalPosition and LogicalSize as that's likely what we get from JS, or just map directly
+
+        webview
+            .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                x: x as i32,
+                y: y as i32,
+            }))
+            .map_err(|e: tauri::Error| e.to_string())?;
+
+        webview
+            .set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                width: width as u32,
+                height: height as u32,
+            }))
+            .map_err(|e: tauri::Error| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -531,6 +670,10 @@ pub fn run() {
             get_library_tracks,
             get_covers_dir,
             open_yt_music,
+            update_yt_status,
+            yt_control,
+            set_yt_visibility,
+            move_yt_window,
         ])
         .setup(|app| {
             // Initialize Windows Media Controls with the main window handle

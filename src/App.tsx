@@ -14,11 +14,12 @@ import { ArtistList } from './components/ArtistList';
 import { SettingsPage } from './components/SettingsPage';
 import { AmbientBackground } from './components/AmbientBackground';
 import { ThemeManager } from './components/ThemeManager';
+import { YouTubeMusic } from './components/YouTubeMusic';
 
 function App() {
   useMediaSession(); // Initialize System Media Controls
   const { loadLibrary, status, pause, resume, playFile } = usePlayerStore();
-  const [view, setView] = useState<'tracks' | 'albums' | 'artists' | 'settings'>('tracks');
+  const [view, setView] = useState<'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic'>('tracks');
 
   useEffect(() => {
     loadLibrary();
@@ -91,6 +92,7 @@ function App() {
           {view === 'albums' && <AlbumGrid />}
           {view === 'artists' && <ArtistList />}
           {view === 'settings' && <SettingsPage />}
+          {view === 'ytmusic' && <YouTubeMusic />}
         </div>
       </main>
 
