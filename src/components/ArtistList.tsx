@@ -1,8 +1,8 @@
 import { useState, useMemo, forwardRef } from 'react';
-import { VirtuosoGrid } from 'react-virtuoso';
+import { VirtuosoGrid, Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { useThemeStore } from '../store/themeStore';
+import { IconMicrophone, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
 
 interface Artist {
@@ -15,7 +15,6 @@ interface Artist {
 export function ArtistList() {
     const library = usePlayerStore(state => state.library);
     const playFile = usePlayerStore(state => state.playFile);
-    const { colors } = useThemeStore();
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
 
     // Group tracks by artist
@@ -64,7 +63,6 @@ export function ArtistList() {
                 artist={artist}
                 onBack={() => setSelectedArtist(null)}
                 onPlay={() => handlePlayArtist(artist)}
-                accentColor={colors.accent1}
             />
         );
     }
@@ -79,8 +77,8 @@ export function ArtistList() {
                     <div
                         ref={ref}
                         {...props}
+                        className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 p-6 content-start"
                         style={{ ...style, width: '100%' }}
-                        className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-5 p-5 pb-24"
                     >
                         {children}
                     </div>
@@ -94,92 +92,123 @@ export function ArtistList() {
                     artist={artist}
                     onClick={() => setSelectedArtist(artist.name)}
                     onPlay={() => handlePlayArtist(artist)}
-                    accentColor={colors.accent1}
-                    accentForeground={colors.accent1Foreground}
                 />
             )}
         />
     );
 }
 
-function ArtistCard({ artist, onClick, onPlay, accentColor, accentForeground }: { artist: Artist, onClick: () => void, onPlay: () => void, accentColor: string, accentForeground: string }) {
+function ArtistCard({ artist, onClick, onPlay }: { artist: Artist, onClick: () => void, onPlay: () => void }) {
     const coverUrl = useCoverArt(artist.cover);
 
     return (
-        <div className="bg-white/5 rounded-full p-4 cursor-pointer transition-colors duration-200 hover:bg-white/10 group flex flex-col items-center" onClick={onClick}>
-            <div className="aspect-square w-full mb-3 rounded-full overflow-hidden relative shadow-lg">
+        <div
+            onClick={onClick}
+            className="group flex flex-col gap-3 p-3 rounded-[1.5rem] hover:bg-surface-container-high transition-colors cursor-pointer"
+        >
+            <div className="aspect-square w-full relative rounded-full overflow-hidden shadow-elevation-1 group-hover:shadow-elevation-2 transition-shadow bg-surface-container">
                 {coverUrl ? (
-                    <img src={coverUrl} alt={artist.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    <img src={coverUrl} alt={artist.name} loading="lazy" className="w-full h-full object-cover" />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[#2a2a4e] to-[#1f1f3a] flex items-center justify-center text-4xl text-white/10 transition-transform duration-500 group-hover:scale-105">🎤</div>
+                    <div className="w-full h-full flex items-center justify-center bg-surface-container-highest text-on-surface-variant/50">
+                        <IconMicrophone size={48} />
+                    </div>
                 )}
 
-                {/* Dark overlay on hover */}
-                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
+                {/* Play Button Overlay */}
                 <div
-                    className="absolute bottom-3 right-3 w-12 h-12 rounded-full flex items-center justify-center translate-y-4 opacity-0 transition-all duration-300 shadow-xl group-hover:opacity-100 group-hover:translate-y-0 hover:scale-105"
-                    style={{ backgroundColor: accentColor, color: accentForeground }}
                     onClick={(e) => {
                         e.stopPropagation();
                         onPlay();
                     }}
+                    className="absolute bottom-2 right-2 w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-elevation-2 hover:scale-105 active:scale-95 z-20"
                 >
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
-                        <path d="M8 5v14l11-7z" />
-                    </svg>
+                    <IconPlay size={24} fill="currentColor" />
                 </div>
             </div>
-            <div className="text-center w-full">
-                <div className="text-sm font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis mb-1 group-hover:text-indigo-400 transition-colors" style={{ color: 'white' }}>{artist.name}</div>
-                <div className="text-xs text-white/50">{artist.albumCount} albums • {artist.tracks.length} songs</div>
+
+            <div className="px-1 text-center">
+                <div className="text-title-medium font-semibold text-on-surface truncate" title={artist.name}>{artist.name}</div>
+                <div className="text-body-medium text-on-surface-variant truncate">
+                    {artist.albumCount} albums • {artist.tracks.length} songs
+                </div>
             </div>
         </div>
     );
 }
 
-function ArtistDetailView({ artist, onBack, onPlay, accentColor }: { artist: Artist, onBack: () => void, onPlay: () => void, accentColor: string }) {
+function ArtistDetailView({ artist, onBack, onPlay }: { artist: Artist, onBack: () => void, onPlay: () => void }) {
     const { playFile } = usePlayerStore();
     const coverUrl = useCoverArt(artist.cover);
 
     return (
-        <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-b from-[#141423cc] to-[#0a0a14f2]">
-            <div className="p-8 bg-gradient-to-b from-indigo-500/10 to-transparent">
-                <button className="bg-none border-none text-white/60 text-sm cursor-pointer mb-6 p-0 hover:text-white hover:underline flex items-center gap-1" onClick={onBack}>
-                    <span>←</span> Back to Artists
-                </button>
-                <div className="flex gap-8 items-center">
+        <div className="flex flex-col h-full bg-surface">
+            {/* Header */}
+            <div className="p-8 flex gap-8 items-center bg-surface-container-low shrink-0">
+                <div className="w-52 h-52 shrink-0 rounded-full overflow-hidden shadow-elevation-3 bg-surface-container">
                     {coverUrl ? (
-                        <img src={coverUrl} alt={artist.name} className="w-[180px] h-[180px] rounded-full shadow-2xl object-cover" />
+                        <img src={coverUrl} alt={artist.name} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
-                        <div className="w-[180px] h-[180px] rounded-full bg-white/10 flex items-center justify-center text-6xl text-white/20 shadow-2xl">🎤</div>
+                        <div className="w-full h-full flex items-center justify-center bg-surface-container-highest text-on-surface-variant/50">
+                            <IconMicrophone size={64} />
+                        </div>
                     )}
-                    <div className="flex flex-col gap-2">
-                        <h1 className="text-5xl font-extrabold m-0 leading-tight text-white">{artist.name}</h1>
-                        <p className="text-white/60 m-0 mb-6">{artist.albumCount} Albums • {artist.tracks.length} Songs</p>
+                </div>
+
+                <div className="flex flex-col gap-4 min-w-0 flex-1">
+                    <div>
+                        <div className="text-label-large font-medium text-on-surface-variant uppercase tracking-wider mb-1">Artist</div>
+                        <h1 className="text-display-medium font-bold text-on-surface tracking-tight truncate">{artist.name}</h1>
+                    </div>
+
+                    <div className="text-title-medium text-on-surface-variant">
+                        {artist.albumCount} Albums • {artist.tracks.length} Songs
+                    </div>
+
+                    <div className="flex gap-3 mt-2">
                         <button
-                            className="text-white border-none py-3 px-8 rounded-full text-base font-semibold cursor-pointer transition-all duration-200 shadow-lg hover:scale-105 w-fit"
-                            style={{ backgroundColor: accentColor }}
                             onClick={onPlay}
+                            className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-elevation-1 transition-transform active:scale-95"
                         >
-                            Play Artist
+                            <IconPlay size={20} fill="currentColor" /> Play Artist
+                        </button>
+                        <button
+                            onClick={onBack}
+                            className="h-10 px-6 border border-outline rounded-full text-on-surface font-medium hover:bg-surface-container-high transition-colors"
+                        >
+                            Back
                         </button>
                     </div>
                 </div>
             </div>
-            <div className="px-8 pb-8 overflow-y-auto pb-[100px] flex-1">
-                {artist.tracks.map((track, i) => (
-                    <div key={track.id} className="grid grid-cols-[40px_1fr_1fr_60px] py-3 px-4 rounded text-white/80 cursor-pointer transition-colors duration-100 hover:bg-white/10 hover:text-white border-b border-white/5" onClick={() => playFile(track.path)}>
-                        <span className="text-white/40">{i + 1}</span>
-                        <span className="font-medium truncate pr-4">{track.title}</span>
-                        <span className="text-white/50 truncate pr-4">{track.album}</span>
-                        <span className="text-right text-white/40 font-mono text-xs pt-1">
-                            {Math.floor(track.duration_secs / 60)}:
-                            {Math.floor(track.duration_secs % 60).toString().padStart(2, '0')}
-                        </span>
-                    </div>
-                ))}
+
+            {/* Tracklist */}
+            <div className="flex-1 p-6">
+                <Virtuoso
+                    style={{ height: '100%' }}
+                    data={artist.tracks}
+                    overscan={100}
+                    itemContent={(i, track) => (
+                        <div
+                            key={track.id}
+                            onClick={() => playFile(track.path)}
+                            className="group flex items-center gap-4 p-3 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
+                        >
+                            <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">{i + 1}</span>
+                            <span className="flex-1 font-medium text-body-large truncate">{track.title}</span>
+                            <span className="flex-1 text-body-medium text-on-surface-variant/80 truncate">{track.album}</span>
+                            <span className="text-label-medium font-medium opacity-60 tabular-nums">
+                                {Math.floor(track.duration_secs / 60)}:
+                                {Math.floor(track.duration_secs % 60).toString().padStart(2, '0')}
+                            </span>
+                        </div>
+                    )}
+                    components={{
+                        Footer: () => <div className="h-24"></div>
+                    }}
+                />
             </div>
         </div>
     );
 }
+

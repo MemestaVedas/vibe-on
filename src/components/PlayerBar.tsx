@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../store/playerStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { useThemeStore } from '../store/themeStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { SquigglySlider } from './SquigglySlider';
 import { MarqueeText } from './MarqueeText';
-import { motion, AnimatePresence } from 'motion/react';
+import {
+    IconLyrics,
+    IconPrevious,
+    IconPlay,
+    IconPause,
+    IconNext,
+    IconVolume,
+    IconMusicNote
+} from './Icons';
 
 // Format seconds to MM:SS
 function formatTime(seconds: number): string {
@@ -14,20 +22,6 @@ function formatTime(seconds: number): string {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
-
-// Spring transition for layout animations
-const springTransition = {
-    type: "spring",
-    stiffness: 350,
-    damping: 45,
-    mass: 1,
-} as const;
-
-// Fade transition for content
-const fadeTransition = {
-    duration: 0.3,
-    ease: [0.4, 0, 0.2, 1] as const,
-};
 
 // Lyrics button component
 function LyricsButton({ track }: { track: { title: string; artist: string; duration_secs: number; path: string } | null }) {
@@ -45,18 +39,13 @@ function LyricsButton({ track }: { track: { title: string; artist: string; durat
         <button
             onClick={handleClick}
             disabled={!track}
-            className={`p-2 rounded-full transition-all ${showLyrics
-                ? 'bg-white/20 text-white'
-                : 'text-white/50 hover:text-white hover:bg-white/10'
-                } ${!track ? 'opacity-30 cursor-not-allowed' : ''}`}
+            className={`p-2 rounded-full transition-colors ${showLyrics ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'}`}
             title="Lyrics"
         >
             {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="text-label-small">(Loading)</div>
             ) : (
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 3C10.34 3 9 4.37 9 6.07V12c0 1.66 1.34 3 3 3s3-1.34 3-3V6.07C15 4.37 13.66 3 12 3zM10.5 12V6.07c0-.82.68-1.57 1.5-1.57s1.5.75 1.5 1.57V12c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5zM19 12h-1.5c0 2.76-2.24 5-5 5s-5-2.24-5-5H6c0 3.53 2.61 6.43 6 6.92V21h2v-2.08c3.39-.49 6-3.39 6-6.92z" />
-                </svg>
+                <IconLyrics size={24} />
             )}
         </button>
     );
@@ -65,7 +54,6 @@ function LyricsButton({ track }: { track: { title: string; artist: string; durat
 export function PlayerBar() {
     const { status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack, getCurrentTrackIndex, library, playFile, seek } = usePlayerStore();
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
-    const { colors } = useThemeStore();
     const { state, track, position_secs, volume } = status;
     const lastStateRef = useRef(state);
 
@@ -79,9 +67,7 @@ export function PlayerBar() {
 
     // Auto-play next track when current track ends
     useEffect(() => {
-        // Since backend now transitions to 'Stopped' naturally, we check if we were just playing
         if (lastStateRef.current === 'Playing' && state === 'Stopped' && track) {
-            // Check if we reached the end (backend now caps position at duration)
             const isFinished = position_secs >= track.duration_secs - 0.5;
             if (isFinished) {
                 nextTrack();
@@ -113,59 +99,84 @@ export function PlayerBar() {
     const hasNext = currentIndex >= 0 && currentIndex < library.length - 1;
 
     const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
-    // Prefer external cover URL (for YouTube) -> then convert local file path -> then generic hook
-    // Note: useCoverArt handles `Uint8Array` or `string` path.
-    // We need to handle the case where we have a direct http URL (YouTube).
     const isYtUrl = currentLibraryTrack?.cover_url !== undefined;
     const coverUrl = isYtUrl ? currentLibraryTrack?.cover_url : useCoverArt(currentLibraryTrack?.cover_image);
-
-    // Hack: if track is from status (which might be YouTube) and library index is invalid (because it's not in library)
-    // We should look at status.track directly.
     const activeCoverUrl = track?.cover_url || coverUrl;
 
-    // Dynamic colors from global store
-    const { accent1, accent1Foreground, accent2, background } = colors;
-
-    // State for interactive pill
     const [isHovered, setIsHovered] = useState(false);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Calculate progress percentage for background fill in minimal mode
-    const progressPercent = track ? (position_secs / track.duration_secs) * 100 : 0;
+    const handleMouseEnter = () => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+        setIsHovered(true);
+    };
+
+    const handleMouseLeave = () => {
+        hoverTimeoutRef.current = setTimeout(() => {
+            setIsHovered(false);
+        }, 300); // 300ms buffer to prevent glitching
+    };
 
     return (
-        <motion.div
-            layout
-            transition={springTransition}
-            className="fixed bottom-6 left-1/2 z-50"
-            style={{ x: "-50%" }}
-            animate={{
-                width: isHovered ? "min(95vw, 800px)" : 384,
-                height: isHovered ? 96 : 56,
-            }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+        <div
+            className="fixed bottom-6 left-0 right-0 z-50 flex justify-center pointer-events-none"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
         >
-            {/* Hovering Pill Container */}
+            {/* Player Container */}
             <motion.div
                 layout
-                className="w-full h-full backdrop-blur-lg border border-white/10 rounded-full shadow-2xl relative overflow-hidden transition-colors duration-700"
-                style={{ backgroundColor: colors.backgroundRaw }} // Already contains alpha from hook
+                initial={false}
+                animate={{
+                    width: isHovered ? '90%' : '20rem', // 20rem is w-80
+                    height: isHovered ? '6rem' : '4rem', // 6rem is h-24, 4rem is h-16
+                    borderRadius: isHovered ? '2rem' : '9999px',
+                    maxWidth: isHovered ? '56rem' : '20rem', // 56rem is max-w-4xl
+                }}
+                transition={{ type: "spring", stiffness: 200, damping: 25, mass: 1 }}
+                className={`
+                    pointer-events-auto
+                    relative 
+                    bg-surface-container-high 
+                    text-on-surface
+                    shadow-elevation-3
+                    overflow-hidden
+                    flex items-center
+                    ${isHovered ? 'px-6 py-3 gap-6' : 'px-4 py-2 gap-4'}
+                `}
             >
-                {/* Background ambient glow - tint with dynamic color if available */}
-                <div
-                    className="absolute inset-0 opacity-40 pointer-events-none transition-all duration-700"
-                    style={{ background: `linear-gradient(90deg, ${background}80 0%, transparent 50%, ${accent2}40 100%)` }}
-                />
+                {/* Background Art Overlay (Expanded Mode) */}
+                <AnimatePresence>
+                    {isHovered && expandedArtMode === 'background' && activeCoverUrl && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-[2rem]"
+                        >
+                            <div className="absolute left-0 top-0 bottom-0 w-3/4">
+                                <img
+                                    src={activeCoverUrl}
+                                    alt=""
+                                    className="w-full h-full object-cover opacity-50"
+                                />
+                                {/* Smooth fade into the pill background */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-container-high/20 to-surface-container-high" />
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                {/* Minimal Mode: Background Progress Fill */}
-                <motion.div
-                    className="absolute inset-y-0 left-0 bg-white/20 pointer-events-none"
-                    animate={{
-                        width: `${progressPercent}%`,
-                        opacity: isHovered ? 0 : 1
-                    }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                />
+                {/* Progress Fill Background (Minimal Mode only) */}
+                {!isHovered && track && (
+                    <div
+                        className="absolute inset-0 z-0 bg-primary/30 pointer-events-none transition-all duration-200 ease-linear"
+                        style={{ width: `${(position_secs / (track.duration_secs || 1)) * 100}%` }}
+                    />
+                )}
 
                 <AnimatePresence mode="wait">
                     {isHovered ? (
@@ -175,77 +186,102 @@ export function PlayerBar() {
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            transition={fadeTransition}
-                            className="absolute inset-0 flex items-center px-6 gap-6 justify-between"
+                            transition={{ duration: 0.2 }}
+                            className="flex w-full items-center gap-6 relative z-10 h-full"
                         >
-                            {/* Left: Cover Art & Track Info */}
-                            <div className="flex items-center gap-4 w-[25%] flex-shrink-0 relative z-10 transition-all">
-                                {/* Pill Mode Cover Art */}
-                                {expandedArtMode === 'pill' && activeCoverUrl && (
-                                    <div className="h-12 w-12 rounded-full overflow-hidden shadow-lg border border-white/10 flex-shrink-0 animate-[spin_8s_linear_infinite]">
-                                        <img src={activeCoverUrl} alt="" className="w-full h-full object-cover" />
+                            {/* Left: Info */}
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                {/* Cover Art - Only show in pill mode or if background art is disabled */}
+                                {expandedArtMode === 'pill' && (
+                                    <div
+                                        className={`
+                                            relative shrink-0 overflow-hidden bg-surface-container-low shadow-sm transition-all duration-300
+                                            ${albumArtStyle === 'vinyl' ? 'w-16 h-16 rounded-full' : 'w-16 h-16 rounded-xl'}
+                                        `}
+                                    >
+                                        {activeCoverUrl ? (
+                                            <img
+                                                src={activeCoverUrl}
+                                                alt=""
+                                                className={`
+                                                    w-full h-full object-cover
+                                                    ${albumArtStyle === 'vinyl' && state === 'Playing' ? 'animate-spin-slow' : ''}
+                                                `}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
+                                                <IconMusicNote size={24} />
+                                            </div>
+                                        )}
+
+                                        {/* Vinyl Center Hole */}
+                                        {albumArtStyle === 'vinyl' && (
+                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                <div className="w-4 h-4 bg-surface-container-high rounded-full border border-surface-container-low/50" />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
-                                <div className="flex flex-col overflow-hidden min-w-0 flex-1">
-                                    <MarqueeText text={track?.title || "Not Playing"} className="text-lg font-bold text-white leading-tight" />
-                                    <div className="text-sm text-white/60 leading-tight truncate">{track?.artist || "Pick a song"}</div>
+                                <div className="flex flex-col min-w-0">
+                                    <div className="text-title-medium font-bold truncate  text-on-surface">
+                                        <MarqueeText text={track?.title || "Not Playing"} />
+                                    </div>
+                                    <div className="text-body-medium text-on-surface-variant truncate">
+                                        {track?.artist || "Pick a song"}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Background Mode Cover Art */}
-                            {expandedArtMode === 'background' && activeCoverUrl && (
-                                <div className="absolute left-0 top-0 bottom-0 w-[50%] pointer-events-none rounded-l-full overflow-hidden">
-                                    <img
-                                        src={activeCoverUrl}
-                                        alt=""
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                        style={{
-                                            maskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 100%)',
-                                            WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 100%)',
-                                        }}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Center: Controls & Squiggly Progress */}
-                            <div className="flex-1 flex flex-col items-center justify-center gap-2 relative z-10">
+                            {/* Center: Controls */}
+                            <div className="flex flex-col items-center flex-[2] gap-1">
                                 <div className="flex items-center gap-6">
-                                    <button className="text-white/60 hover:text-white transition-colors p-2" onClick={prevTrack} disabled={!hasPrev}>
-                                        <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
+                                    <button onClick={prevTrack} disabled={!hasPrev} className="text-on-surface-variant hover:text-on-surface disabled:opacity-30 p-2 rounded-full hover:bg-surface-container-highest">
+                                        <IconPrevious size={28} />
                                     </button>
                                     <button
-                                        className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all"
-                                        style={{ backgroundColor: accent1, color: accent1Foreground }} // High-contrast dynamic colors
                                         onClick={handlePlayPause}
+                                        className="w-14 h-14 bg-primary text-on-primary rounded-2xl flex items-center justify-center hover:bg-primary/90 shadow-elevation-1 transition-transform active:scale-95"
                                     >
                                         {state === 'Playing' ? (
-                                            <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+                                            <IconPause size={32} />
                                         ) : (
-                                            <svg className="w-6 h-6 fill-current ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                            <IconPlay size={32} />
                                         )}
                                     </button>
-                                    <button className="text-white/60 hover:text-white transition-colors p-2" onClick={nextTrack} disabled={!hasNext}>
-                                        <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+                                    <button onClick={nextTrack} disabled={!hasNext} className="text-on-surface-variant hover:text-on-surface disabled:opacity-30 p-2 rounded-full hover:bg-surface-container-highest">
+                                        <IconNext size={28} />
                                     </button>
                                 </div>
-                                <div className="w-full flex items-center gap-3">
-                                    <span className="text-xs font-medium text-white/40 tabular-nums w-10 text-right">{formatTime(position_secs)}</span>
-                                    <div className="flex-1">
-                                        <SquigglySlider value={position_secs} max={track?.duration_secs || 100} onChange={handleSeek} isPlaying={state === 'Playing'} accentColor={accent1} />
+
+                                {/* Seeker */}
+                                <div className="w-full flex items-center gap-3 text-label-small font-medium text-on-surface-variant/80">
+                                    <span className="w-10 text-right">{formatTime(position_secs)}</span>
+                                    <div className="flex-1 h-6 relative flex items-center">
+                                        <SquigglySlider
+                                            value={position_secs}
+                                            max={track?.duration_secs || 100}
+                                            onChange={handleSeek}
+                                            isPlaying={state === 'Playing'}
+                                            accentColor="var(--md-sys-color-primary)"
+                                            className="w-full"
+                                        />
                                     </div>
-                                    <span className="text-xs font-medium text-white/40 tabular-nums w-10">{track ? formatTime(track.duration_secs) : '0:00'}</span>
+                                    <span className="w-10">{track ? formatTime(track.duration_secs) : '0:00'}</span>
                                 </div>
                             </div>
 
-                            {/* Right: Lyrics + Volume - Fixed width */}
-                            <div className="w-[20%] flex-shrink-0 flex items-center justify-end gap-3 relative z-10">
-                                {/* Lyrics Button */}
+                            {/* Right: Actions */}
+                            <div className="flex items-center gap-2 flex-1 justify-end">
                                 <LyricsButton track={track} />
 
-                                <svg className="w-5 h-5 text-white/50" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor" /></svg>
-                                <div className="w-24 flex items-center">
-                                    <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" />
+                                <div className="flex items-center gap-2 group relative">
+                                    <IconVolume size={24} className="text-on-surface-variant" />
+                                    <input
+                                        type="range" min="0" max="1" step="0.01" value={volume}
+                                        onChange={handleVolumeChange}
+                                        className="w-24 accent-primary"
+                                    />
                                 </div>
                             </div>
                         </motion.div>
@@ -253,47 +289,64 @@ export function PlayerBar() {
                         /* MINIMAL LAYOUT */
                         <motion.div
                             key="minimal"
-                            initial={{ opacity: 0, scale: 0.9 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            transition={fadeTransition}
-                            className="absolute inset-0 flex items-center gap-4 pl-1 pr-6"
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            className="flex w-full items-center gap-4 relative z-10"
                         >
-                            {/* Minimal Mode: Compact Cover - Flush Left */}
+                            {/* Cover Art (Tiny) */}
                             <div
-                                className="relative h-[90%] aspect-square overflow-hidden shadow-lg border border-white/10 flex-shrink-0 ml-0.5 rounded-full"
-                                style={{
-                                    animation: state === 'Playing' ? 'spin-vinyl 8s linear infinite' : 'none',
-                                }}
+                                className={`
+                                    relative shrink-0 overflow-hidden bg-surface-container-low border border-outline-variant/20 transition-all duration-300
+                                    ${albumArtStyle === 'vinyl' ? 'w-10 h-10 rounded-full' : 'w-10 h-10 rounded-sm'}
+                                `}
                             >
                                 {activeCoverUrl ? (
-                                    <img src={activeCoverUrl ?? undefined} alt="Cover" className="w-full h-full object-cover" />
+                                    <img
+                                        src={activeCoverUrl}
+                                        alt=""
+                                        className={`
+                                            w-full h-full object-cover
+                                            ${albumArtStyle === 'vinyl' && state === 'Playing' ? 'animate-spin-slow' : ''}
+                                        `}
+                                    />
                                 ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-500 flex justify-center items-center text-white/50">
-                                        <span className="text-xs">♪</span>
+                                    <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
+                                        <IconMusicNote size={16} />
                                     </div>
                                 )}
-                                {/* Vinyl Hole - Only show if style is 'vinyl' */}
+
+                                {/* Vinyl Center Hole (Minimal) */}
                                 {albumArtStyle === 'vinyl' && (
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black/80 border border-white/20" />
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="w-2 h-2 bg-surface-container-high rounded-full border border-surface-container-low/30" />
+                                    </div>
                                 )}
                             </div>
 
-                            {/* Compact Text */}
-                            <div className="flex items-center gap-2 overflow-hidden pr-2 flex-1 min-w-0 relative z-10 justify-start">
-                                <MarqueeText text={track?.title || "Not Playing"} className="text-sm font-bold text-white min-w-0" />
-                                <span className="text-sm text-white/40 flex-shrink-0">-</span>
-                                <span className="text-sm text-white/60 max-w-[120px] truncate flex-shrink-0">{track?.artist || "Artist"}</span>
+                            {/* Text Info */}
+                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden z-10">
+                                <div className="text-label-large font-bold truncate text-on-surface">
+                                    <MarqueeText text={track?.title || "Not Playing"} />
+                                </div>
+                                <span className="text-on-surface-variant text-label-medium">•</span>
+                                <div className="text-label-medium text-on-surface-variant truncate max-w-[100px]">
+                                    {track?.artist || "Artist"}
+                                </div>
                             </div>
 
-                            {/* Time Display */}
-                            <div className="text-xs font-medium text-white/60 tabular-nums whitespace-nowrap pl-2 z-10">
-                                {formatTime(position_secs)} <span className="text-white/30">/</span> {track ? formatTime(track.duration_secs) : '0:00'}
+                            {/* Time */}
+                            <div className="text-label-small font-medium text-on-surface-variant tabular-nums z-10">
+                                {formatTime(position_secs)} / {track ? formatTime(track.duration_secs) : '0:00'}
                             </div>
+
+                            {/* Progress Indicator (Background or Border?) */}
+                            {/* Optional: Add a subtle progress bar at the bottom? */}
                         </motion.div>
                     )}
                 </AnimatePresence>
             </motion.div>
-        </motion.div>
+        </div>
     );
 }

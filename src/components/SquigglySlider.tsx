@@ -137,7 +137,10 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
                 className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none transform -translate-x-1/2"
                 style={{ left: `${percent}%` }}
             >
-                <div className="absolute inset-0 bg-indigo-500 rounded-full blur-[2px] opacity-50" />
+                <div
+                    className="absolute inset-0 rounded-full blur-[2px] opacity-50"
+                    style={{ backgroundColor: accentColor || '#6366f1' }}
+                />
             </div>
 
             {/* Invisible Range Input for Interaction */}

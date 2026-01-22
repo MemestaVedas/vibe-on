@@ -4,7 +4,8 @@ import { useThemeStore } from '../store/themeStore';
 export function SettingsPage() {
     const {
         albumArtStyle, setAlbumArtStyle,
-        expandedArtMode, setExpandedArtMode
+        expandedArtMode, setExpandedArtMode,
+        autoplay, setAutoplay
     } = useSettingsStore();
     const { colors } = useThemeStore();
     const { accent1 } = colors;
@@ -92,6 +93,24 @@ export function SettingsPage() {
                     </div>
                 </section>
 
+                {/* Section: Playback */}
+                <section>
+                    <h2 className="text-xl font-semibold text-white mb-4">Playback</h2>
+                    <div className="bg-white/5 rounded-xl p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-medium text-white">Autoplay</h3>
+                                <p className="text-sm text-white/50">Automatically play next track when current track ends.</p>
+                            </div>
+                            <ToggleSwitch
+                                enabled={autoplay}
+                                onChange={setAutoplay}
+                                accentColor={accent1}
+                            />
+                        </div>
+                    </div>
+                </section>
+
                 {/* Info Section */}
                 <section className="text-center pt-8 text-white/20 text-xs">
                     <p>VIBE-ON! v0.1.0</p>
@@ -119,8 +138,8 @@ function OptionButton({
         <button
             onClick={onClick}
             className={`flex-1 flex flex-col items-center gap-3 p-4 rounded-lg border transition-all duration-200 ${active
-                    ? 'bg-white/10 border-transparent'
-                    : 'bg-transparent border-white/10 hover:bg-white/5'
+                ? 'bg-white/10 border-transparent'
+                : 'bg-transparent border-white/10 hover:bg-white/5'
                 }`}
             style={active ? { borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` } : {}}
         >
@@ -130,6 +149,28 @@ function OptionButton({
             <span className={`text-sm font-medium ${active ? 'text-white' : 'text-white/60'}`}>
                 {label}
             </span>
+        </button>
+    );
+}
+
+function ToggleSwitch({
+    enabled,
+    onChange,
+    accentColor
+}: {
+    enabled: boolean,
+    onChange: (value: boolean) => void,
+    accentColor: string
+}) {
+    return (
+        <button
+            onClick={() => onChange(!enabled)}
+            className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${enabled ? '' : 'bg-white/10'}`}
+            style={enabled ? { backgroundColor: accentColor } : {}}
+        >
+            <div
+                className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${enabled ? 'translate-x-6' : 'translate-x-1'}`}
+            />
         </button>
     );
 }

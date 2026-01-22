@@ -1,6 +1,7 @@
 import { Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
+import { IconMusicNote, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
 
 
@@ -22,31 +23,45 @@ function TrackRow({ track, index, isActive, isPlaying, onClick }: {
 
     return (
         <div
-            className={`group grid grid-cols-[40px_2fr_1.5fr_1fr_60px] gap-4 px-4 py-3 cursor-pointer transition-all duration-200 rounded-lg mx-3 border border-transparent ${isActive ? 'bg-white/10 shadow-lg border-white/5' : 'hover:bg-white/5 hover:border-white/5'}`}
             onClick={onClick}
+            className={`
+                group grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem] gap-4 items-center 
+                px-4 py-3 mx-2 rounded-lg cursor-pointer transition-colors
+                ${isActive
+                    ? 'bg-secondary-container text-on-secondary-container'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
+                }
+            `}
         >
-            <span className="text-sm text-white/40 flex items-center justify-center font-medium group-hover:text-white/60">
+            <span className="flex justify-center font-medium">
                 {isActive && isPlaying ? (
-                    <div className="flex items-end justify-center gap-0.5 h-3 w-3">
-                        <div className="w-1 bg-indigo-500 animate-[bounce_1s_infinite] h-full"></div>
-                        <div className="w-1 bg-indigo-500 animate-[bounce_1.2s_infinite] h-[60%]"></div>
-                        <div className="w-1 bg-indigo-500 animate-[bounce_0.8s_infinite] h-[80%]"></div>
-                    </div>
+                    <IconPlay size={16} fill="currentColor" />
                 ) : (
-                    index + 1
+                    <span className="group-hover:hidden">{index + 1}</span>
                 )}
+                <span className="hidden group-hover:block text-primary">
+                    <IconPlay size={16} fill="currentColor" />
+                </span>
             </span>
-            <span className={`text-[15px] font-medium whitespace-nowrap overflow-hidden text-ellipsis flex items-center ${isActive ? 'text-indigo-400' : 'text-white/90'}`}>
-                {coverUrl ? (
-                    <img src={coverUrl} alt="" className="w-10 h-10 rounded-md object-cover mr-4 shadow-sm bg-white/5" />
-                ) : (
-                    <div className="w-10 h-10 rounded-md bg-white/5 mr-4 border border-white/5" />
-                )}
-                {track.title}
+
+            <span className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden bg-surface-container shadow-sm">
+                    {coverUrl ? (
+                        <img src={coverUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-surface-container-high/50">
+                            <IconMusicNote size={16} />
+                        </div>
+                    )}
+                </div>
+                <span className={`truncate font-medium ${isActive ? '' : 'text-on-surface'}`}>
+                    {track.title}
+                </span>
             </span>
-            <span className="text-[14px] text-white/50 whitespace-nowrap overflow-hidden text-ellipsis flex items-center group-hover:text-white/70 transition-colors">{track.artist}</span>
-            <span className="text-[14px] text-white/50 whitespace-nowrap overflow-hidden text-ellipsis flex items-center group-hover:text-white/70 transition-colors">{track.album}</span>
-            <span className="text-xs text-white/40 text-right flex items-center justify-end font-medium tabular-nums">{formatDuration(track.duration_secs)}</span>
+
+            <span className="truncate text-body-medium opacity-80">{track.artist}</span>
+            <span className="truncate text-body-medium opacity-80">{track.album}</span>
+            <span className="text-right text-label-medium tabular-nums opacity-60">{formatDuration(track.duration_secs)}</span>
         </div>
     );
 }
@@ -59,12 +74,16 @@ function SortHeader({ label, sortKey, align = 'left' }: { label: string, sortKey
 
     return (
         <div
-            className={`flex items-center gap-1 cursor-pointer hover:text-white transition-colors ${align === 'right' ? 'justify-end' : 'justify-start'} ${isActive ? 'text-indigo-400' : ''}`}
             onClick={() => setSort(sortKey)}
+            className={`
+                flex items-center gap-1 cursor-pointer hover:text-on-surface transition-colors select-none py-3 text-label-large font-medium
+                ${align === 'right' ? 'justify-end' : 'justify-start'}
+                ${isActive ? 'text-primary' : 'text-on-surface-variant'}
+            `}
         >
             {label}
             {isActive && (
-                <span className="text-[10px]">
+                <span className="text-[0.7rem]">
                     {sort?.direction === 'asc' ? '▲' : '▼'}
                 </span>
             )}
@@ -81,33 +100,34 @@ export function TrackList() {
 
     if (isLoading) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center text-white/50 gap-4">
-                <div className="w-10 h-10 border-4 border-white/10 border-t-indigo-500 rounded-full animate-spin" />
-                <span>Scanning music folder...</span>
+            <div className="flex flex-col items-center justify-center h-full text-on-surface-variant">
+                <div className="animate-pulse">Scanning music folder...</div>
             </div>
         );
     }
 
     if (library.length === 0) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center text-white/50 gap-4">
-                <div className="text-6xl opacity-50">🎵</div>
-                <h3 className="text-xl text-white/80 m-0">No tracks loaded</h3>
-                <p className="text-sm m-0">Open a folder to load your music library</p>
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-on-surface-variant/60">
+                <IconMusicNote size={64} />
+                <div className="text-center">
+                    <h3 className="text-headline-small text-on-surface font-semibold">No tracks loaded</h3>
+                    <p className="text-body-medium">Open a folder to load your music library</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="grid grid-cols-[40px_2fr_1.5fr_1fr_60px] gap-4 px-4 mx-3 py-2 border-b border-white/5 text-xs font-semibold text-white/40 uppercase tracking-wider mb-2 select-none">
-                <span className="text-center">#</span>
+        <div className="flex flex-col h-full bg-surface">
+            <div className="grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem] gap-4 px-6 border-b border-outline-variant/10 bg-surface sticky top-0 z-10 backdrop-blur-sm bg-surface/90">
+                <span className="py-3 text-center text-label-large font-medium text-on-surface-variant">#</span>
                 <SortHeader label="Title" sortKey="title" />
                 <SortHeader label="Artist" sortKey="artist" />
                 <SortHeader label="Album" sortKey="album" />
                 <SortHeader label="Duration" sortKey="duration_secs" align="right" />
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1">
                 <Virtuoso
                     style={{ height: '100%' }}
                     data={library}
@@ -123,10 +143,11 @@ export function TrackList() {
                         />
                     )}
                     components={{
-                        Footer: () => <div className="h-[100px]" />
+                        Footer: () => <div className="h-24"></div>
                     }}
                 />
             </div>
         </div>
     );
 }
+

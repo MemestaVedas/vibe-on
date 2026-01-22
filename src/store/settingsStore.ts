@@ -9,9 +9,13 @@ interface SettingsStore {
     albumArtStyle: AlbumArtStyle;
     expandedArtMode: ExpandedArtMode;
 
+    // Playback
+    autoplay: boolean;
+
     // Actions
     setAlbumArtStyle: (style: AlbumArtStyle) => void;
     setExpandedArtMode: (mode: ExpandedArtMode) => void;
+    setAutoplay: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -20,10 +24,12 @@ export const useSettingsStore = create<SettingsStore>()(
             // Default settings
             albumArtStyle: 'vinyl',
             expandedArtMode: 'background',
+            autoplay: true,
 
             // Actions
             setAlbumArtStyle: (style) => set({ albumArtStyle: style }),
             setExpandedArtMode: (mode) => set({ expandedArtMode: mode }),
+            setAutoplay: (enabled) => set({ autoplay: enabled }),
         }),
         {
             name: 'vibe-settings', // localStorage key

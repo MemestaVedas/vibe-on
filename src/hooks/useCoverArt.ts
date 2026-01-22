@@ -2,17 +2,49 @@ import { useState, useEffect } from 'react';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { usePlayerStore } from '../store/playerStore';
 
+// LRU Cache configuration
+const MAX_CACHE_SIZE = 200;
+
 // Global cache for cover art blob URLs - persists across component lifecycles
 const coverArtCache = new Map<string, string>();
+// Track access order for LRU eviction
+const accessOrder: string[] = [];
 // Track pending loads to prevent duplicate requests
 const pendingLoads = new Map<string, Promise<string | null>>();
+
+// LRU cache helper - moves key to end (most recently used)
+function touchCache(key: string) {
+    const index = accessOrder.indexOf(key);
+    if (index > -1) {
+        accessOrder.splice(index, 1);
+    }
+    accessOrder.push(key);
+}
+
+// Evict oldest entries if cache is too large
+function evictIfNeeded() {
+    while (coverArtCache.size > MAX_CACHE_SIZE && accessOrder.length > 0) {
+        const oldest = accessOrder.shift();
+        if (oldest) {
+            const url = coverArtCache.get(oldest);
+            if (url) {
+                URL.revokeObjectURL(url);
+            }
+            coverArtCache.delete(oldest);
+        }
+    }
+}
 
 export function useCoverArt(coverPath: string | null | undefined) {
     const { coversDir } = usePlayerStore();
     const [imageUrl, setImageUrl] = useState<string | null>(() => {
         // Initialize from cache if available
         if (coverPath && coversDir) {
-            return coverArtCache.get(coverPath) || null;
+            const cached = coverArtCache.get(coverPath);
+            if (cached) {
+                touchCache(coverPath);
+                return cached;
+            }
         }
         return null;
     });
@@ -26,6 +58,7 @@ export function useCoverArt(coverPath: string | null | undefined) {
         // Check cache first
         const cached = coverArtCache.get(coverPath);
         if (cached) {
+            touchCache(coverPath);
             setImageUrl(cached);
             return;
         }
@@ -45,8 +78,13 @@ export function useCoverArt(coverPath: string | null | undefined) {
                         const blob = new Blob([data]);
                         const objectUrl = URL.createObjectURL(blob);
 
-                        // Cache it (don't revoke - keep in cache)
+                        // Evict old entries if needed
+                        evictIfNeeded();
+
+                        // Cache it with LRU tracking
                         coverArtCache.set(coverPath, objectUrl);
+                        touchCache(coverPath);
+
                         return objectUrl;
                     } catch (error) {
                         console.error('Failed to load cover:', coverPath, error);
@@ -69,7 +107,7 @@ export function useCoverArt(coverPath: string | null | undefined) {
 
         return () => {
             active = false;
-            // Don't revoke URL - keep it cached
+            // Don't revoke URL - keep it cached (LRU will handle eviction)
         };
     }, [coverPath, coversDir]);
 

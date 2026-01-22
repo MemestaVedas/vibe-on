@@ -1,6 +1,15 @@
+import { useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { usePlayerStore } from '../store/playerStore';
-import { useThemeStore } from '../store/themeStore';
+
+import {
+    IconHome,
+    IconAlbum,
+    IconMicrophone,
+    IconSettings,
+    IconYoutube,
+    IconPlus
+} from './Icons';
 
 interface SidebarProps {
     view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic';
@@ -9,8 +18,8 @@ interface SidebarProps {
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
     const { scanFolder, currentFolder, library } = usePlayerStore();
-    const { colors } = useThemeStore();
-    const { accent1 } = colors;
+    // Colors handled via CSS variables now
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     const handleOpenFolder = async () => {
         try {
@@ -29,85 +38,119 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
     };
 
     return (
-        <aside className="w-[220px] h-full flex flex-col bg-black/20 border-r border-white/5">
-            {/* Logo / Brand */}
-            <div data-tauri-drag-region className="px-5 pt-6 pb-4">
-                <h1 className="text-xl font-bold text-white tracking-tight">VIBE-ON!</h1>
+        <aside
+            className={`
+                h-full flex flex-col
+                bg-surface-container 
+                transition-all duration-300 ease-[var(--md-sys-motion-easing-emphasized)]
+                ${isCollapsed ? 'w-[72px]' : 'w-64'}
+                z-20 border-r border-transparent rounded-[2rem] overflow-hidden shadow-sm
+            `}
+        >
+            {/* Logo / Brand / Toggle */}
+            <div data-tauri-drag-region className="h-16 flex items-center px-4 justify-between shrink-0">
+                {!isCollapsed && (
+                    <h1 className="text-display-small font-bold text-primary tracking-tight truncate">VIBE-ON!</h1>
+                )}
+                <button
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant transition-colors"
+                    title={isCollapsed ? "Expand" : "Collapse"}
+                >
+                    {/* Simple Hamburger/Menu Icon constructed with SVG since we might not have one imported */}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                    </svg>
+                </button>
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-3 overflow-y-auto">
+            <nav className="flex-1 px-3 py-4 flex flex-col gap-2 overflow-y-auto scrollbar-thin scrollbar-thumb-outline/20">
 
                 {/* Library Section */}
-                <div className="mb-6">
-                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Library</p>
+                <div className="flex flex-col gap-1">
+                    {!isCollapsed && <p className="px-4 py-2 text-label-medium font-medium text-on-surface-variant/80">Library</p>}
+
                     <NavItem
-                        icon="🎵"
+                        icon={<IconHome size={24} />}
                         label="Songs"
                         active={view === 'tracks'}
                         onClick={() => onViewChange('tracks')}
                         count={library.length}
-                        accentColor={accent1}
+                        collapsed={isCollapsed}
                     />
                     <NavItem
-                        icon="💿"
+                        icon={<IconAlbum size={24} />}
                         label="Albums"
                         active={view === 'albums'}
                         onClick={() => onViewChange('albums')}
-                        accentColor={accent1}
+                        collapsed={isCollapsed}
                     />
                     <NavItem
-                        icon="🎤"
+                        icon={<IconMicrophone size={24} />}
                         label="Artists"
                         active={view === 'artists'}
                         onClick={() => onViewChange('artists')}
-                        accentColor={accent1}
+                        collapsed={isCollapsed}
                     />
                 </div>
 
-                {/* Current Folder */}
-                {currentFolder && (
-                    <div className="mb-6">
-                        <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Folder</p>
-                        <div className="px-3 py-2 rounded-lg bg-white/5">
-                            <p className="text-xs text-white/70 truncate">{currentFolder.split('\\').pop()}</p>
-                            <p className="text-[10px] text-white/40 mt-0.5">{library.length} tracks</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Settings Section */}
-                <div className="mb-6">
-                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Preferences</p>
-                    <NavItem
-                        icon="⚙️"
-                        label="Settings"
-                        active={view === 'settings'}
-                        onClick={() => onViewChange('settings')}
-                        accentColor={accent1}
-                    />
-                </div>
+                <div className="my-2 h-px bg-transparent mx-2" />
 
                 {/* Online Music Section */}
-                <div className="mb-6">
-                    <p className="px-3 mb-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Online</p>
+                <div className="flex flex-col gap-1">
+                    {!isCollapsed && <p className="px-4 py-2 text-label-medium font-medium text-on-surface-variant/80">Online</p>}
                     <NavItem
-                        icon="▶️"
+                        icon={<IconYoutube size={24} />}
                         label="YouTube Music"
                         active={view === 'ytmusic'}
                         onClick={() => onViewChange('ytmusic')}
-                        accentColor={accent1}
+                        collapsed={isCollapsed}
                     />
                 </div>
+
+                <div className="my-2 h-px bg-transparent mx-2" />
+
+                {/* Settings Section */}
+                <div className="flex flex-col gap-1">
+                    <NavItem
+                        icon={<IconSettings size={24} />}
+                        label="Settings"
+                        active={view === 'settings'}
+                        onClick={() => onViewChange('settings')}
+                        collapsed={isCollapsed}
+                    />
+                </div>
+
             </nav>
 
-            {/* Add Folder Button */}
-            <div className="p-4 border-t border-white/5">
+            {/* Footer / Current Folder */}
+            <div className="p-3 shrink-0 flex flex-col gap-2">
+                {/* Current Folder Info */}
+                {
+                    !isCollapsed && currentFolder && (
+                        <div className="px-4 py-2 bg-surface-container-high rounded-lg mb-2">
+                            <p className="text-label-small text-on-surface-variant uppercase tracking-wider">Source</p>
+                            <p className="text-body-small font-medium text-on-surface truncate" title={currentFolder}>
+                                {currentFolder.split('\\').pop()}
+                            </p>
+                        </div>
+                    )
+                }
+
+                {/* Add Folder Button - FAB style when collapsed, extended when expanded */}
                 <button
-                    className="w-full py-2.5 rounded-lg bg-indigo-500/20 text-indigo-400 text-sm font-medium hover:bg-indigo-500/30 transition-colors flex items-center justify-center gap-2"
                     onClick={handleOpenFolder}
+                    className={`
+                        flex items-center justify-center gap-3
+                        bg-tertiary-container hover:bg-tertiary-container/80 text-on-tertiary-container
+                        transition-all duration-300 shadow-elevation-1
+                        ${isCollapsed ? 'h-14 w-14 rounded-2xl' : 'h-14 w-full rounded-2xl px-6'}
+                    `}
+                    title="Add Folder"
                 >
-                    <span>+</span> Add Folder
+                    <IconPlus size={24} />
+                    {!isCollapsed && <span className="font-semibold text-label-large">Add Folder</span>}
                 </button>
             </div>
         </aside>
@@ -120,32 +163,52 @@ function NavItem({
     active = false,
     onClick,
     count,
-    accentColor
+    collapsed,
 }: {
-    icon: string;
+    icon: React.ReactNode;
     label: string;
     active?: boolean;
     onClick?: () => void;
     count?: number;
+    collapsed: boolean;
     accentColor?: string;
 }) {
     return (
         <button
             onClick={onClick}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${active
-                ? 'text-white' // Background handled by style
-                : 'text-white/60 hover:text-white hover:bg-white/5'
-                }`}
-            style={active && accentColor ? { backgroundColor: accentColor } : active ? { backgroundColor: 'rgba(255, 255, 255, 0.1)' } : {}}
+            className={`
+                group flex items-center relative
+                transition-all duration-200 ease-out
+                ${collapsed ? 'justify-center w-14 h-14 rounded-full' : 'w-full h-14 px-4 rounded-full gap-4'}
+                ${active
+                    ? 'bg-secondary-container text-on-secondary-container font-semibold'
+                    : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                }
+            `}
+            title={collapsed ? label : undefined}
         >
-            <span className="text-base">{icon}</span>
-            <span className="flex-1 text-left">{label}</span>
-            {count !== undefined && (
-                <span className="text-xs text-white/40">{count}</span>
+            {/* Active Indicator (Overlay) - Optional for extra depth */}
+            {active && (
+                <div className="absolute inset-0 rounded-full bg-on-secondary-container/5 pointer-events-none" />
+            )}
+
+            <span className={`${collapsed ? '' : ''} z-10`}>{icon}</span>
+
+            {!collapsed && (
+                <span className="text-label-large whitespace-nowrap overflow-hidden text-ellipsis z-10 flex-1 text-left">
+                    {label}
+                </span>
+            )}
+
+            {!collapsed && count !== undefined && (
+                <span className={`text-label-small z-10 ${active ? 'text-on-secondary-container/70' : 'text-on-surface-variant/60'}`}>
+                    {count}
+                </span>
             )}
         </button>
     );
 }
+
 
 
 
