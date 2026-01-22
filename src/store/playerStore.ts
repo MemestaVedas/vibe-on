@@ -13,6 +13,7 @@ interface PlayerStore {
     isLoading: boolean;
     error: string | null;
     sort: { key: keyof TrackDisplay; direction: 'asc' | 'desc' } | null;
+    activeSource: 'local' | 'youtube';
 
     // Actions
     playFile: (path: string) => Promise<void>;
@@ -30,6 +31,7 @@ interface PlayerStore {
     getCurrentTrackIndex: () => number;
     addToHistory: (track: TrackDisplay) => void;
     setSort: (key: keyof TrackDisplay) => void;
+    updateYtStatus: (status: any) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -49,6 +51,7 @@ export const usePlayerStore = create<PlayerStore>()(
             isLoading: false,
             error: null,
             sort: null,
+            activeSource: 'local',
 
             // Actions
             setSort: (key: keyof TrackDisplay) => {
@@ -90,7 +93,10 @@ export const usePlayerStore = create<PlayerStore>()(
 
             playFile: async (path: string) => {
                 try {
-                    set({ error: null });
+                    set({ error: null, activeSource: 'local' });
+                    // Ensure YT is paused/hidden? (Handled by View change usually, but good to be sure)
+                    // await invoke('yt_control', { action: 'pause' }); 
+
                     await invoke('play_file', { path });
 
                     // Add to history
@@ -107,8 +113,15 @@ export const usePlayerStore = create<PlayerStore>()(
 
             pause: async () => {
                 try {
-                    await invoke('pause');
-                    await get().refreshStatus();
+                    const { activeSource } = get();
+                    if (activeSource === 'youtube') {
+                        await invoke('yt_control', { action: 'pause' });
+                        // Manually update status to paused for UI responsiveness
+                        set((state) => ({ status: { ...state.status, state: 'Paused' } }));
+                    } else {
+                        await invoke('pause');
+                        await get().refreshStatus();
+                    }
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -116,8 +129,14 @@ export const usePlayerStore = create<PlayerStore>()(
 
             resume: async () => {
                 try {
-                    await invoke('resume');
-                    await get().refreshStatus();
+                    const { activeSource } = get();
+                    if (activeSource === 'youtube') {
+                        await invoke('yt_control', { action: 'play' });
+                        set((state) => ({ status: { ...state.status, state: 'Playing' } }));
+                    } else {
+                        await invoke('resume');
+                        await get().refreshStatus();
+                    }
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -143,8 +162,13 @@ export const usePlayerStore = create<PlayerStore>()(
 
             seek: async (value: number) => {
                 try {
-                    await invoke('seek', { value });
-                    await get().refreshStatus(); // Refresh to update UI immediately
+                    const { activeSource } = get();
+                    if (activeSource === 'youtube') {
+                        await invoke('yt_control', { action: 'seek', value });
+                    } else {
+                        await invoke('seek', { value });
+                        await get().refreshStatus(); // Refresh to update UI immediately
+                    }
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -198,20 +222,54 @@ export const usePlayerStore = create<PlayerStore>()(
                 return library.findIndex(t => t.path === status.track?.path);
             },
 
+            prevTrack: async () => {
+                const { library, playFile, getCurrentTrackIndex, activeSource } = get();
+
+                if (activeSource === 'youtube') {
+                    await invoke('yt_control', { action: 'prev' });
+                    return;
+                }
+
+                const currentIndex = getCurrentTrackIndex();
+                if (currentIndex > 0) {
+                    await playFile(library[currentIndex - 1].path);
+                }
+            },
+
             nextTrack: async () => {
-                const { library, playFile, getCurrentTrackIndex } = get();
+                const { library, playFile, getCurrentTrackIndex, activeSource } = get();
+
+                if (activeSource === 'youtube') {
+                    await invoke('yt_control', { action: 'next' });
+                    return;
+                }
+
                 const currentIndex = getCurrentTrackIndex();
                 if (currentIndex >= 0 && currentIndex < library.length - 1) {
                     await playFile(library[currentIndex + 1].path);
                 }
             },
 
-            prevTrack: async () => {
-                const { library, playFile, getCurrentTrackIndex } = get();
-                const currentIndex = getCurrentTrackIndex();
-                if (currentIndex > 0) {
-                    await playFile(library[currentIndex - 1].path);
-                }
+            updateYtStatus: (ytStatus: any) => {
+                set({
+                    activeSource: 'youtube',
+                    status: {
+                        state: ytStatus.is_playing ? 'Playing' : 'Paused',
+                        volume: 1.0, // Unknown?
+                        position_secs: ytStatus.progress,
+                        track: {
+                            title: ytStatus.title,
+                            artist: ytStatus.artist,
+                            album: ytStatus.album,
+                            duration_secs: ytStatus.duration,
+                            path: 'youtube', // dummy
+                            cover_image: null, // we need url support in type?
+                            // We might need to handle cover_url separately or hack cover_image type
+                        } as any
+                    }
+                });
+                // Store cover url separately or hack it?
+                // Let's rely on the fact that PlayerBar probably uses useImageColors or similar which might need URL
             },
         }),
         {

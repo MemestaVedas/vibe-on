@@ -3,8 +3,8 @@ import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 
 interface SidebarProps {
-    view: 'tracks' | 'albums' | 'artists' | 'settings';
-    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings') => void;
+    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic';
+    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic') => void;
 }
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
@@ -94,11 +94,8 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                     <NavItem
                         icon="▶️"
                         label="YouTube Music"
-                        active={false}
-                        onClick={async () => {
-                            const { invoke } = await import('@tauri-apps/api/core');
-                            invoke('open_yt_music').catch(console.error);
-                        }}
+                        active={view === 'ytmusic'}
+                        onClick={() => onViewChange('ytmusic')}
                         accentColor={accent1}
                     />
                 </div>

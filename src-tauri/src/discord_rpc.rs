@@ -52,20 +52,24 @@ impl DiscordRpc {
             // Per user request: use the default app icon only
             assets = assets
                 .large_image("vibe_icon")
-                .large_text("Vibe Music Player");
+                .large_text(_album_name.as_deref().unwrap_or("Vibe Music Player"));
 
             let mut activity = activity::Activity::new()
                 .details(details)
                 .state(state)
                 .assets(assets);
 
-            if let Some(_duration) = duration_secs {
-                let start = std::time::SystemTime::now()
+            if let Some(duration) = duration_secs {
+                let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs() as i64;
 
-                activity = activity.timestamps(activity::Timestamps::new().start(start));
+                // If we have a duration, we show "Time Remaining"
+                // duration argument is treated as "seconds remaining"
+                let end = now + duration as i64;
+
+                activity = activity.timestamps(activity::Timestamps::new().end(end));
             }
 
             match client.set_activity(activity) {

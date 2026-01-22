@@ -113,7 +113,15 @@ export function PlayerBar() {
     const hasNext = currentIndex >= 0 && currentIndex < library.length - 1;
 
     const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
-    const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
+    // Prefer external cover URL (for YouTube) -> then convert local file path -> then generic hook
+    // Note: useCoverArt handles `Uint8Array` or `string` path.
+    // We need to handle the case where we have a direct http URL (YouTube).
+    const isYtUrl = currentLibraryTrack?.cover_url !== undefined;
+    const coverUrl = isYtUrl ? currentLibraryTrack?.cover_url : useCoverArt(currentLibraryTrack?.cover_image);
+
+    // Hack: if track is from status (which might be YouTube) and library index is invalid (because it's not in library)
+    // We should look at status.track directly.
+    const activeCoverUrl = track?.cover_url || coverUrl;
 
     // Dynamic colors from global store
     const { accent1, accent1Foreground, accent2, background } = colors;
@@ -173,9 +181,9 @@ export function PlayerBar() {
                             {/* Left: Cover Art & Track Info */}
                             <div className="flex items-center gap-4 w-[25%] flex-shrink-0 relative z-10 transition-all">
                                 {/* Pill Mode Cover Art */}
-                                {expandedArtMode === 'pill' && coverUrl && (
+                                {expandedArtMode === 'pill' && activeCoverUrl && (
                                     <div className="h-12 w-12 rounded-full overflow-hidden shadow-lg border border-white/10 flex-shrink-0 animate-[spin_8s_linear_infinite]">
-                                        <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                                        <img src={activeCoverUrl} alt="" className="w-full h-full object-cover" />
                                     </div>
                                 )}
 
@@ -186,10 +194,10 @@ export function PlayerBar() {
                             </div>
 
                             {/* Background Mode Cover Art */}
-                            {expandedArtMode === 'background' && coverUrl && (
+                            {expandedArtMode === 'background' && activeCoverUrl && (
                                 <div className="absolute left-0 top-0 bottom-0 w-[50%] pointer-events-none rounded-l-full overflow-hidden">
                                     <img
-                                        src={coverUrl}
+                                        src={activeCoverUrl}
                                         alt=""
                                         className="absolute inset-0 w-full h-full object-cover"
                                         style={{
@@ -258,8 +266,8 @@ export function PlayerBar() {
                                     animation: state === 'Playing' ? 'spin-vinyl 8s linear infinite' : 'none',
                                 }}
                             >
-                                {coverUrl ? (
-                                    <img src={coverUrl ?? undefined} alt="Cover" className="w-full h-full object-cover" />
+                                {activeCoverUrl ? (
+                                    <img src={activeCoverUrl ?? undefined} alt="Cover" className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-500 flex justify-center items-center text-white/50">
                                         <span className="text-xs">♪</span>
