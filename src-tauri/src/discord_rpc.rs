@@ -41,7 +41,6 @@ impl DiscordRpc {
         details: &str,
         state: &str,
         start_timestamp: Option<i64>,
-        end_timestamp: Option<i64>,
         image_url: Option<String>,
         album_name: Option<String>,
     ) -> Result<(), String> {
@@ -61,16 +60,21 @@ impl DiscordRpc {
                     .large_text(album_name.as_deref().unwrap_or("Vibe Music Player"));
             }
 
+            // Add GitHub button
+            let buttons = vec![activity::Button::new(
+                "View on GitHub",
+                "https://github.com/MemestaVedas/vibe-on",
+            )];
+
             let mut activity = activity::Activity::new()
                 .details(details)
                 .state(state)
-                .assets(assets);
+                .assets(assets)
+                .buttons(buttons);
 
+            // Only use start timestamp to count UP from 0:00
             if let Some(start) = start_timestamp {
-                let mut timestamps = activity::Timestamps::new().start(start);
-                if let Some(end) = end_timestamp {
-                    timestamps = timestamps.end(end);
-                }
+                let timestamps = activity::Timestamps::new().start(start);
                 activity = activity.timestamps(timestamps);
             }
 

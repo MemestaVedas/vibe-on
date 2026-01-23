@@ -22,14 +22,17 @@ export function Header({ view }: HeaderProps) {
     }
 
     // For settings/ytmusic, just show title
+    // Statistics and Favorites have their own large headers, so hide this one
+    if (view === 'statistics' || view === 'favorites') {
+        return <header data-tauri-drag-region className="h-4"></header>;
+    }
+
     return (
-        <header data-tauri-drag-region>
-            <h2 data-tauri-drag-region>
-                {view === 'favorites' ? 'Favorites' :
-                    view === 'statistics' ? 'Statistics' :
-                        view === 'settings' ? 'Settings' :
-                            view === 'ytmusic' ? 'YouTube Music' :
-                                'Library'}
+        <header data-tauri-drag-region className="px-6 py-4">
+            <h2 data-tauri-drag-region className="text-headline-small font-semibold">
+                {view === 'settings' ? 'Settings' :
+                    view === 'ytmusic' ? 'YouTube Music' :
+                        'Library'}
             </h2>
         </header>
     );

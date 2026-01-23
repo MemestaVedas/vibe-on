@@ -1,8 +1,12 @@
 import { usePlayerStore } from '../store/playerStore';
+import { useThemeStore } from '../store/themeStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { motion } from 'framer-motion';
 
-// Heart icon
+// ============================================================================
+// Icons
+// ============================================================================
+
 function IconHeart({ size = 24, filled = false }: { size?: number; filled?: boolean }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
@@ -11,7 +15,6 @@ function IconHeart({ size = 24, filled = false }: { size?: number; filled?: bool
     );
 }
 
-// Play icon
 function IconPlay({ size = 24 }: { size?: number }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -19,6 +22,10 @@ function IconPlay({ size = 24 }: { size?: number }) {
         </svg>
     );
 }
+
+// ============================================================================
+// Components
+// ============================================================================
 
 interface FavoriteTrackRowProps {
     track: {
@@ -99,6 +106,7 @@ function FavoriteTrackRow({ track, onPlay, onRemove }: FavoriteTrackRowProps) {
 
 export function FavoritesView() {
     const { library, favorites, toggleFavorite, playFile } = usePlayerStore();
+    const { colors } = useThemeStore();
 
     // Get favorite tracks from library
     const favoriteTracks = library.filter(track => favorites.has(track.path));
@@ -108,7 +116,10 @@ export function FavoritesView() {
             {/* Header */}
             <div className="px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-error to-error/50 flex items-center justify-center">
+                    <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-on-primary-container"
+                        style={{ backgroundColor: colors.primaryContainer }}
+                    >
                         <IconHeart size={28} filled />
                     </div>
                     <div>
@@ -140,7 +151,7 @@ export function FavoritesView() {
                         </div>
                         <h2 className="text-title-large font-medium text-on-surface mb-2">No Favorites Yet</h2>
                         <p className="text-body-medium text-on-surface-variant max-w-xs">
-                            Click the heart icon on any song to add it to your favorites
+                            Click the heart icon on any song to add it to your favorites.
                         </p>
                     </div>
                 )}

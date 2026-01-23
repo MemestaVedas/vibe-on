@@ -52,6 +52,22 @@ const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback:
     );
 };
 
+// Virtuoso Custom Components - Defined outside to prevent re-renders
+const GridList = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(({ style, children, ...props }, ref) => (
+    <div
+        ref={ref}
+        {...props}
+        className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-6 p-8 content-start"
+        style={{ ...style, width: '100%' }}
+    >
+        {children}
+    </div>
+));
+
+const GridItem = ({ children, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+    <div {...props} style={{ padding: 0, margin: 0 }}>{children}</div>
+);
+
 export function AlbumGrid() {
     const library = usePlayerStore(state => state.library);
     const playFile = usePlayerStore(state => state.playFile);
@@ -110,19 +126,8 @@ export function AlbumGrid() {
             data={albums}
             overscan={200}
             components={{
-                List: forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(({ style, children, ...props }, ref) => (
-                    <div
-                        ref={ref}
-                        {...props}
-                        className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-6 p-8 content-start"
-                        style={{ ...style, width: '100%' }}
-                    >
-                        {children}
-                    </div>
-                )),
-                Item: ({ children, ...props }) => (
-                    <div {...props} style={{ padding: 0, margin: 0 }}>{children}</div>
-                )
+                List: GridList,
+                Item: GridItem
             }}
             itemContent={(_, album) => (
                 <AlbumCard
@@ -140,7 +145,10 @@ function AlbumCard({ album, onClick, onPlay }: { album: Album, onClick: () => vo
     const coverUrl = useCoverArt(album.cover);
 
     return (
-        <div
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.2, 0, 0, 1] as any }}
             onClick={onClick}
             className="group flex flex-col gap-4 p-4 rounded-[2rem] hover:bg-surface-container-high transition-colors cursor-pointer"
         >
@@ -161,7 +169,7 @@ function AlbumCard({ album, onClick, onPlay }: { album: Album, onClick: () => vo
                 <div className="text-title-large font-semibold text-on-surface truncate" title={album.name}>{album.name}</div>
                 <div className="text-body-large text-on-surface-variant truncate" title={album.artist}>{album.artist}</div>
             </div>
-        </div>
+        </motion.div>
     );
 }
 
@@ -169,13 +177,39 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
     const { playFile } = usePlayerStore();
     const coverUrl = useCoverArt(album.cover);
 
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.1,
+                delayChildren: 0.2
+            }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { opacity: 0, y: 20 },
+        visible: {
+            opacity: 1,
+            y: 0,
+            transition: { duration: 0.5, ease: [0.2, 0, 0, 1] as any }
+        }
+    };
+
     return (
-        <div className="flex flex-col h-full bg-surface">
+        <motion.div
+            className="flex flex-col h-full bg-surface"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+        >
             {/* Header */}
             <div className="p-8 pb-10 flex gap-10 items-end bg-surface-container-low shrink-0 rounded-b-[3rem] shadow-elevation-1 z-10">
                 <motion.div
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.6, ease: [0.2, 0, 0, 1] as any }}
                     className="w-64 h-64 shrink-0 shadow-elevation-3"
                 >
                     <M3RoundedSquareImage
@@ -185,17 +219,17 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
                 </motion.div>
 
                 <div className="flex flex-col gap-4 mb-2 min-w-0 flex-1">
-                    <div>
+                    <motion.div variants={itemVariants}>
                         <div className="text-label-large font-medium text-on-surface-variant uppercase tracking-wider mb-2">Album</div>
                         <h1 className="text-display-medium font-bold text-on-surface tracking-tight truncate leading-tight">{album.name}</h1>
-                    </div>
+                    </motion.div>
 
-                    <div className="flex items-center gap-3 text-headline-small">
+                    <motion.div variants={itemVariants} className="flex items-center gap-3 text-headline-small">
                         <span className="font-semibold text-primary">{album.artist}</span>
                         <span className="text-on-surface-variant">• {album.tracks.length} tracks</span>
-                    </div>
+                    </motion.div>
 
-                    <div className="flex gap-4 mt-4">
+                    <motion.div variants={itemVariants} className="flex gap-4 mt-4">
                         <button
                             onClick={onPlay}
                             className="h-12 px-8 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-elevation-2 transition-transform active:scale-95 text-title-medium"
@@ -208,12 +242,12 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
                         >
                             Back
                         </button>
-                    </div>
+                    </motion.div>
                 </div>
             </div>
 
             {/* Tracklist */}
-            <div className="flex-1 p-6">
+            <motion.div variants={itemVariants} className="flex-1 p-6">
                 <Virtuoso
                     style={{ height: '100%' }}
                     data={album.tracks}
@@ -236,7 +270,7 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
                         Footer: () => <div className="h-32"></div>
                     }}
                 />
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 }

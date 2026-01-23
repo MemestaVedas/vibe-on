@@ -219,12 +219,68 @@ export function PlayerBar() {
                     )}
                 </AnimatePresence>
 
-                {/* Progress Fill Background (Minimal Mode only) */}
                 {!isHovered && track && (
                     <div
-                        className="absolute inset-0 z-0 bg-primary/30 pointer-events-none transition-all duration-200 ease-linear"
-                        style={{ width: `${(position_secs / (track.duration_secs || 1)) * 100}%` }}
-                    />
+                        className="absolute left-0 top-0 bottom-0 z-[1] pointer-events-none flex items-stretch text-primary opacity-40 rounded-l-full"
+                        style={{
+                            width: `${(position_secs / (track.duration_secs || 1)) * 100}%`,
+                            transition: 'width 0.5s cubic-bezier(0.2, 0, 0, 1)'
+                        }}
+                    >
+                        {/* Solid fill part */}
+                        <div className="flex-1 bg-current" />
+
+                        {/* Vertical Wave Edge */}
+                        <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-[1px]">
+                            {/* -mr-1 to ensure no gaps if render is sub-pixel */}
+                            <motion.div
+                                className="w-full absolute top-0 left-0"
+                                style={{ height: 'calc(100% + 40px)', top: '-40px' }}
+                                animate={state === 'Playing' ? { y: ['0px', '40px'] } : { y: '0px' }}
+                                transition={{
+                                    duration: 1, // Speed of one cycle (40px)
+                                    ease: "linear",
+                                    repeat: Infinity
+                                }}
+                            >
+                                <svg
+                                    className="h-full w-full"
+                                    preserveAspectRatio="none"
+                                >
+                                    <defs>
+                                        <pattern id="pill-progress-wave" x="0" y="0" width="12" height="40" patternUnits="userSpaceOnUse">
+                                            {/* We use motion.path to morph between wave and straight line */}
+                                            {/* Note: pattern paths inside defs might not animate well with framer-motion if rerendered. 
+                                                However, Framer Motion needs to control the DOM element. 
+                                                If it's inside a pattern, it might be tricky. 
+                                                Alternative: Don't use pattern?
+                                                Actually, if we animate the 'd' of a path inside a pattern, it should update.
+                                            */}
+                                            <motion.path
+                                                // Wave Path: M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z
+                                                // Straight Path (matched points): M 0 0 L 6 0 L 6 20 L 6 40 L 0 40 Z
+                                                // To match Q/T commands, we can use curves that are actually straight lines.
+                                                // Wave: Q 1 10 6 20 (Control point 1 at x=1 pulls it left)
+                                                // Straight: Q 6 10 6 20 (Control point at x=6 keeps it straight)
+                                                // Wave: T 6 40 (Implied reflection, effectively Q 11 30 6 40)
+                                                // Straight: T 6 40 (Implied reflection of straight is straight? Q 6 30 6 40)
+
+                                                initial={false}
+                                                animate={{
+                                                    d: state === 'Playing'
+                                                        ? "M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z" // Wavy
+                                                        : "M 0 0 L 6 0 Q 6 10 6 20 T 6 40 L 0 40 Z" // Straight (Control points aligned)
+                                                }}
+                                                transition={{ duration: 0.3 }}
+                                                fill="currentColor"
+                                            />
+                                        </pattern>
+                                    </defs>
+                                    <rect x="0" y="0" width="100%" height="100%" fill="url(#pill-progress-wave)" />
+                                </svg>
+                            </motion.div>
+                        </div>
+                    </div>
                 )}
 
                 <AnimatePresence mode="wait">

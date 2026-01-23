@@ -166,7 +166,6 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
             &info.title,
             &info.artist,
             Some(now),
-            Some(now + info.duration_secs as i64),
             None,
             Some(info.album.clone()),
         );
@@ -192,14 +191,8 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs() as i64;
-                let _ = discord_clone.set_activity(
-                    &title,
-                    &artist,
-                    Some(now),
-                    Some(now + duration as i64),
-                    Some(url),
-                    Some(album),
-                );
+                let _ =
+                    discord_clone.set_activity(&title, &artist, Some(now), Some(url), Some(album));
             } else {
                 println!("[Cover] No cover found for: {} - {}", artist, album);
             }
@@ -211,7 +204,7 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
             .unwrap_or("Unknown Track");
         let _ = state
             .discord
-            .set_activity(filename, "Listening", None, None, None, None);
+            .set_activity(filename, "Listening", None, None, None);
     }
 
     let player_guard = state.player.lock().unwrap();
@@ -252,15 +245,13 @@ fn pause(state: State<AppState>) -> Result<(), String> {
                 &format!("(Paused) {}", track.title),
                 &track.artist,
                 None,
-                None,
                 cover_url,
                 Some(track.album),
             );
         } else {
-            let _ =
-                state
-                    .discord
-                    .set_activity("Paused", "Vibe Music Player", None, None, None, None);
+            let _ = state
+                .discord
+                .set_activity("Paused", "Vibe Music Player", None, None, None);
         }
 
         // Update Windows Media Controls
@@ -294,13 +285,11 @@ fn resume(state: State<AppState>) -> Result<(), String> {
             // effective_start = now - position
             let position = status.position_secs as i64;
             let start = now - position;
-            let end = start + track.duration_secs as i64;
 
             let _ = state.discord.set_activity(
                 &track.title,
                 &track.artist,
                 Some(start),
-                Some(end),
                 cover_url,
                 Some(track.album),
             );
@@ -631,26 +620,31 @@ fn get_cached_lyrics(track_path: String, state: State<AppState>) -> CachedLyrics
 }
 
 #[tauri::command]
-fn get_lyrics(
+async fn get_lyrics(
     audio_path: String,
     artist: String,
     track: String,
     duration: u32,
 ) -> Result<lyrics_fetcher::LyricsResponse, String> {
-    // First check for local LRC file (instant!)
-    if let Some(local) = lyrics_fetcher::find_local_lrc(&audio_path) {
-        println!("[Lyrics] ✓ Using local LRC file!");
-        return Ok(local);
-    }
-
-    // Then try API with duration
-    match lyrics_fetcher::fetch_lyrics(&artist, &track, duration) {
-        Ok(lyrics) => Ok(lyrics),
-        Err(_) => {
-            // Fallback: search without duration constraint
-            lyrics_fetcher::fetch_lyrics_fallback(&artist, &track)
+    // Run in blocking thread as it uses reqwest::blocking
+    tauri::async_runtime::spawn_blocking(move || {
+        // First check for local LRC file (instant!)
+        if let Some(local) = lyrics_fetcher::find_local_lrc(&audio_path) {
+            println!("[Lyrics] ✓ Using local LRC file!");
+            return Ok(local);
         }
-    }
+
+        // Then try API with duration
+        match lyrics_fetcher::fetch_lyrics(&artist, &track, duration) {
+            Ok(lyrics) => Ok(lyrics),
+            Err(_) => {
+                // Fallback: search without duration constraint
+                lyrics_fetcher::fetch_lyrics_fallback(&artist, &track)
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ============================================================================
@@ -797,19 +791,7 @@ fn update_yt_status(
                     .unwrap_or_default()
                     .as_secs() as i64;
                 let start = now - status.progress as i64;
-                let end = start + status.duration as i64;
                 Some(start)
-            } else {
-                None
-            },
-            if status.is_playing {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64;
-                let start = now - status.progress as i64;
-                let end = start + status.duration as i64;
-                Some(end) // End timestamp
             } else {
                 None
             },

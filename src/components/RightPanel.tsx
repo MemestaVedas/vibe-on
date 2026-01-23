@@ -1,3 +1,7 @@
+import { SideLyrics } from './SideLyrics';
+import { useLyricsStore } from '../store/lyricsStore';
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMusicNote, IconPlay } from './Icons';
@@ -5,7 +9,33 @@ import { MarqueeText } from './MarqueeText';
 
 export function RightPanel() {
     const { status, library, history, playFile } = usePlayerStore();
+    const { lines, plainLyrics, isInstrumental, isLoading, fetchLyrics } = useLyricsStore();
     const { track } = status;
+
+    // Fetch lyrics automatically when track changes
+    useEffect(() => {
+        if (track?.path) {
+            console.log('[RightPanel] Track changed:', track.title);
+            console.log('[RightPanel] Triggering fetchLyrics for:', track.path);
+            // We use fetchLyrics (not loadCachedLyrics) to ensure we actually trigger a fetch if not cached
+            fetchLyrics(
+                track.artist,
+                track.title,
+                track.duration_secs,
+                track.path
+            );
+        }
+    }, [track?.path, track?.title, track?.artist, track?.duration_secs, fetchLyrics]);
+
+    // Debug logging for state changes
+    useEffect(() => {
+        console.log('[RightPanel] Lyrics updated:', {
+            hasLines: !!lines,
+            hasPlain: !!plainLyrics,
+            instrumental: isInstrumental,
+            loading: isLoading
+        });
+    }, [lines, plainLyrics, isInstrumental, isLoading]);
 
     // Get cover from library
     const currentIndex = library.findIndex(t => t.path === track?.path);
@@ -15,18 +45,20 @@ export function RightPanel() {
     // Get recently played from store (limit to 10 for display)
     const recentTracks = history.slice(0, 10);
 
-    return (
-        <aside className="h-full flex flex-col p-6 gap-8 overflow-y-auto scrollbar-thin scrollbar-thumb-surface-container-high">
+    // Determine what to show in the bottom section
+    const showLyrics = (lines || plainLyrics) && !isInstrumental;
 
+    return (
+        <aside className="h-full flex flex-col p-6 gap-6 overflow-hidden">
             {/* Now Playing Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between shrink-0">
                 <h2 className="text-title-medium font-bold text-on-surface">Now Playing</h2>
             </div>
 
             {/* Main Art & Info */}
-            <div className="flex flex-col items-center gap-6">
+            <div className="flex flex-col items-center gap-6 shrink-0">
                 {/* Large Art */}
-                <div className="w-64 h-64 rounded-[2rem] bg-surface-container-high shadow-elevation-3 relative group overflow-hidden">
+                <div className="w-64 h-64 rounded-[2rem] bg-surface-container-high shadow-elevation-3 relative group overflow-hidden shrink-0">
                     {coverUrl ? (
                         <img
                             src={coverUrl}
@@ -55,28 +87,50 @@ export function RightPanel() {
             </div>
 
             {/* Divider (Invisible spacing) */}
-            <div className="flex-1" />
+            <div className="h-4" />
 
-            {/* Recently Played / Queue */}
-            <div className="flex flex-col gap-4">
-                <h3 className="text-title-small font-semibold text-on-surface-variant/80 px-1">Recently Played</h3>
+            {/* Content Switcher: Lyrics or Recent History */}
+            <div className="flex-1 min-h-0 relative">
+                <AnimatePresence mode="wait">
+                    {showLyrics ? (
+                        <motion.div
+                            key="lyrics"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="absolute inset-0 flex flex-col"
+                        >
+                            <h3 className="text-title-small font-semibold text-on-surface-variant/80 px-1 mb-4">Lyrics</h3>
+                            <SideLyrics />
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="history"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="absolute inset-0 flex flex-col"
+                        >
+                            <h3 className="text-title-small font-semibold text-on-surface-variant/80 px-1 mb-4">Recently Played</h3>
+                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-surface-container-high gap-2 flex flex-col pb-4">
+                                {recentTracks.length === 0 && (
+                                    <div className="p-4 rounded-xl bg-surface-container-high/50 text-center">
+                                        <p className="text-body-small text-on-surface-variant">Start playing music to build your history!</p>
+                                    </div>
+                                )}
 
-                <div className="flex flex-col gap-2">
-                    {recentTracks.length === 0 && (
-                        <div className="p-4 rounded-xl bg-surface-container-high/50 text-center">
-                            <p className="text-body-small text-on-surface-variant">Start playing music to build your history!</p>
-                        </div>
+                                {recentTracks.map((t, i) => (
+                                    <QueueItem
+                                        key={`${t.path}-${i}`}
+                                        track={t}
+                                        isActive={t.path === track?.path}
+                                        onClick={() => playFile(t.path)}
+                                    />
+                                ))}
+                            </div>
+                        </motion.div>
                     )}
-
-                    {recentTracks.map((t, i) => (
-                        <QueueItem
-                            key={`${t.path}-${i}`}
-                            track={t}
-                            isActive={t.path === track?.path}
-                            onClick={() => playFile(t.path)}
-                        />
-                    ))}
-                </div>
+                </AnimatePresence>
             </div>
         </aside>
     );

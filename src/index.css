@@ -75,6 +75,20 @@
         animation: spin 8s linear infinite;
     }
 
+    .animate-wave-down {
+        animation: wave-down 2s ease-in-out infinite;
+    }
+
+    @keyframes wave-down {
+        0% {
+            transform: translateY(-50%);
+        }
+
+        100% {
+            transform: translateY(0%);
+        }
+    }
+
     /* Wave Masks */
     /* Wave width is 12px. We use 14px to be safe. */
 
