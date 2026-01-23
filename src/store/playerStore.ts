@@ -24,6 +24,8 @@ interface PlayerStore {
     favorites: Set<string>; // Set of track paths
     searchQuery: string; // NEW: Search query
 
+    playCounts: Record<string, number>; // Map of path -> count
+
     // Actions
     playFile: (path: string) => Promise<void>;
     pause: () => Promise<void>;
@@ -63,6 +65,7 @@ export const usePlayerStore = create<PlayerStore>()(
             },
             library: [],
             history: [],
+            playCounts: {},
             coversDir: null,
             currentFolder: null,
             isLoading: false,
@@ -113,7 +116,12 @@ export const usePlayerStore = create<PlayerStore>()(
             addToHistory: (track: TrackDisplay) => {
                 set((state) => {
                     const filtered = state.history.filter((t) => t.path !== track.path);
-                    return { history: [track, ...filtered].slice(0, 50) };
+                    const newCounts = { ...state.playCounts };
+                    newCounts[track.path] = (newCounts[track.path] || 0) + 1;
+                    return {
+                        history: [track, ...filtered].slice(0, 50),
+                        playCounts: newCounts
+                    };
                 });
             },
 
@@ -332,6 +340,7 @@ export const usePlayerStore = create<PlayerStore>()(
             name: 'vibe-player-storage',
             partialize: (state) => ({
                 history: state.history,
+                playCounts: state.playCounts,
                 // Convert Set to array for JSON serialization
                 favorites: Array.from(state.favorites)
             }),

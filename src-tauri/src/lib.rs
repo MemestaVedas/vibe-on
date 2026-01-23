@@ -76,161 +76,184 @@ fn get_or_init_db(state: &AppState, app_handle: &AppHandle) -> Result<(), String
 // ============================================================================
 
 #[tauri::command]
-fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
+async fn play_file(
+    path: String,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
     println!("[Backend] play_file called with path: '{}'", path);
     get_or_init_player(&state)?;
 
-    // Convert path string to Path
-    let path_obj = Path::new(&path);
-
-    // Try to get metadata for Discord
-    let _ = state.discord.connect();
-
-    // Reset current cover
-    if let Ok(mut url_guard) = state.current_cover_url.lock() {
-        *url_guard = None;
+    // CRITICAL: Start audio playback IMMEDIATELY for responsiveness
+    {
+        let player_guard = state.player.lock().unwrap();
+        if let Some(ref player) = *player_guard {
+            player.play_file(&path)?;
+            println!("[Backend] Audio playback started immediately");
+        } else {
+            return Err("Player not initialized".to_string());
+        }
     }
 
-    // Reset lyrics cache and mark as fetching
-    if let Ok(mut lyrics_guard) = state.lyrics_cache.lock() {
-        println!("[Lyrics] Initializing cache for new track: {}", path);
-        *lyrics_guard = CachedLyrics {
-            track_path: path.clone(),
-            is_fetching: true,
-            ..Default::default()
-        };
-    } else {
-        println!("[Lyrics] Failed to lock lyrics cache!");
-    }
+    // Now spawn background operations (Discord, lyrics, cover, media controls)
+    // These don't block audio playback
+    let path_clone = path.clone();
+    let discord = state.discord.clone();
+    let current_cover_url = state.current_cover_url.clone();
+    let lyrics_cache = state.lyrics_cache.clone();
+    let media_cmd_tx = state.media_cmd_tx.lock().unwrap().clone();
+    let app_handle_thread = app_handle.clone();
 
-    // Prefetch lyrics in background
-    if let Ok((info, _)) = get_track_metadata_helper(&path) {
-        let lyrics_cache = state.lyrics_cache.clone();
-        let artist = info.artist.clone();
-        let track_title = info.title.clone();
-        let duration = info.duration_secs as u32;
-        let track_path = path.clone();
-
-        std::thread::spawn(move || {
-            println!(
-                "[Lyrics] Prefetching lyrics for: {} - {}",
-                artist, track_title
-            );
-
-            let result = match lyrics_fetcher::fetch_lyrics(&artist, &track_title, duration) {
-                Ok(lyrics) => lyrics,
-                Err(_) => {
-                    // Fallback: search without duration constraint
-                    match lyrics_fetcher::fetch_lyrics_fallback(&artist, &track_title) {
-                        Ok(lyrics) => lyrics,
-                        Err(e) => {
-                            // Store error in cache
-                            if let Ok(mut guard) = lyrics_cache.lock() {
-                                if guard.track_path == track_path {
-                                    guard.is_fetching = false;
-                                    guard.error = Some(e);
-                                }
-                            }
-                            return;
-                        }
-                    }
-                }
-            };
-
-            // Store successful result in cache
-            if let Ok(mut guard) = lyrics_cache.lock() {
-                // Only update if still the same track
-                if guard.track_path == track_path {
-                    guard.synced_lyrics = result.synced_lyrics;
-                    guard.plain_lyrics = result.plain_lyrics;
-                    guard.instrumental = result.instrumental.unwrap_or(false);
-                    guard.is_fetching = false;
-                    guard.error = None;
-                    println!(
-                        "[Lyrics] Prefetch complete for: {} - {}",
-                        artist, track_title
-                    );
-                }
-            }
-        });
-    }
-
-    if let Ok((info, _)) = get_track_metadata_helper(&path) {
-        // Set initial activity
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-
-        let _ = state.discord.set_activity(
-            &info.title,
-            &info.artist,
-            Some(now),
-            None,
-            Some(info.album.clone()),
-        );
-
-        let discord_clone = state.discord.clone();
-        let url_mutex_clone = state.current_cover_url.clone();
-        let artist = info.artist.clone();
-        let album = info.album.clone();
-        let title = info.title.clone();
-        let duration = info.duration_secs;
-
-        std::thread::spawn(move || {
-            println!("[Cover] Searching for: {} - {}", artist, album);
-            if let Some(url) = cover_fetcher::search_cover(&artist, &album) {
-                println!("[Cover] Found URL: {}", url);
-                // Save to state
-                if let Ok(mut guard) = url_mutex_clone.lock() {
-                    *guard = Some(url.clone());
-                }
-
-                // Update Discord
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64;
-                let _ =
-                    discord_clone.set_activity(&title, &artist, Some(now), Some(url), Some(album));
-            } else {
-                println!("[Cover] No cover found for: {} - {}", artist, album);
-            }
-        });
-    } else {
-        let filename = path_obj
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Unknown Track");
-        let _ = state
-            .discord
-            .set_activity(filename, "Listening", None, None, None);
-    }
-
-    let player_guard = state.player.lock().unwrap();
-    if let Some(ref player) = *player_guard {
-        let result = player.play_file(&path);
-
-        // Update Windows Media Controls
-        if result.is_ok() {
-            if let Ok((info, _)) = get_track_metadata_helper(&path) {
-                if let Ok(tx_guard) = state.media_cmd_tx.lock() {
-                    if let Some(ref tx) = *tx_guard {
-                        let _ = tx.send(MediaCmd::SetMetadata {
-                            title: info.title.clone(),
-                            artist: info.artist.clone(),
-                            album: info.album.clone(),
-                        });
-                        let _ = tx.send(MediaCmd::SetPlaying);
-                    }
-                }
-            }
+    std::thread::spawn(move || {
+        // Reset current cover
+        if let Ok(mut url_guard) = current_cover_url.lock() {
+            *url_guard = None;
         }
 
-        result
-    } else {
-        Err("Player not initialized".to_string())
-    }
+        // Reset lyrics cache and mark as fetching
+        if let Ok(mut lyrics_guard) = lyrics_cache.lock() {
+            println!("[Lyrics] Initializing cache for new track: {}", path_clone);
+            *lyrics_guard = CachedLyrics {
+                track_path: path_clone.clone(),
+                is_fetching: true,
+                ..Default::default()
+            };
+        }
+
+        // Try to get metadata for Discord/lyrics/covers (single call, not duplicate)
+        if let Ok((info, _)) = get_track_metadata_helper(&path_clone) {
+            // Connect to Discord
+            let _ = discord.connect();
+
+            // Set initial Discord activity
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+
+            let _ = discord.set_activity(
+                &info.title,
+                &info.artist,
+                Some(now),
+                None,
+                Some(info.album.clone()),
+            );
+
+            // Update Windows Media Controls
+            if let Some(ref tx) = media_cmd_tx {
+                let _ = tx.send(MediaCmd::SetMetadata {
+                    title: info.title.clone(),
+                    artist: info.artist.clone(),
+                    album: info.album.clone(),
+                });
+                let _ = tx.send(MediaCmd::SetPlaying);
+            }
+
+            // Prefetch lyrics in separate thread
+            let lyrics_cache_clone = lyrics_cache.clone();
+            let artist = info.artist.clone();
+            let track_title = info.title.clone();
+            let duration = info.duration_secs as u32;
+            let track_path = path_clone.clone();
+            let app_h_lyrics = app_handle_thread.clone();
+
+            std::thread::spawn(move || {
+                println!(
+                    "[Lyrics] Prefetching lyrics for: {} - {}",
+                    artist, track_title
+                );
+
+                // Helper to emit progress
+                let emit_progress = |msg: &str| {
+                    let _ = app_h_lyrics.emit("lyrics-loading-status", msg);
+                };
+
+                let app_h_1 = app_h_lyrics.clone();
+                let cb1 = move |msg: &str| {
+                    let _ = app_h_1.emit("lyrics-loading-status", msg);
+                };
+                let app_h_2 = app_h_lyrics.clone();
+                let cb2 = move |msg: &str| {
+                    let _ = app_h_2.emit("lyrics-loading-status", msg);
+                };
+
+                let result =
+                    match lyrics_fetcher::fetch_lyrics(&artist, &track_title, duration, cb1) {
+                        Ok(lyrics) => lyrics,
+                        Err(_) => {
+                            match lyrics_fetcher::fetch_lyrics_fallback(&artist, &track_title, cb2)
+                            {
+                                Ok(lyrics) => lyrics,
+                                Err(e) => {
+                                    if let Ok(mut guard) = lyrics_cache_clone.lock() {
+                                        if guard.track_path == track_path {
+                                            guard.is_fetching = false;
+                                            guard.error = Some(e);
+                                        }
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                    };
+
+                if let Ok(mut guard) = lyrics_cache_clone.lock() {
+                    if guard.track_path == track_path {
+                        guard.synced_lyrics = result.synced_lyrics;
+                        guard.plain_lyrics = result.plain_lyrics;
+                        guard.instrumental = result.instrumental.unwrap_or(false);
+                        guard.is_fetching = false;
+                        guard.error = None;
+                        println!(
+                            "[Lyrics] Prefetch complete for: {} - {}",
+                            artist, track_title
+                        );
+                    }
+                }
+            });
+
+            // Cover fetch in separate thread
+            let discord_clone = discord.clone();
+            let url_mutex_clone = current_cover_url.clone();
+            let artist = info.artist.clone();
+            let album = info.album.clone();
+            let title = info.title.clone();
+
+            std::thread::spawn(move || {
+                println!("[Cover] Searching for: {} - {}", artist, album);
+                if let Some(url) = cover_fetcher::search_cover(&artist, &album) {
+                    println!("[Cover] Found URL: {}", url);
+                    if let Ok(mut guard) = url_mutex_clone.lock() {
+                        *guard = Some(url.clone());
+                    }
+
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64;
+                    let _ = discord_clone.set_activity(
+                        &title,
+                        &artist,
+                        Some(now),
+                        Some(url),
+                        Some(album),
+                    );
+                } else {
+                    println!("[Cover] No cover found for: {} - {}", artist, album);
+                }
+            });
+        } else {
+            // Fallback: just set basic Discord activity
+            let path_obj = std::path::Path::new(&path_clone);
+            let filename = path_obj
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Unknown Track");
+            let _ = discord.set_activity(filename, "Listening", None, None, None);
+        }
+    });
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -625,21 +648,40 @@ async fn get_lyrics(
     artist: String,
     track: String,
     duration: u32,
+    app_handle: AppHandle,
 ) -> Result<lyrics_fetcher::LyricsResponse, String> {
     // Run in blocking thread as it uses reqwest::blocking
+    let app_handle_thread = app_handle.clone();
+
     tauri::async_runtime::spawn_blocking(move || {
+        let app_h1 = app_handle_thread.clone();
+        let cb1 = move |msg: &str| {
+            let _ = app_h1.emit("lyrics-loading-status", msg);
+        };
+
         // First check for local LRC file (instant!)
+        // Note: fetch_lyrics_with_local will call cb1("Checking for local file...")
         if let Some(local) = lyrics_fetcher::find_local_lrc(&audio_path) {
-            println!("[Lyrics] ✓ Using local LRC file!");
+            cb1("Using local LRC file");
             return Ok(local);
         }
 
+        let app_h2 = app_handle_thread.clone();
+        let cb2 = move |msg: &str| {
+            let _ = app_h2.emit("lyrics-loading-status", msg);
+        };
+
+        let app_h3 = app_handle_thread.clone();
+        let cb3 = move |msg: &str| {
+            let _ = app_h3.emit("lyrics-loading-status", msg);
+        };
+
         // Then try API with duration
-        match lyrics_fetcher::fetch_lyrics(&artist, &track, duration) {
+        match lyrics_fetcher::fetch_lyrics(&artist, &track, duration, cb2) {
             Ok(lyrics) => Ok(lyrics),
             Err(_) => {
                 // Fallback: search without duration constraint
-                lyrics_fetcher::fetch_lyrics_fallback(&artist, &track)
+                lyrics_fetcher::fetch_lyrics_fallback(&artist, &track, cb3)
             }
         }
     })

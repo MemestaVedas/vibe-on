@@ -177,15 +177,14 @@ export function PlayerBar() {
 
             {/* Player Container */}
             <motion.div
-                layout
                 initial={false}
                 animate={{
                     width: isHovered ? '90%' : '20rem', // 20rem is w-80
                     height: isHovered ? '6rem' : '4rem', // 6rem is h-24, 4rem is h-16
-                    borderRadius: isHovered ? '2rem' : '9999px',
+                    borderRadius: '9999px', // Always pill shape
                     maxWidth: isHovered ? '56rem' : '20rem', // 56rem is max-w-4xl
                 }}
-                transition={{ type: "spring", stiffness: 200, damping: 25, mass: 1 }}
+                transition={{ type: "spring", stiffness: 120, damping: 20, mass: 1 }}
                 className={`
                     pointer-events-auto
                     relative 

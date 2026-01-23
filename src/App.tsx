@@ -168,7 +168,7 @@ function App() {
         </div>
 
         {/* Right Panel (Floating Card) */}
-        <aside className="w-80 bg-surface-container z-20 hidden xl:block overflow-hidden transition-all duration-300 rounded-[2rem]">
+        <aside className="w-[25rem] bg-surface-container z-20 hidden xl:block overflow-hidden transition-all duration-300 rounded-[2rem]">
           <RightPanel />
         </aside>
       </div>

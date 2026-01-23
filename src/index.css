@@ -135,4 +135,22 @@
         mask-size: 12px 40px, 12px 40px, 100% 100%;
         mask-composite: add;
     }
+
+    /* Hide Scrollbar Utility */
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        /* IE and Edge */
+        scrollbar-width: none !important;
+        /* Firefox */
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    /* Fade Mask Y - Heavy fade at top and bottom for lyrics */
+    .fade-mask-y {
+        mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    }
 }

@@ -110,35 +110,40 @@ interface TopTrack {
 }
 
 export function StatisticsPage() {
-    const { library, history, favorites } = usePlayerStore();
+    const { library, history, favorites, playCounts } = usePlayerStore();
     const { colors } = useThemeStore();
 
-    // Calculate statistics from history
+    // Calculate statistics from playCounts (persistent) rather than history (recent only)
     const stats = useMemo(() => {
-        const playCounts = new Map<string, number>();
         const artistPlayCounts = new Map<string, number>();
         let totalPlayTime = 0;
-
-        history.forEach(track => {
-            playCounts.set(track.path, (playCounts.get(track.path) || 0) + 1);
-            artistPlayCounts.set(track.artist, (artistPlayCounts.get(track.artist) || 0) + 1);
-            totalPlayTime += track.duration_secs;
-        });
+        let totalPlays = 0;
 
         const topTracks: TopTrack[] = [];
-        playCounts.forEach((count, path) => {
-            const track = library.find(t => t.path === path);
-            if (track) {
+
+        // Iterate through library to find play counts
+        library.forEach(track => {
+            const count = playCounts[track.path] || 0;
+            if (count > 0) {
+                totalPlays += count;
+                totalPlayTime += track.duration_secs * count;
+
+                // Track artist plays
+                artistPlayCounts.set(track.artist, (artistPlayCounts.get(track.artist) || 0) + count);
+
                 topTracks.push({
-                    path,
+                    path: track.path,
                     title: track.title,
                     artist: track.artist,
                     playCount: count
                 });
             }
         });
+
+        // Sort Top Tracks
         topTracks.sort((a, b) => b.playCount - a.playCount);
 
+        // Sort Top Artists
         const topArtists: { name: string; playCount: number }[] = [];
         artistPlayCounts.forEach((count, name) => {
             topArtists.push({ name, playCount: count });
@@ -147,14 +152,14 @@ export function StatisticsPage() {
 
         return {
             totalTracks: library.length,
-            totalPlays: history.length,
+            totalPlays,
             totalPlayTime,
             favoriteCount: favorites.size,
             uniqueArtists: new Set(library.map(t => t.artist)).size,
             topTracks: topTracks.slice(0, 5),
             topArtists: topArtists.slice(0, 5)
         };
-    }, [library, history, favorites]);
+    }, [library, history, favorites, playCounts]);
 
     const formatDuration = (secs: number) => {
         const hours = Math.floor(secs / 3600);
@@ -179,7 +184,7 @@ export function StatisticsPage() {
                 </motion.div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
                     <StatCard
                         icon={<IconMusicNote size={28} />}
                         label="Total Songs"

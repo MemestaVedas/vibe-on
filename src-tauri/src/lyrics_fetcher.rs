@@ -217,10 +217,11 @@ fn try_generic_search(client: &reqwest::blocking::Client, query: &str) -> Option
 }
 
 /// Main function - LOCAL LRC FIRST, then API search
-pub fn fetch_lyrics(
+pub fn fetch_lyrics<F: Fn(&str)>(
     artist: &str,
     track: &str,
     duration_secs: u32,
+    on_progress: F,
 ) -> Result<LyricsResponse, String> {
     println!("[Lyrics] Searching: {} - {}", artist, track);
 
@@ -241,6 +242,7 @@ pub fn fetch_lyrics(
     }
 
     // Strategy 1: Exact match
+    on_progress("Searching exact match...");
     if let Some(lyrics) = try_exact_match(&client, artist, track, duration_secs) {
         println!("[Lyrics] ✓ Found exact match!");
         return Ok(lyrics);
@@ -249,6 +251,7 @@ pub fn fetch_lyrics(
 
     // Strategy 2: Clean track
     if clean_track != track {
+        on_progress("Searching with cleaned track name...");
         if let Some(lyrics) = try_exact_match(&client, artist, &clean_track, duration_secs) {
             println!("[Lyrics] ✓ Found with clean track!");
             return Ok(lyrics);
@@ -258,6 +261,7 @@ pub fn fetch_lyrics(
 
     // Strategy 3: Primary artist
     if primary_artist != artist {
+        on_progress("Searching for primary artist...");
         if let Some(lyrics) = try_exact_match(&client, &primary_artist, track, duration_secs) {
             println!("[Lyrics] ✓ Found with primary artist!");
             return Ok(lyrics);
@@ -266,6 +270,7 @@ pub fn fetch_lyrics(
     }
 
     // Strategy 4: Search
+    on_progress("Searching via LrcLib API...");
     if let Some(lyrics) = try_artist_track_search(&client, artist, track) {
         println!("[Lyrics] ✓ Found via search!");
         return Ok(lyrics);
@@ -274,6 +279,7 @@ pub fn fetch_lyrics(
 
     // Strategy 5: Clean search
     if clean_track != track || primary_artist != artist {
+        on_progress("Retrying with cleaned metadata...");
         if let Some(lyrics) = try_artist_track_search(&client, &primary_artist, &clean_track) {
             println!("[Lyrics] ✓ Found via clean search!");
             return Ok(lyrics);
@@ -283,6 +289,7 @@ pub fn fetch_lyrics(
 
     // Strategy 6: Generic query
     let query = format!("{} {}", artist, track);
+    on_progress(&format!("Searching query: {}", query));
     if let Some(lyrics) = try_generic_search(&client, &query) {
         println!("[Lyrics] ✓ Found via generic!");
         return Ok(lyrics);
@@ -290,43 +297,52 @@ pub fn fetch_lyrics(
     check_timeout!();
 
     // Strategy 7: Track only
+    on_progress("Final attempt: searching by track name only...");
     if let Some(lyrics) = try_generic_search(&client, track) {
         println!("[Lyrics] ✓ Found via track only!");
         return Ok(lyrics);
     }
 
     println!("[Lyrics] ✗ Not found");
-    Err("No lyrics found".to_string())
+    Err("No sources founded for lyrics changing to recents view".to_string())
 }
 
 /// Fetch with local file check first
-pub fn fetch_lyrics_with_local(
+pub fn fetch_lyrics_with_local<F: Fn(&str)>(
     audio_path: &str,
     artist: &str,
     track: &str,
     duration_secs: u32,
+    on_progress: F,
 ) -> Result<LyricsResponse, String> {
     // Check for local LRC file first (instant!)
+    on_progress("Checking for local file...");
     if let Some(local) = find_local_lrc(audio_path) {
         println!("[Lyrics] ✓ Using local LRC file!");
         return Ok(local);
     }
 
     // Fall back to API search
-    fetch_lyrics(artist, track, duration_secs)
+    fetch_lyrics(artist, track, duration_secs, on_progress)
 }
 
-pub fn fetch_lyrics_fallback(artist: &str, track: &str) -> Result<LyricsResponse, String> {
+pub fn fetch_lyrics_fallback<F: Fn(&str)>(
+    artist: &str,
+    track: &str,
+    on_progress: F,
+) -> Result<LyricsResponse, String> {
     let client = create_client()?;
 
+    on_progress("Fallback search: Artist + Track...");
     if let Some(lyrics) = try_artist_track_search(&client, artist, track) {
         return Ok(lyrics);
     }
 
+    on_progress("Fallback search: Generic query...");
     let query = format!("{} {}", artist, track);
     if let Some(lyrics) = try_generic_search(&client, &query) {
         return Ok(lyrics);
     }
 
-    Err("No lyrics found".to_string())
+    Err("No sources founded for lyrics changing to recents view".to_string())
 }

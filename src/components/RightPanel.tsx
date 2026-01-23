@@ -4,12 +4,12 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { IconMusicNote, IconPlay } from './Icons';
+import { IconMusicNote, IconPlay, IconExternalLink } from './Icons';
 import { MarqueeText } from './MarqueeText';
 
 export function RightPanel() {
     const { status, library, history, playFile } = usePlayerStore();
-    const { lines, plainLyrics, isInstrumental, isLoading, fetchLyrics } = useLyricsStore();
+    const { lines, plainLyrics, isInstrumental, isLoading, fetchLyrics, error } = useLyricsStore();
     const { track } = status;
 
     // Fetch lyrics automatically when track changes
@@ -33,9 +33,10 @@ export function RightPanel() {
             hasLines: !!lines,
             hasPlain: !!plainLyrics,
             instrumental: isInstrumental,
-            loading: isLoading
+            loading: isLoading,
+            error: error
         });
-    }, [lines, plainLyrics, isInstrumental, isLoading]);
+    }, [lines, plainLyrics, isInstrumental, isLoading, error]);
 
     // Get cover from library
     const currentIndex = library.findIndex(t => t.path === track?.path);
@@ -46,7 +47,11 @@ export function RightPanel() {
     const recentTracks = history.slice(0, 10);
 
     // Determine what to show in the bottom section
-    const showLyrics = (lines || plainLyrics) && !isInstrumental;
+    const hasContent = (lines && lines.length > 0) || (plainLyrics && plainLyrics.trim().length > 0);
+    // Show lyrics window if:
+    // 1. Loading (to show spinner)
+    // 2. OR Valid content exists AND Not instrumental AND No error
+    const showLyrics = isLoading || (hasContent && !isInstrumental && !error);
 
     return (
         <aside className="h-full flex flex-col p-6 gap-6 overflow-hidden">
@@ -56,9 +61,9 @@ export function RightPanel() {
             </div>
 
             {/* Main Art & Info */}
-            <div className="flex flex-col items-center gap-6 shrink-0">
+            <div className="flex flex-col items-center gap-4 shrink-0 transition-all duration-300">
                 {/* Large Art */}
-                <div className="w-64 h-64 rounded-[2rem] bg-surface-container-high shadow-elevation-3 relative group overflow-hidden shrink-0">
+                <div className="w-52 h-52 rounded-[1.5rem] bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0">
                     {coverUrl ? (
                         <img
                             src={coverUrl}
@@ -67,7 +72,7 @@ export function RightPanel() {
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-on-surface-variant/50">
-                            <IconMusicNote size={64} />
+                            <IconMusicNote size={48} />
                         </div>
                     )}
                 </div>
@@ -86,22 +91,36 @@ export function RightPanel() {
                 </div>
             </div>
 
-            {/* Divider (Invisible spacing) */}
-            <div className="h-4" />
-
             {/* Content Switcher: Lyrics or Recent History */}
             <div className="flex-1 min-h-0 relative">
                 <AnimatePresence mode="wait">
                     {showLyrics ? (
                         <motion.div
                             key="lyrics"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.3, ease: 'backOut' }}
                             className="absolute inset-0 flex flex-col"
                         >
-                            <h3 className="text-title-small font-semibold text-on-surface-variant/80 px-1 mb-4">Lyrics</h3>
-                            <SideLyrics />
+                            <div className="flex items-center justify-between mb-2 px-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                    <h3 className="text-title-small font-semibold text-on-surface">Lyrics</h3>
+                                </div>
+                                <button
+                                    onClick={() => import('../utils/windowUtils').then(m => m.openLyricsWindow())}
+                                    className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded-lg transition-colors"
+                                    title="Open Floating Window"
+                                >
+                                    <IconExternalLink size={16} />
+                                </button>
+                            </div>
+
+                            {/* Window-like container */}
+                            <div className="flex-1 rounded-2xl bg-surface-container-low overflow-hidden relative flex flex-col group">
+                                <SideLyrics />
+                            </div>
                         </motion.div>
                     ) : (
                         <motion.div

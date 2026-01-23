@@ -11,12 +11,9 @@ export function SideLyrics() {
     const { primary } = colors;
 
     const containerRef = useRef<HTMLDivElement>(null);
-    const activeLineRef = useRef<HTMLDivElement>(null);
+    const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-    // Track if user is manually scrolling
-    const [isUserScrolling, setIsUserScrolling] = useState(false);
-    const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+    const [offsetY, setOffsetY] = useState(0);
     const position = status.position_secs;
 
     // Find current active line
@@ -30,49 +27,24 @@ export function SideLyrics() {
         return -1;
     }, [lines, position]);
 
-
-
-    // Handle user scroll interactions (pause auto-scroll)
-    // We use onWheel/onTouchStart instead of onScroll to avoid triggering this
-    // when we programmatically scroll via scrollIntoView
-    const handleScroll = useCallback(() => {
-        console.log('[SideLyrics] User scroll detected');
-        setIsUserScrolling(true);
-        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = setTimeout(() => {
-            console.log('[SideLyrics] User scroll timeout ended, resuming auto-scroll');
-            setIsUserScrolling(false);
-        }, 5000);
-    }, []);
-
-    // Auto-scroll
+    // Calculate vertical offset to center the active line
     useEffect(() => {
-        if (!isUserScrolling && activeLineRef.current && containerRef.current) {
-            const container = containerRef.current;
-            const activeLine = activeLineRef.current;
+        if (activeLineIndex >= 0 && containerRef.current && lineRefs.current[activeLineIndex]) {
+            const containerHeight = containerRef.current.clientHeight;
+            const activeLine = lineRefs.current[activeLineIndex];
 
-            // Calculate center position:
-            // Line's offset within container - Half container height + Half line height
-            // We need to account for the container's scrollTop as well if we were using getBoundingClientRect, 
-            // but offsetTop is relative to the offsetParent (which should be the container if it's positioned).
-            // Default position is static, so we might need to check if container has relative positioning?
-            // "flex-1 overflow-y-auto" usually makes it the offset parent for children if we add relative.
+            if (activeLine) {
+                // Determine the center position relative to the container
+                // We want: containerHeight / 2 = (activeLine.offsetTop + activeLineHeight / 2) + transformY
+                // So: transformY = containerHeight / 2 - (activeLine.offsetTop + activeLineHeight / 2)
 
-            const scrollTarget = activeLine.offsetTop - (container.clientHeight / 2) + (activeLine.clientHeight / 2);
+                const lineMid = activeLine.offsetTop + (activeLine.clientHeight / 2);
+                const newOffset = (containerHeight / 2) - lineMid;
 
-            container.scrollTo({
-                top: scrollTarget,
-                behavior: 'smooth'
-            });
+                setOffsetY(newOffset);
+            }
         }
-    }, [activeLineIndex, isUserScrolling]);
-
-    // Cleanup
-    useEffect(() => {
-        return () => {
-            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-        };
-    }, []);
+    }, [activeLineIndex, lines]); // Recalculate when active line changes
 
     if (isLoading) {
         return (
@@ -102,46 +74,51 @@ export function SideLyrics() {
     return (
         <div
             ref={containerRef}
-            onWheel={handleScroll}
-            onTouchStart={handleScroll}
-            className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-surface-container-high/50 hover:scrollbar-thumb-surface-container-high fade-mask-y relative"
+            className="flex-1 overflow-hidden min-h-0 relative select-none fade-mask-y"
         >
-            {/* Synced Lyrics */}
+            {/* Synced Lyrics Carousel */}
             {lines && lines.length > 0 && (
-                <div className="flex flex-col gap-3 py-4">
+                <motion.div
+                    className="flex flex-col gap-6 w-full items-center py-10" // Initial padding to ensure first line can start centered?
+                    // Actually, if we translate effectively, we don't need massive padding, but some visual buffer is nice. 
+                    // However, we rely on offsetTop from the *top of this motion div*.
+
+                    animate={{ y: offsetY }}
+                    transition={{ type: 'spring', stiffness: 100, damping: 20, mass: 1 }}
+                >
                     {lines.map((line, index) => (
                         <motion.div
                             key={`${line.time}-${index}`}
-                            ref={index === activeLineIndex ? activeLineRef : null}
+                            ref={el => lineRefs.current[index] = el}
                             onClick={() => seek(line.time)}
                             initial={false}
                             animate={{
-                                opacity: index === activeLineIndex ? 1 : 0.5,
-                                scale: index === activeLineIndex ? 1 : 0.98,
-                                x: index === activeLineIndex ? 0 : 0
+                                opacity: index === activeLineIndex ? 1 : 0.25,
+                                scale: index === activeLineIndex ? 1.05 : 0.95,
                             }}
+                            transition={{ duration: 0.3 }}
                             className={`
-                                cursor-pointer origin-left transition-colors duration-300
-                                ${index === activeLineIndex ? 'font-medium' : 'hover:opacity-80'}
+                                cursor-pointer text-center px-6 max-w-full transition-colors duration-300
+                                ${index === activeLineIndex ? 'font-bold z-10' : 'hover:opacity-60'}
                             `}
                         >
                             <p
-                                className="text-body-large leading-relaxed"
+                                className="text-xl md:text-2xl leading-relaxed"
                                 style={{
-                                    color: index === activeLineIndex ? primary : undefined
+                                    color: index === activeLineIndex ? primary : undefined,
+                                    textShadow: index === activeLineIndex ? `0 0 25px ${primary}60` : 'none'
                                 }}
                             >
                                 {line.text}
                             </p>
                         </motion.div>
                     ))}
-                    <div className="h-24" /> {/* Bottom padding */}
-                </div>
+                </motion.div>
             )}
 
-            {/* Plain Lyrics */}
+            {/* Plain Lyrics Scroll (Fallback) */}
             {!lines && plainLyrics && (
-                <div className="py-4 whitespace-pre-wrap text-body-medium text-on-surface/80 leading-relaxed">
+                <div className="h-full overflow-y-auto no-scrollbar p-6 whitespace-pre-wrap text-body-medium text-on-surface/80 leading-relaxed text-center">
                     {plainLyrics}
                 </div>
             )}
