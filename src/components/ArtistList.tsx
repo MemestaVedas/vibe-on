@@ -4,7 +4,6 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMicrophone, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
-import { motion } from 'framer-motion';
 
 interface Artist {
     name: string;
@@ -27,7 +26,7 @@ const VerySunnyPlayButton = ({ onClick }: { onClick: (e: React.MouseEvent) => vo
 );
 
 // M3 Arch Shape Component (using SVG clip)
-const M3ArchImage = ({ src, alt, fallback }: { src: string | null, alt: string, fallback: React.ReactNode }) => {
+const M3ArchImage = ({ src, fallback }: { src: string | null, fallback: React.ReactNode }) => {
     const uniqueId = useMemo(() => `arch-${Math.random().toString(36).substr(2, 9)}`, []);
 
     return (
@@ -147,7 +146,6 @@ function ArtistCard({ artist, onClick, onPlay }: { artist: Artist, onClick: () =
                 <div className="w-full h-full">
                     <M3ArchImage
                         src={coverUrl}
-                        alt={artist.name}
                         fallback={<IconMicrophone size={48} />}
                     />
                 </div>
@@ -177,7 +175,6 @@ function ArtistDetailView({ artist, onBack, onPlay }: { artist: Artist, onBack: 
                 <div className="w-52 h-52 shrink-0 shadow-elevation-3">
                     <M3ArchImage
                         src={coverUrl}
-                        alt={artist.name}
                         fallback={<IconMicrophone size={64} />}
                     />
                 </div>

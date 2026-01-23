@@ -28,7 +28,7 @@ const VerySunnyPlayButton = ({ onClick }: { onClick: (e: React.MouseEvent) => vo
 );
 
 // M3 Rounded Square Shape Component (using SVG clip)
-const M3RoundedSquareImage = ({ src, alt, fallback }: { src: string | null, alt: string, fallback: React.ReactNode }) => {
+const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback: React.ReactNode }) => {
     const uniqueId = useMemo(() => `rounded-square-${Math.random().toString(36).substr(2, 9)}`, []);
 
     return (
@@ -149,7 +149,6 @@ function AlbumCard({ album, onClick, onPlay }: { album: Album, onClick: () => vo
                 <div className="w-full h-full">
                     <M3RoundedSquareImage
                         src={coverUrl}
-                        alt={album.name}
                         fallback={<IconMusicNote size={64} />}
                     />
                 </div>
@@ -181,7 +180,6 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
                 >
                     <M3RoundedSquareImage
                         src={coverUrl}
-                        alt={album.name}
                         fallback={<IconMusicNote size={80} />}
                     />
                 </motion.div>

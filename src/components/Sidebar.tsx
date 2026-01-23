@@ -41,7 +41,7 @@ const sidebarSpring = {
     stiffness: 1400,
     damping: 90,
     mass: 1
-};
+} as const;
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
     const { currentFolder, library } = usePlayerStore();

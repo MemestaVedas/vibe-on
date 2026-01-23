@@ -3,8 +3,7 @@ import {
     sourceColorFromImage,
     Hct,
     SchemeTonalSpot,
-    hexFromArgb,
-    TonalPalette
+    hexFromArgb
 } from '@material/material-color-utilities';
 
 // ============================================================================

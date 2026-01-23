@@ -76,7 +76,8 @@ function LyricsButton({ track }: { track: { title: string; artist: string; durat
 export function PlayerBar() {
     const {
         status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack,
-        getCurrentTrackIndex, library, playFile, seek, repeatMode, cycleRepeatMode
+        getCurrentTrackIndex, library, playFile, seek, repeatMode, cycleRepeatMode,
+        error, setError
     } = usePlayerStore();
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
     const { state, track, position_secs, volume } = status;

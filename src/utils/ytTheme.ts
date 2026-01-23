@@ -10,46 +10,46 @@ export function generateYTMusicCSS(colors: ThemeColors): string {
         
         /* Progress Bar - Accent Color */
         #progress-bar.ytmusic-player-bar {
-            --paper-slider-active-color: ${colors.accent1} !important;
-            --paper-slider-knob-color: ${colors.accent1} !important;
+            --paper-slider-active-color: ${colors.primary} !important;
+            --paper-slider-knob-color: ${colors.primary} !important;
         }
         
         tp-yt-paper-slider .slider-knob-inner {
-            background-color: ${colors.accent1} !important;
+            background-color: ${colors.primary} !important;
         }
         
         /* Primary Action Buttons */
         .play-pause-button.ytmusic-player-bar svg,
         ytmusic-play-button-renderer svg {
-            fill: ${colors.accent1} !important;
+            fill: ${colors.primary} !important;
         }
         
         /* Active/Selected Items */
         ytmusic-responsive-list-item-renderer[selected],
         ytmusic-two-row-item-renderer[selected] {
-            background: ${colors.accent1}20 !important;
-            border-left: 3px solid ${colors.accent1} !important;
+            background: ${colors.primary}20 !important;
+            border-left: 3px solid ${colors.primary} !important;
         }
         
         /* Chips/Pills (active state) */
         ytmusic-chip-cloud-chip-renderer[chip-style="STYLE_DEFAULT"][is-selected] {
-            background: ${colors.accent1} !important;
+            background: ${colors.primary} !important;
         }
         
         /* Links on hover */
         a.yt-simple-endpoint:hover yt-formatted-string {
-            color: ${colors.accent1} !important;
+            color: ${colors.primary} !important;
         }
         
         /* Volume slider */
         #volume-slider tp-yt-paper-slider {
-            --paper-slider-active-color: ${colors.accent1} !important;
-            --paper-slider-knob-color: ${colors.accent1} !important;
+            --paper-slider-active-color: ${colors.primary} !important;
+            --paper-slider-knob-color: ${colors.primary} !important;
         }
         
         /* Like button when active */
         ytmusic-like-button-renderer[like-status="LIKE"] tp-yt-paper-icon-button {
-            color: ${colors.accent1} !important;
+            color: ${colors.primary} !important;
         }
     `;
 }

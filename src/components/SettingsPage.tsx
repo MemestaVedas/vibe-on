@@ -8,7 +8,7 @@ export function SettingsPage() {
         autoplay, setAutoplay
     } = useSettingsStore();
     const { colors } = useThemeStore();
-    const { accent1 } = colors;
+    const { primary } = colors;
 
     return (
         <div className="flex-1 overflow-y-auto p-8">
@@ -32,7 +32,7 @@ export function SettingsPage() {
                                 label="Vinyl Style"
                                 active={albumArtStyle === 'vinyl'}
                                 onClick={() => setAlbumArtStyle('vinyl')}
-                                accentColor={accent1}
+                                accentColor={primary}
                             >
                                 <div className="w-8 h-8 rounded-full bg-white/20 relative overflow-hidden animate-[spin_4s_linear_infinite]">
                                     <div className="absolute inset-0 border-2 border-white/20 rounded-full"></div>
@@ -44,7 +44,7 @@ export function SettingsPage() {
                                 label="Full Cover"
                                 active={albumArtStyle === 'full'}
                                 onClick={() => setAlbumArtStyle('full')}
-                                accentColor={accent1}
+                                accentColor={primary}
                             >
                                 <div className="w-8 h-8 rounded bg-white/20"></div>
                             </OptionButton>
@@ -68,7 +68,7 @@ export function SettingsPage() {
                                 label="Background Art"
                                 active={expandedArtMode === 'background'}
                                 onClick={() => setExpandedArtMode('background')}
-                                accentColor={accent1}
+                                accentColor={primary}
                             >
                                 {/* Mini diagram of pill with bg art */}
                                 <div className="w-16 h-8 rounded-full border border-white/20 relative overflow-hidden flex items-center">
@@ -81,7 +81,7 @@ export function SettingsPage() {
                                 label="Pill Art (Left)"
                                 active={expandedArtMode === 'pill'}
                                 onClick={() => setExpandedArtMode('pill')}
-                                accentColor={accent1}
+                                accentColor={primary}
                             >
                                 {/* Mini diagram of pill with art on left */}
                                 <div className="w-16 h-8 rounded-full border border-white/20 flex items-center p-1 gap-1">
@@ -105,7 +105,7 @@ export function SettingsPage() {
                             <ToggleSwitch
                                 enabled={autoplay}
                                 onChange={setAutoplay}
-                                accentColor={accent1}
+                                accentColor={primary}
                             />
                         </div>
                     </div>
