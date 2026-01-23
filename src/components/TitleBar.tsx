@@ -114,10 +114,9 @@ export function TitleBar() {
         </div>
     );
 
-    // App Name + Add Folder Button Component
     const AppNameSection = () => (
-        <div className="flex items-center gap-3">
-            <div className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
+        <div data-tauri-drag-region className="flex items-center gap-3">
+            <div data-tauri-drag-region className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
                 <span className="text-primary text-xl">♪</span> VIBE-ON!
             </div>
         </div>
@@ -132,7 +131,7 @@ export function TitleBar() {
             {isMacOS ? (
                 <>
                     <WindowControls />
-                    <div className="flex-1 flex justify-center">
+                    <div data-tauri-drag-region className="flex-1 flex justify-center">
                         <SearchBar />
                     </div>
                     <AppNameSection />
@@ -140,7 +139,7 @@ export function TitleBar() {
             ) : (
                 <>
                     <AppNameSection />
-                    <div className="flex-1 flex justify-end pr-8">
+                    <div data-tauri-drag-region className="flex-1 flex justify-end pr-8">
                         <SearchBar />
                     </div>
                     <WindowControls />

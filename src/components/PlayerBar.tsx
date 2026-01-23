@@ -155,11 +155,7 @@ export function PlayerBar() {
     };
 
     return (
-        <div
-            className="fixed bottom-6 left-0 right-0 z-50 flex flex-col items-center justify-end pointer-events-none gap-4"
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-        >
+        <div className="absolute bottom-6 left-0 right-0 z-50 flex flex-col items-center justify-end pointer-events-none gap-4">
             {/* Error Toast */}
             <AnimatePresence>
                 {error && (
@@ -175,308 +171,347 @@ export function PlayerBar() {
                 )}
             </AnimatePresence>
 
-            {/* Player Container */}
-            <motion.div
-                initial={false}
-                animate={{
-                    width: isHovered ? '90%' : '20rem', // 20rem is w-80
-                    height: isHovered ? '6rem' : '4rem', // 6rem is h-24, 4rem is h-16
-                    borderRadius: '9999px', // Always pill shape
-                    maxWidth: isHovered ? '56rem' : '20rem', // 56rem is max-w-4xl
-                }}
-                transition={{ type: "spring", stiffness: 120, damping: 20, mass: 1 }}
-                className={`
+            {/* Container for Pill and Side Buttons */}
+            <div className="flex items-center justify-center gap-4 w-full">
+                {/* Previous Button */}
+                <AnimatePresence>
+                    {!isHovered && (
+                        <motion.button
+                            initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                            exit={{ opacity: 0, scale: 0.8, x: 20 }}
+                            onClick={prevTrack}
+                            disabled={!hasPrev}
+                            className="p-3 rounded-full bg-surface-container-high text-on-surface hover:bg-surface-container-highest shadow-elevation-3 pointer-events-auto transition-colors"
+                        >
+                            <IconPrevious size={24} />
+                        </motion.button>
+                    )}
+                </AnimatePresence>
+
+                {/* Player Container */}
+                <motion.div
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                    initial={false}
+                    animate={{
+                        width: isHovered ? '90%' : '20rem', // 20rem is w-80
+                        height: isHovered ? '6rem' : '4rem', // 6rem is h-24, 4rem is h-16
+                        borderRadius: '9999px', // Always pill shape
+                        maxWidth: isHovered ? '56rem' : '20rem', // 56rem is max-w-4xl
+                    }}
+                    transition={{ type: "spring", stiffness: 120, damping: 20, mass: 1 }}
+                    className={`
                     pointer-events-auto
                     relative 
+                    z-20
                     bg-surface-container-high 
                     text-on-surface
                     shadow-elevation-3
                     overflow-hidden
+                    isolation-isolate
                     flex items-center
                     ${isHovered ? 'px-6 py-3 gap-6' : 'px-4 py-2 gap-4'}
                 `}
-            >
-                {/* Background Art Overlay (Expanded Mode) */}
-                <AnimatePresence>
-                    {isHovered && expandedArtMode === 'background' && activeCoverUrl && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-[2rem]"
-                        >
-                            <div className="absolute left-0 top-0 bottom-0 w-3/4">
-                                <img
-                                    src={activeCoverUrl}
-                                    alt=""
-                                    className="w-full h-full object-cover opacity-50"
-                                />
-                                {/* Smooth fade into the pill background */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-container-high/20 to-surface-container-high" />
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {!isHovered && track && (
-                    <div
-                        className="absolute left-0 top-0 bottom-0 z-[1] pointer-events-none flex items-stretch text-primary opacity-40 rounded-l-full"
-                        style={{
-                            width: `${(position_secs / (track.duration_secs || 1)) * 100}%`,
-                            transition: 'width 0.5s cubic-bezier(0.2, 0, 0, 1)'
-                        }}
-                    >
-                        {/* Solid fill part */}
-                        <div className="flex-1 bg-current" />
-
-                        {/* Vertical Wave Edge */}
-                        <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-[1px]">
-                            {/* -mr-1 to ensure no gaps if render is sub-pixel */}
+                >
+                    {/* Background Art Overlay (Expanded Mode) */}
+                    <AnimatePresence>
+                        {isHovered && expandedArtMode === 'background' && activeCoverUrl && (
                             <motion.div
-                                className="w-full absolute top-0 left-0"
-                                style={{ height: 'calc(100% + 40px)', top: '-40px' }}
-                                animate={state === 'Playing' ? { y: ['0px', '40px'] } : { y: '0px' }}
-                                transition={{
-                                    duration: 1, // Speed of one cycle (40px)
-                                    ease: "linear",
-                                    repeat: Infinity
-                                }}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-[2rem]"
                             >
-                                <svg
-                                    className="h-full w-full"
-                                    preserveAspectRatio="none"
+                                <div className="absolute left-0 top-0 bottom-0 w-3/4">
+                                    <img
+                                        src={activeCoverUrl}
+                                        alt=""
+                                        className="w-full h-full object-cover opacity-50"
+                                    />
+                                    {/* Smooth fade into the pill background */}
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-container-high/20 to-surface-container-high" />
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {!isHovered && track && (
+                        <div
+                            className="absolute left-0 top-0 bottom-0 z-[1] pointer-events-none flex items-stretch text-primary opacity-40 rounded-l-full"
+                            style={{
+                                width: `${(position_secs / (track.duration_secs || 1)) * 100}%`,
+                                transition: 'width 0.5s cubic-bezier(0.2, 0, 0, 1)'
+                            }}
+                        >
+                            {/* Solid fill part */}
+                            <div className="flex-1 bg-current" />
+
+                            {/* Vertical Wave Edge */}
+                            <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-[1px]">
+                                {/* -mr-1 to ensure no gaps if render is sub-pixel */}
+                                <motion.div
+                                    className="w-full absolute top-0 left-0"
+                                    style={{ height: 'calc(100% + 40px)', top: '-40px' }}
+                                    animate={state === 'Playing' ? { y: ['0px', '40px'] } : { y: '0px' }}
+                                    transition={{
+                                        duration: 1, // Speed of one cycle (40px)
+                                        ease: "linear",
+                                        repeat: Infinity
+                                    }}
                                 >
-                                    <defs>
-                                        <pattern id="pill-progress-wave" x="0" y="0" width="12" height="40" patternUnits="userSpaceOnUse">
-                                            {/* We use motion.path to morph between wave and straight line */}
-                                            {/* Note: pattern paths inside defs might not animate well with framer-motion if rerendered. 
+                                    <svg
+                                        className="h-full w-full"
+                                        preserveAspectRatio="none"
+                                    >
+                                        <defs>
+                                            <pattern id="pill-progress-wave" x="0" y="0" width="12" height="40" patternUnits="userSpaceOnUse">
+                                                {/* We use motion.path to morph between wave and straight line */}
+                                                {/* Note: pattern paths inside defs might not animate well with framer-motion if rerendered. 
                                                 However, Framer Motion needs to control the DOM element. 
                                                 If it's inside a pattern, it might be tricky. 
                                                 Alternative: Don't use pattern?
                                                 Actually, if we animate the 'd' of a path inside a pattern, it should update.
                                             */}
-                                            <motion.path
-                                                // Wave Path: M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z
-                                                // Straight Path (matched points): M 0 0 L 6 0 L 6 20 L 6 40 L 0 40 Z
-                                                // To match Q/T commands, we can use curves that are actually straight lines.
-                                                // Wave: Q 1 10 6 20 (Control point 1 at x=1 pulls it left)
-                                                // Straight: Q 6 10 6 20 (Control point at x=6 keeps it straight)
-                                                // Wave: T 6 40 (Implied reflection, effectively Q 11 30 6 40)
-                                                // Straight: T 6 40 (Implied reflection of straight is straight? Q 6 30 6 40)
+                                                <motion.path
+                                                    // Wave Path: M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z
+                                                    // Straight Path (matched points): M 0 0 L 6 0 L 6 20 L 6 40 L 0 40 Z
+                                                    // To match Q/T commands, we can use curves that are actually straight lines.
+                                                    // Wave: Q 1 10 6 20 (Control point 1 at x=1 pulls it left)
+                                                    // Straight: Q 6 10 6 20 (Control point at x=6 keeps it straight)
+                                                    // Wave: T 6 40 (Implied reflection, effectively Q 11 30 6 40)
+                                                    // Straight: T 6 40 (Implied reflection of straight is straight? Q 6 30 6 40)
 
-                                                initial={false}
-                                                animate={{
-                                                    d: state === 'Playing'
-                                                        ? "M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z" // Wavy
-                                                        : "M 0 0 L 6 0 Q 6 10 6 20 T 6 40 L 0 40 Z" // Straight (Control points aligned)
-                                                }}
-                                                transition={{ duration: 0.3 }}
-                                                fill="currentColor"
-                                            />
-                                        </pattern>
-                                    </defs>
-                                    <rect x="0" y="0" width="100%" height="100%" fill="url(#pill-progress-wave)" />
-                                </svg>
-                            </motion.div>
+                                                    initial={false}
+                                                    animate={{
+                                                        d: state === 'Playing'
+                                                            ? "M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z" // Wavy
+                                                            : "M 0 0 L 6 0 Q 6 10 6 20 T 6 40 L 0 40 Z" // Straight (Control points aligned)
+                                                    }}
+                                                    transition={{ duration: 0.3 }}
+                                                    fill="currentColor"
+                                                />
+                                            </pattern>
+                                        </defs>
+                                        <rect x="0" y="0" width="100%" height="100%" fill="url(#pill-progress-wave)" />
+                                    </svg>
+                                </motion.div>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                <AnimatePresence mode="wait">
-                    {isHovered ? (
-                        /* EXPANDED LAYOUT */
-                        <motion.div
-                            key="expanded"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.2 }}
-                            className="flex w-full items-center gap-6 relative z-10 h-full"
-                        >
-                            {/* Left: Info */}
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                                {/* Cover Art - Only show in pill mode or if background art is disabled */}
-                                {expandedArtMode === 'pill' && (
-                                    <div
-                                        className={`
+                    <AnimatePresence mode="wait">
+                        {isHovered ? (
+                            /* EXPANDED LAYOUT */
+                            <motion.div
+                                key="expanded"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex w-full items-center gap-6 relative z-10 h-full"
+                            >
+                                {/* Left: Info */}
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                    {/* Cover Art - Only show in pill mode or if background art is disabled */}
+                                    {expandedArtMode === 'pill' && (
+                                        <div
+                                            className={`
                                             relative shrink-0 overflow-hidden bg-surface-container-low shadow-sm transition-all duration-300
                                             ${albumArtStyle === 'vinyl' ? 'w-16 h-16 rounded-full' : 'w-16 h-16 rounded-xl'}
                                         `}
-                                    >
-                                        {activeCoverUrl ? (
-                                            <img
-                                                src={activeCoverUrl}
-                                                alt=""
-                                                className={`
+                                        >
+                                            {activeCoverUrl ? (
+                                                <img
+                                                    src={activeCoverUrl}
+                                                    alt=""
+                                                    className={`
                                                     w-full h-full object-cover
                                                     ${albumArtStyle === 'vinyl' && state === 'Playing' ? 'animate-spin-slow' : ''}
                                                 `}
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
+                                                    <IconMusicNote size={24} />
+                                                </div>
+                                            )}
+
+                                            {/* Vinyl Center Hole */}
+                                            {albumArtStyle === 'vinyl' && (
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="w-4 h-4 bg-surface-container-high rounded-full border border-surface-container-low/50" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-col min-w-0">
+                                        <div className="text-title-medium font-bold truncate  text-on-surface">
+                                            <MarqueeText text={track?.title || "Not Playing"} />
+                                        </div>
+                                        <div className="text-body-medium text-on-surface-variant truncate">
+                                            {track?.artist || "Pick a song"}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Center: Controls */}
+                                <div className="flex flex-col items-center flex-[2] gap-1">
+                                    <div className="flex items-center gap-6">
+                                        <button onClick={prevTrack} disabled={!hasPrev} className="text-on-surface-variant hover:text-on-surface disabled:opacity-30 p-2 rounded-full hover:bg-surface-container-highest">
+                                            <IconPrevious size={28} />
+                                        </button>
+                                        <button
+                                            onClick={handlePlayPause}
+                                            className="w-14 h-14 bg-primary text-on-primary rounded-2xl flex items-center justify-center hover:bg-primary/90 shadow-elevation-1 transition-transform active:scale-95"
+                                        >
+                                            {state === 'Playing' ? (
+                                                <IconPause size={32} />
+                                            ) : (
+                                                <IconPlay size={32} />
+                                            )}
+                                        </button>
+                                        <button onClick={nextTrack} disabled={!hasNext} className="text-on-surface-variant hover:text-on-surface disabled:opacity-30 p-2 rounded-full hover:bg-surface-container-highest">
+                                            <IconNext size={28} />
+                                        </button>
+                                    </div>
+
+                                    {/* Seeker */}
+                                    <div className="w-full flex items-center gap-3 text-label-small font-medium text-on-surface-variant/80">
+                                        <span className="w-10 text-right">{formatTime(position_secs)}</span>
+                                        <div className="flex-1 h-6 relative flex items-center">
+                                            <SquigglySlider
+                                                value={position_secs}
+                                                max={track?.duration_secs || 100}
+                                                onChange={handleSeek}
+                                                isPlaying={state === 'Playing'}
+                                                accentColor="var(--md-sys-color-primary)"
+                                                className="w-full"
                                             />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
-                                                <IconMusicNote size={24} />
-                                            </div>
-                                        )}
-
-                                        {/* Vinyl Center Hole */}
-                                        {albumArtStyle === 'vinyl' && (
-                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                <div className="w-4 h-4 bg-surface-container-high rounded-full border border-surface-container-low/50" />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="flex flex-col min-w-0">
-                                    <div className="text-title-medium font-bold truncate  text-on-surface">
-                                        <MarqueeText text={track?.title || "Not Playing"} />
-                                    </div>
-                                    <div className="text-body-medium text-on-surface-variant truncate">
-                                        {track?.artist || "Pick a song"}
+                                        </div>
+                                        <span className="w-10">{track ? formatTime(track.duration_secs) : '0:00'}</span>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Center: Controls */}
-                            <div className="flex flex-col items-center flex-[2] gap-1">
-                                <div className="flex items-center gap-6">
-                                    <button onClick={prevTrack} disabled={!hasPrev} className="text-on-surface-variant hover:text-on-surface disabled:opacity-30 p-2 rounded-full hover:bg-surface-container-highest">
-                                        <IconPrevious size={28} />
-                                    </button>
+                                {/* Right: Actions */}
+                                <div className="flex items-center gap-2 flex-1 justify-end">
+                                    {/* Favorite Button */}
+                                    {track && (
+                                        <button
+                                            onClick={() => usePlayerStore.getState().toggleFavorite(track.path)}
+                                            className={`p-2 rounded-full transition-colors ${usePlayerStore.getState().isFavorite(track.path)
+                                                ? 'text-error'
+                                                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
+                                                }`}
+                                            title={usePlayerStore.getState().isFavorite(track.path) ? 'Remove from Favorites' : 'Add to Favorites'}
+                                        >
+                                            <IconHeart size={22} filled={usePlayerStore.getState().isFavorite(track.path)} />
+                                        </button>
+                                    )}
+
+                                    {/* Repeat Button */}
                                     <button
-                                        onClick={handlePlayPause}
-                                        className="w-14 h-14 bg-primary text-on-primary rounded-2xl flex items-center justify-center hover:bg-primary/90 shadow-elevation-1 transition-transform active:scale-95"
-                                    >
-                                        {state === 'Playing' ? (
-                                            <IconPause size={32} />
-                                        ) : (
-                                            <IconPlay size={32} />
-                                        )}
-                                    </button>
-                                    <button onClick={nextTrack} disabled={!hasNext} className="text-on-surface-variant hover:text-on-surface disabled:opacity-30 p-2 rounded-full hover:bg-surface-container-highest">
-                                        <IconNext size={28} />
-                                    </button>
-                                </div>
-
-                                {/* Seeker */}
-                                <div className="w-full flex items-center gap-3 text-label-small font-medium text-on-surface-variant/80">
-                                    <span className="w-10 text-right">{formatTime(position_secs)}</span>
-                                    <div className="flex-1 h-6 relative flex items-center">
-                                        <SquigglySlider
-                                            value={position_secs}
-                                            max={track?.duration_secs || 100}
-                                            onChange={handleSeek}
-                                            isPlaying={state === 'Playing'}
-                                            accentColor="var(--md-sys-color-primary)"
-                                            className="w-full"
-                                        />
-                                    </div>
-                                    <span className="w-10">{track ? formatTime(track.duration_secs) : '0:00'}</span>
-                                </div>
-                            </div>
-
-                            {/* Right: Actions */}
-                            <div className="flex items-center gap-2 flex-1 justify-end">
-                                {/* Favorite Button */}
-                                {track && (
-                                    <button
-                                        onClick={() => usePlayerStore.getState().toggleFavorite(track.path)}
-                                        className={`p-2 rounded-full transition-colors ${usePlayerStore.getState().isFavorite(track.path)
-                                            ? 'text-error'
+                                        onClick={cycleRepeatMode}
+                                        className={`p-2 rounded-full transition-colors ${repeatMode !== 'off'
+                                            ? 'text-primary bg-primary-container'
                                             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
                                             }`}
-                                        title={usePlayerStore.getState().isFavorite(track.path) ? 'Remove from Favorites' : 'Add to Favorites'}
+                                        title={`Repeat: ${repeatMode === 'off' ? 'Off' : repeatMode === 'all' ? 'All' : 'One'}`}
                                     >
-                                        <IconHeart size={22} filled={usePlayerStore.getState().isFavorite(track.path)} />
+                                        <IconRepeat size={22} mode={repeatMode} />
                                     </button>
-                                )}
 
-                                {/* Repeat Button */}
-                                <button
-                                    onClick={cycleRepeatMode}
-                                    className={`p-2 rounded-full transition-colors ${repeatMode !== 'off'
-                                        ? 'text-primary bg-primary-container'
-                                        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
-                                        }`}
-                                    title={`Repeat: ${repeatMode === 'off' ? 'Off' : repeatMode === 'all' ? 'All' : 'One'}`}
-                                >
-                                    <IconRepeat size={22} mode={repeatMode} />
-                                </button>
+                                    <LyricsButton track={track} />
 
-                                <LyricsButton track={track} />
-
-                                <div className="flex items-center gap-2 group relative">
-                                    <IconVolume size={24} className="text-on-surface-variant" />
-                                    <input
-                                        type="range" min="0" max="1" step="0.01" value={volume}
-                                        onChange={handleVolumeChange}
-                                        className="w-24 accent-primary"
-                                    />
+                                    <div className="flex items-center gap-2 group relative">
+                                        <IconVolume size={24} className="text-on-surface-variant" />
+                                        <input
+                                            type="range" min="0" max="1" step="0.01" value={volume}
+                                            onChange={handleVolumeChange}
+                                            className="w-24 accent-primary"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
-                        </motion.div>
-                    ) : (
-                        /* MINIMAL LAYOUT */
-                        <motion.div
-                            key="minimal"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.2 }}
-                            className="flex w-full items-center gap-4 relative z-10"
-                        >
-                            {/* Cover Art (Tiny) */}
-                            <div
-                                className={`
+                            </motion.div>
+                        ) : (
+                            /* MINIMAL LAYOUT */
+                            <motion.div
+                                key="minimal"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex w-full items-center gap-4 relative z-10"
+                            >
+                                {/* Cover Art (Tiny) */}
+                                <div
+                                    className={`
                                     relative shrink-0 overflow-hidden bg-surface-container-low border border-outline-variant/20 transition-all duration-300
                                     ${albumArtStyle === 'vinyl' ? 'w-10 h-10 rounded-full' : 'w-10 h-10 rounded-sm'}
                                 `}
-                            >
-                                {activeCoverUrl ? (
-                                    <img
-                                        src={activeCoverUrl}
-                                        alt=""
-                                        className={`
+                                >
+                                    {activeCoverUrl ? (
+                                        <img
+                                            src={activeCoverUrl}
+                                            alt=""
+                                            className={`
                                             w-full h-full object-cover
                                             ${albumArtStyle === 'vinyl' && state === 'Playing' ? 'animate-spin-slow' : ''}
                                         `}
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
-                                        <IconMusicNote size={16} />
-                                    </div>
-                                )}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
+                                            <IconMusicNote size={16} />
+                                        </div>
+                                    )}
 
-                                {/* Vinyl Center Hole (Minimal) */}
-                                {albumArtStyle === 'vinyl' && (
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                        <div className="w-2 h-2 bg-surface-container-high rounded-full border border-surface-container-low/30" />
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Text Info */}
-                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden z-10">
-                                <div className="text-label-large font-bold truncate text-on-surface">
-                                    <MarqueeText text={track?.title || "Not Playing"} />
+                                    {/* Vinyl Center Hole (Minimal) */}
+                                    {albumArtStyle === 'vinyl' && (
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                            <div className="w-2 h-2 bg-surface-container-high rounded-full border border-surface-container-low/30" />
+                                        </div>
+                                    )}
                                 </div>
-                                <span className="text-on-surface-variant text-label-medium">•</span>
-                                <div className="text-label-medium text-on-surface-variant truncate max-w-[100px]">
-                                    {track?.artist || "Artist"}
+
+                                {/* Text Info */}
+                                <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden z-10">
+                                    <div className="text-label-large font-bold truncate text-on-surface">
+                                        <MarqueeText text={track?.title || "Not Playing"} />
+                                    </div>
+                                    <span className="text-on-surface-variant text-label-medium">•</span>
+                                    <div className="text-label-medium text-on-surface-variant truncate max-w-[100px]">
+                                        {track?.artist || "Artist"}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Time */}
-                            <div className="text-label-small font-medium text-on-surface-variant tabular-nums z-10">
-                                {formatTime(position_secs)} / {track ? formatTime(track.duration_secs) : '0:00'}
-                            </div>
+                                {/* Time */}
+                                <div className="text-label-small font-medium text-on-surface-variant tabular-nums z-10">
+                                    {formatTime(position_secs)} / {track ? formatTime(track.duration_secs) : '0:00'}
+                                </div>
 
-                            {/* Progress Indicator (Background or Border?) */}
-                            {/* Optional: Add a subtle progress bar at the bottom? */}
-                        </motion.div>
+                                {/* Progress Indicator (Background or Border?) */}
+                                {/* Optional: Add a subtle progress bar at the bottom? */}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </motion.div>
+
+                {/* Next Button */}
+                <AnimatePresence>
+                    {!isHovered && (
+                        <motion.button
+                            initial={{ opacity: 0, scale: 0.8, x: -20 }}
+                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                            exit={{ opacity: 0, scale: 0.8, x: -20 }}
+                            onClick={nextTrack}
+                            disabled={!hasNext}
+                            className="p-3 rounded-full bg-surface-container-high text-on-surface hover:bg-surface-container-highest shadow-elevation-3 pointer-events-auto transition-colors"
+                        >
+                            <IconNext size={24} />
+                        </motion.button>
                     )}
                 </AnimatePresence>
-            </motion.div>
+            </div>
         </div>
     );
 }
