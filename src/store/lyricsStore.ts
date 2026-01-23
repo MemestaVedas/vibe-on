@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import type { LyricsLine } from '../types';
 
+interface CachedLyricsResponse {
+    syncedLyrics: string | null;
+    plainLyrics: string | null;
+    instrumental: boolean;
+    isFetching: boolean;
+    error: string | null;
+    trackPath: string;
+}
+
 interface LyricsStore {
     // State
     lines: LyricsLine[] | null;      // Parsed synced lyrics
@@ -14,6 +23,7 @@ interface LyricsStore {
 
     // Actions
     fetchLyrics: (artist: string, track: string, duration: number, trackPath: string) => Promise<void>;
+    loadCachedLyrics: (trackPath: string) => Promise<void>;
     toggleLyrics: () => void;
     closeLyrics: () => void;
     clearLyrics: () => void;
@@ -59,6 +69,123 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
     currentTrackId: null,
     isInstrumental: false,
 
+    // Load lyrics from backend cache (prefetched when song started)
+    loadCachedLyrics: async (trackPath: string) => {
+        // Don't refetch for same track if we already have lyrics
+        if (get().currentTrackId === trackPath && (get().lines || get().plainLyrics || get().isInstrumental)) {
+            console.log('[Lyrics] Already have lyrics for this track, skipping');
+            return;
+        }
+
+        console.log('[Lyrics] Loading cached lyrics for:', trackPath);
+        set({ isLoading: true, error: null, lines: null, plainLyrics: null, isInstrumental: false });
+
+        // Poll the cache - lyrics are being prefetched in the background
+        const maxAttempts = 20; // 10 seconds max wait
+        let attempts = 0;
+
+        const checkCache = async (): Promise<boolean> => {
+            try {
+                console.log('[Lyrics] Checking cache, attempt:', attempts + 1);
+                const response = await invoke<CachedLyricsResponse>('get_cached_lyrics', {
+                    trackPath
+                });
+                console.log('[Lyrics] Cache response:', response);
+
+                // If still fetching, wait and try again
+                if (response.isFetching && attempts < maxAttempts) {
+                    console.log('[Lyrics] Still fetching, will retry...');
+                    return false;
+                }
+
+                // Process the cached result
+                if (response.syncedLyrics) {
+                    console.log('[Lyrics] Found synced lyrics');
+                    const parsed = parseLRC(response.syncedLyrics);
+                    set({
+                        lines: parsed,
+                        plainLyrics: response.plainLyrics,
+                        currentTrackId: trackPath,
+                        isLoading: false,
+                        isInstrumental: response.instrumental
+                    });
+                } else if (response.plainLyrics) {
+                    console.log('[Lyrics] Found plain lyrics');
+                    set({
+                        lines: null,
+                        plainLyrics: response.plainLyrics,
+                        currentTrackId: trackPath,
+                        isLoading: false,
+                        isInstrumental: response.instrumental
+                    });
+                } else if (response.instrumental) {
+                    console.log('[Lyrics] Track is instrumental');
+                    set({
+                        lines: null,
+                        plainLyrics: null,
+                        currentTrackId: trackPath,
+                        isLoading: false,
+                        isInstrumental: true,
+                        error: null
+                    });
+                } else if (response.error) {
+                    console.log('[Lyrics] Error from cache:', response.error);
+                    set({
+                        error: response.error === 'No lyrics cached for this track' ? 'No lyrics found' : response.error,
+                        currentTrackId: trackPath,
+                        isLoading: false
+                    });
+                } else {
+                    console.log('[Lyrics] No lyrics found');
+                    set({
+                        error: 'No lyrics found',
+                        currentTrackId: trackPath,
+                        isLoading: false
+                    });
+                }
+                return true;
+            } catch (e) {
+                console.error('[Lyrics] Error checking cache:', e);
+                set({
+                    error: String(e),
+                    isLoading: false,
+                    currentTrackId: trackPath
+                });
+                return true;
+            }
+        };
+
+        // Initial check
+        if (await checkCache()) return;
+
+        // Poll until ready or timeout using a promise-based approach
+        const pollWithDelay = (): Promise<void> => {
+            return new Promise((resolve) => {
+                const poll = async () => {
+                    attempts++;
+                    if (await checkCache()) {
+                        resolve();
+                        return;
+                    }
+                    if (attempts < maxAttempts) {
+                        setTimeout(poll, 500);
+                    } else {
+                        console.log('[Lyrics] Max attempts reached, giving up');
+                        set({
+                            error: 'Lyrics fetch timed out',
+                            currentTrackId: trackPath,
+                            isLoading: false
+                        });
+                        resolve();
+                    }
+                };
+                setTimeout(poll, 500);
+            });
+        };
+
+        await pollWithDelay();
+    },
+
     fetchLyrics: async (artist: string, track: string, duration: number, trackPath: string) => {
         // Don't refetch for same track
         if (get().currentTrackId === trackPath && (get().lines || get().plainLyrics)) {
@@ -76,6 +203,7 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
                 plainLyrics: string | null;
                 instrumental: boolean | null;
             }>('get_lyrics', {
+                audioPath: trackPath,
                 artist,
                 track,
                 duration: durationInt

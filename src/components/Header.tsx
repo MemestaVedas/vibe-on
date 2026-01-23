@@ -1,7 +1,7 @@
 
 interface HeaderProps {
-    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic';
-    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic') => void;
+    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics';
+    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics') => void;
 }
 
 export function Header({ view }: HeaderProps) {
@@ -23,9 +23,13 @@ export function Header({ view }: HeaderProps) {
 
     // For settings/ytmusic, just show title
     return (
-        <header data-tauri-drag-region className="px-6 py-4">
-            <h2 data-tauri-drag-region className="text-headline-small font-semibold">
-                {view === 'settings' ? 'Settings' : 'Online'}
+        <header data-tauri-drag-region>
+            <h2 data-tauri-drag-region>
+                {view === 'favorites' ? 'Favorites' :
+                    view === 'statistics' ? 'Statistics' :
+                        view === 'settings' ? 'Settings' :
+                            view === 'ytmusic' ? 'YouTube Music' :
+                                'Library'}
             </h2>
         </header>
     );

@@ -22,6 +22,17 @@ CREATE TABLE IF NOT EXISTS albums (
 CREATE INDEX IF NOT EXISTS idx_tracks_path ON tracks(path);
 CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
+
+CREATE TABLE IF NOT EXISTS unreleased_tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    artist TEXT,
+    duration_secs REAL,
+    thumbnail_url TEXT,
+    content_type TEXT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 "#;
 
 pub fn init_db(conn: &Connection) -> Result<()> {

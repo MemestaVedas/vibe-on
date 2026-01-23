@@ -2,7 +2,7 @@ import { useThemeStore } from '../store/themeStore';
 
 export function AmbientBackground() {
     // Dynamic colors from global store
-    const { background, accent1, accent2 } = useThemeStore(state => state.colors);
+    const { surface, primary, secondary } = useThemeStore(state => state.colors);
 
     return (
         <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
@@ -14,11 +14,11 @@ export function AmbientBackground() {
                 className="absolute inset-0 transition-all duration-1000 ease-out"
                 style={{
                     background: `
-                        radial-gradient(ellipse at 0% 0%, ${background}40 0%, transparent 50%),
-                        radial-gradient(ellipse at 100% 0%, ${accent1}30 0%, transparent 50%),
-                        radial-gradient(ellipse at 100% 100%, ${accent2}25 0%, transparent 50%),
-                        radial-gradient(ellipse at 0% 100%, ${background}35 0%, transparent 50%),
-                        radial-gradient(ellipse at 50% 50%, ${background}60 0%, transparent 70%)
+                        radial-gradient(ellipse at 0% 0%, ${surface}40 0%, transparent 50%),
+                        radial-gradient(ellipse at 100% 0%, ${primary}30 0%, transparent 50%),
+                        radial-gradient(ellipse at 100% 100%, ${secondary}25 0%, transparent 50%),
+                        radial-gradient(ellipse at 0% 100%, ${surface}35 0%, transparent 50%),
+                        radial-gradient(ellipse at 50% 50%, ${surface}60 0%, transparent 70%)
                     `
                 }}
             />

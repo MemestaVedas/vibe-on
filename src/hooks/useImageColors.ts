@@ -3,13 +3,15 @@ import {
     sourceColorFromImage,
     Hct,
     SchemeTonalSpot,
-    hexFromArgb,
-    TonalPalette
+    hexFromArgb
 } from '@material/material-color-utilities';
 
 // ============================================================================
 // Types
 // ============================================================================
+// const DEFAULT_DARK = '#0a0a0f';
+// const DEFAULT_LIGHT = '#f5f5f5';
+// const DEFAULT_ACCENT = '#6366f1';
 
 export interface DynamicColors {
     // Key Colors
