@@ -90,6 +90,14 @@ export function PlayerBar() {
         }
     }, [state, refreshStatus]);
 
+    // Auto-clear error
+    useEffect(() => {
+        if (error) {
+            const timer = setTimeout(() => setError(null), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [error, setError]);
+
     // Auto-play next track when current track ends
     useEffect(() => {
         if (lastStateRef.current === 'Playing' && state === 'Stopped' && track) {
@@ -147,10 +155,25 @@ export function PlayerBar() {
 
     return (
         <div
-            className="fixed bottom-6 left-0 right-0 z-50 flex justify-center pointer-events-none"
+            className="fixed bottom-6 left-0 right-0 z-50 flex flex-col items-center justify-end pointer-events-none gap-4"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
+            {/* Error Toast */}
+            <AnimatePresence>
+                {error && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="bg-red-500 text-white px-6 py-3 rounded-full shadow-elevation-3 font-medium text-body-medium flex items-center gap-3 pointer-events-auto"
+                    >
+                        <span>⚠️ {error}</span>
+                        <button onClick={() => setError(null)} className="opacity-80 hover:opacity-100">✕</button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Player Container */}
             <motion.div
                 layout

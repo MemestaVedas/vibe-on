@@ -22,6 +22,7 @@ interface PlayerStore {
 
     // Favorites
     favorites: Set<string>; // Set of track paths
+    searchQuery: string; // NEW: Search query
 
     // Actions
     playFile: (path: string) => Promise<void>;
@@ -40,6 +41,7 @@ interface PlayerStore {
     addToHistory: (track: TrackDisplay) => void;
     setSort: (key: keyof TrackDisplay) => void;
     updateYtStatus: (status: any) => void;
+    setSearchQuery: (query: string) => void; // NEW: Set search query
 
     // Repeat mode actions
     cycleRepeatMode: () => void;
@@ -67,6 +69,7 @@ export const usePlayerStore = create<PlayerStore>()(
             error: null,
             sort: null,
             activeSource: 'local',
+            searchQuery: '', // NEW: Empty search query by default
 
             // Repeat mode
             repeatMode: 'off' as RepeatMode,
@@ -75,6 +78,8 @@ export const usePlayerStore = create<PlayerStore>()(
             favorites: new Set<string>(),
 
             // Actions
+            setSearchQuery: (query: string) => set({ searchQuery: query }),
+
             setSort: (key: keyof TrackDisplay) => {
                 set((state) => {
                     let direction: 'asc' | 'desc' = 'asc';
@@ -114,11 +119,13 @@ export const usePlayerStore = create<PlayerStore>()(
 
             playFile: async (path: string) => {
                 try {
+                    console.log("[PlayerStore] Attempting to play:", path);
                     set({ error: null, activeSource: 'local' });
                     // Ensure YT is paused/hidden? (Handled by View change usually, but good to be sure)
                     // await invoke('yt_control', { action: 'pause' }); 
 
                     await invoke('play_file', { path });
+                    console.log("[PlayerStore] Play command sent successfully");
 
                     // Add to history
                     const track = get().library.find((t) => t.path === path);
@@ -128,6 +135,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
                     await get().refreshStatus();
                 } catch (e) {
+                    console.error("[PlayerStore] Play failed:", e);
                     set({ error: String(e) });
                 }
             },

@@ -77,6 +77,7 @@ fn get_or_init_db(state: &AppState, app_handle: &AppHandle) -> Result<(), String
 
 #[tauri::command]
 fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
+    println!("[Backend] play_file called with path: '{}'", path);
     get_or_init_player(&state)?;
 
     // Convert path string to Path

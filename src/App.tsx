@@ -136,15 +136,15 @@ function App() {
       <TitleBar />
 
       {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
-      <div className="fixed inset-0 top-10 flex p-3 gap-3 overflow-hidden bg-black text-on-surface">
+      <div className="fixed inset-0 top-10 flex p-3 gap-1 overflow-hidden text-on-surface">
 
         {/* Sidebar */}
-        <div className="shrink-0 h-full z-20">
+        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-[2rem]">
           <Sidebar view={view} onViewChange={setView} />
         </div>
 
         {/* Center: Main Content Area (Floating Card) */}
-        <div className="flex-1 flex flex-col min-w-0 relative bg-surface rounded-[2rem] overflow-hidden shadow-sm z-10 transition-all duration-300">
+        <div className="flex-1 flex flex-col min-w-0 relative bg-surface overflow-hidden z-10 transition-all duration-300 rounded-[2rem]">
 
           {/* Main Content Area */}
           <main className="flex-1 flex flex-col min-h-0 relative">
@@ -168,7 +168,7 @@ function App() {
         </div>
 
         {/* Right Panel (Floating Card) */}
-        <aside className="w-80 bg-surface-container rounded-[2rem] z-20 hidden xl:block overflow-hidden shadow-sm transition-all duration-300">
+        <aside className="w-80 bg-surface-container z-20 hidden xl:block overflow-hidden transition-all duration-300 rounded-[2rem]">
           <RightPanel />
         </aside>
       </div>
