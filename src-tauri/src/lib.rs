@@ -3,13 +3,14 @@ mod cover_fetcher;
 mod database;
 mod discord_rpc;
 mod lyrics_fetcher;
+mod youtube_searcher;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use audio::state::PlayerStatus;
-use audio::{AudioPlayer, MediaCmd, MediaControlService, TrackInfo};
+use audio::{AudioPlayer, MediaCmd, MediaControlService, SearchFilter, TrackInfo, UnreleasedTrack};
 use database::DatabaseManager;
 use discord_rpc::DiscordRpc;
 
@@ -696,6 +697,61 @@ async fn open_yt_music(app: tauri::AppHandle, width: f64, height: f64) -> Result
     Ok(())
 }
 
+// ============================================================================
+// Unreleased Library Integration
+// ============================================================================
+
+#[tauri::command]
+async fn search_youtube(filter: SearchFilter) -> Result<Vec<UnreleasedTrack>, String> {
+    // Run in blocking thread as reqwest::blocking is used
+    tauri::async_runtime::spawn_blocking(move || youtube_searcher::search_youtube(filter))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn save_unreleased_track(
+    track: UnreleasedTrack,
+    state: State<AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    if let Some(db) = state.db.lock().unwrap().as_ref() {
+        db.insert_unreleased_track(&track)
+            .map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn remove_unreleased_track(
+    video_id: String,
+    state: State<AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    if let Some(db) = state.db.lock().unwrap().as_ref() {
+        db.delete_unreleased_track(&video_id)
+            .map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_unreleased_library(
+    state: State<AppState>,
+    app_handle: AppHandle,
+) -> Result<Vec<UnreleasedTrack>, String> {
+    get_or_init_db(&state, &app_handle)?;
+    if let Some(db) = state.db.lock().unwrap().as_ref() {
+        db.get_unreleased_tracks().map_err(|e| e.to_string())
+    } else {
+        Ok(Vec::new())
+    }
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct YtStatus {
     pub title: String,
@@ -779,6 +835,41 @@ fn yt_control(action: String, value: Option<f64>, app: AppHandle) -> Result<(), 
     if let Some(webview) = app.get_webview_window("ytmusic") {
         let js = format!("window.ytControl('{}', {})", action, value.unwrap_or(0.0));
         webview.eval(&js).map_err(|e: tauri::Error| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn yt_navigate(url: String, app: AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    use tauri::WebviewUrl;
+    use tauri::WebviewWindowBuilder;
+
+    // Create webview if it doesn't exist
+    if app.get_webview_window("ytmusic").is_none() {
+        let builder = WebviewWindowBuilder::new(
+            &app,
+            "ytmusic",
+            WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
+        )
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        .devtools(true)
+        .initialization_script(include_str!("yt_inject.js"))
+        .inner_size(800.0, 600.0)
+        .visible(true);
+
+        builder.build().map_err(|e| e.to_string())?;
+    } else {
+        // Webview exists, just navigate and show it
+        if let Some(webview) = app.get_webview_window("ytmusic") {
+            // Navigate by evaluating JavaScript
+            let js = format!("window.location.href = '{}';", url);
+            webview.eval(&js).map_err(|e: tauri::Error| e.to_string())?;
+            webview.show().map_err(|e: tauri::Error| e.to_string())?;
+            webview
+                .set_focus()
+                .map_err(|e: tauri::Error| e.to_string())?;
+        }
     }
     Ok(())
 }
@@ -873,10 +964,15 @@ pub fn run() {
             open_yt_music,
             update_yt_status,
             yt_control,
+            yt_navigate,
             set_yt_visibility,
             move_yt_window,
             get_lyrics,
             get_cached_lyrics,
+            search_youtube,
+            save_unreleased_track,
+            remove_unreleased_track,
+            get_unreleased_library,
         ])
         .setup(|app| {
             // Initialize Windows Media Controls with the main window handle

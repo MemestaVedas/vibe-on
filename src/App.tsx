@@ -18,11 +18,13 @@ import { AmbientBackground } from './components/AmbientBackground';
 import { LyricsPanel } from './components/LyricsPanel';
 import { ThemeManager } from './components/ThemeManager';
 import { YouTubeMusic } from './components/YouTubeMusic';
+import { FavoritesView } from './components/FavoritesView';
+import { StatisticsPage } from './components/StatisticsPage';
 
 function App() {
   useMediaSession(); // Initialize System Media Controls
   const { loadLibrary, status, pause, resume, playFile } = usePlayerStore();
-  const [view, setView] = useState<'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic'>('tracks');
+  const [view, setView] = useState<'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics'>('tracks');
 
   useEffect(() => {
     loadLibrary();
@@ -69,13 +71,14 @@ function App() {
     });
   }, [resume, pause]); // Dependencies logic handled inside or via getState
 
-  // Autoplay: when track ends, play next track if enabled
+  // Autoplay: when track ends, play next track if enabled (respects repeat mode)
   const autoplay = useSettingsStore(state => state.autoplay);
   const lastTrackPathRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Only trigger autoplay for local source
-    if (status.state !== 'Playing' || !status.track || usePlayerStore.getState().activeSource !== 'local') {
+    const store = usePlayerStore.getState();
+    if (status.state !== 'Playing' || !status.track || store.activeSource !== 'local') {
       return;
     }
 
@@ -90,12 +93,30 @@ function App() {
       }
       lastTrackPathRef.current = status.track.path;
 
-      if (autoplay) {
-        // Small delay to let state settle
-        setTimeout(() => {
-          usePlayerStore.getState().nextTrack();
-        }, 300);
-      }
+      const { repeatMode, playFile, library, getCurrentTrackIndex, nextTrack } = store;
+
+      // Small delay to let state settle
+      setTimeout(() => {
+        if (repeatMode === 'one') {
+          // Repeat One: Replay the same track from the beginning
+          console.log('[Autoplay] Repeat One - replaying:', status.track?.path);
+          if (status.track) {
+            playFile(status.track.path);
+          }
+        } else if (repeatMode === 'all') {
+          // Repeat All: Go to next track, or loop to first if at end
+          const currentIndex = getCurrentTrackIndex();
+          if (currentIndex >= library.length - 1 && library.length > 0) {
+            console.log('[Autoplay] Repeat All - looping to first track');
+            playFile(library[0].path);
+          } else {
+            nextTrack();
+          }
+        } else if (autoplay) {
+          // Normal autoplay (no repeat)
+          nextTrack();
+        }
+      }, 300);
     }
   }, [status.position_secs, status.state, status.track, autoplay]);
 
@@ -137,6 +158,8 @@ function App() {
               {view === 'tracks' && <TrackList />}
               {view === 'albums' && <AlbumGrid />}
               {view === 'artists' && <ArtistList />}
+              {view === 'favorites' && <FavoritesView />}
+              {view === 'statistics' && <StatisticsPage />}
               {view === 'settings' && <SettingsPage />}
               {view === 'ytmusic' && <YouTubeMusic />}
             </div>

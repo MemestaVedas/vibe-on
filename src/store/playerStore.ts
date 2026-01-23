@@ -3,17 +3,25 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import type { PlayerStatus, TrackDisplay } from '../types';
 
+type RepeatMode = 'off' | 'all' | 'one';
+
 interface PlayerStore {
     // State
     status: PlayerStatus;
     library: TrackDisplay[];
-    history: TrackDisplay[]; // Newly added
+    history: TrackDisplay[];
     coversDir: string | null;
     currentFolder: string | null;
     isLoading: boolean;
     error: string | null;
     sort: { key: keyof TrackDisplay; direction: 'asc' | 'desc' } | null;
     activeSource: 'local' | 'youtube';
+
+    // Repeat mode
+    repeatMode: RepeatMode;
+
+    // Favorites
+    favorites: Set<string>; // Set of track paths
 
     // Actions
     playFile: (path: string) => Promise<void>;
@@ -32,6 +40,13 @@ interface PlayerStore {
     addToHistory: (track: TrackDisplay) => void;
     setSort: (key: keyof TrackDisplay) => void;
     updateYtStatus: (status: any) => void;
+
+    // Repeat mode actions
+    cycleRepeatMode: () => void;
+
+    // Favorites actions
+    toggleFavorite: (trackPath: string) => void;
+    isFavorite: (trackPath: string) => boolean;
 }
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -52,6 +67,12 @@ export const usePlayerStore = create<PlayerStore>()(
             error: null,
             sort: null,
             activeSource: 'local',
+
+            // Repeat mode
+            repeatMode: 'off' as RepeatMode,
+
+            // Favorites (stored as array for persistence, used as Set in memory)
+            favorites: new Set<string>(),
 
             // Actions
             setSort: (key: keyof TrackDisplay) => {
@@ -271,10 +292,47 @@ export const usePlayerStore = create<PlayerStore>()(
                 // Store cover url separately or hack it?
                 // Let's rely on the fact that PlayerBar probably uses useImageColors or similar which might need URL
             },
+
+            // Repeat mode actions
+            cycleRepeatMode: () => {
+                const { repeatMode } = get();
+                const modes: RepeatMode[] = ['off', 'all', 'one'];
+                const currentIndex = modes.indexOf(repeatMode);
+                const nextMode = modes[(currentIndex + 1) % modes.length];
+                console.log('[Repeat] Cycling mode:', repeatMode, '->', nextMode);
+                set({ repeatMode: nextMode });
+            },
+
+            // Favorites actions
+            toggleFavorite: (trackPath: string) => {
+                const favorites = new Set(get().favorites);
+                if (favorites.has(trackPath)) {
+                    favorites.delete(trackPath);
+                    console.log('[Favorites] Removed:', trackPath);
+                } else {
+                    favorites.add(trackPath);
+                    console.log('[Favorites] Added:', trackPath);
+                }
+                set({ favorites });
+            },
+
+            isFavorite: (trackPath: string) => {
+                return get().favorites.has(trackPath);
+            },
         }),
         {
-            name: 'vibe-player-storage', // name of the item in the storage (must be unique)
-            partialize: (state) => ({ history: state.history }), // only persist history
+            name: 'vibe-player-storage',
+            partialize: (state) => ({
+                history: state.history,
+                // Convert Set to array for JSON serialization
+                favorites: Array.from(state.favorites)
+            }),
+            // Convert array back to Set on load
+            merge: (persistedState: any, currentState) => ({
+                ...currentState,
+                ...persistedState,
+                favorites: new Set(persistedState?.favorites || [])
+            })
         }
     )
 );

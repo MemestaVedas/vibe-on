@@ -16,6 +16,28 @@ import {
     IconMusicNote
 } from './Icons';
 
+// Repeat icon component
+function IconRepeat({ size = 24, mode = 'off' }: { size?: number; mode?: 'off' | 'all' | 'one' }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="17 1 21 5 17 9" />
+            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+            <polyline points="7 23 3 19 7 15" />
+            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+            {mode === 'one' && <text x="12" y="14" fontSize="8" textAnchor="middle" fill="currentColor" stroke="none">1</text>}
+        </svg>
+    );
+}
+
+// Heart icon for favorites
+function IconHeart({ size = 24, filled = false }: { size?: number; filled?: boolean }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
+    );
+}
+
 // Format seconds to MM:SS
 function formatTime(seconds: number): string {
     const mins = Math.floor(seconds / 60);
@@ -52,7 +74,10 @@ function LyricsButton({ track }: { track: { title: string; artist: string; durat
 }
 
 export function PlayerBar() {
-    const { status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack, getCurrentTrackIndex, library, playFile, seek } = usePlayerStore();
+    const {
+        status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack,
+        getCurrentTrackIndex, library, playFile, seek, repeatMode, cycleRepeatMode
+    } = usePlayerStore();
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
     const { state, track, position_secs, volume } = status;
     const lastStateRef = useRef(state);
@@ -273,6 +298,32 @@ export function PlayerBar() {
 
                             {/* Right: Actions */}
                             <div className="flex items-center gap-2 flex-1 justify-end">
+                                {/* Favorite Button */}
+                                {track && (
+                                    <button
+                                        onClick={() => usePlayerStore.getState().toggleFavorite(track.path)}
+                                        className={`p-2 rounded-full transition-colors ${usePlayerStore.getState().isFavorite(track.path)
+                                            ? 'text-error'
+                                            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
+                                            }`}
+                                        title={usePlayerStore.getState().isFavorite(track.path) ? 'Remove from Favorites' : 'Add to Favorites'}
+                                    >
+                                        <IconHeart size={22} filled={usePlayerStore.getState().isFavorite(track.path)} />
+                                    </button>
+                                )}
+
+                                {/* Repeat Button */}
+                                <button
+                                    onClick={cycleRepeatMode}
+                                    className={`p-2 rounded-full transition-colors ${repeatMode !== 'off'
+                                        ? 'text-primary bg-primary-container'
+                                        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
+                                        }`}
+                                    title={`Repeat: ${repeatMode === 'off' ? 'Off' : repeatMode === 'all' ? 'All' : 'One'}`}
+                                >
+                                    <IconRepeat size={22} mode={repeatMode} />
+                                </button>
+
                                 <LyricsButton track={track} />
 
                                 <div className="flex items-center gap-2 group relative">
