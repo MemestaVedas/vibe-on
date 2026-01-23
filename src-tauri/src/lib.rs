@@ -155,10 +155,16 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
 
     if let Ok((info, _)) = get_track_metadata_helper(&path) {
         // Set initial activity
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
         let _ = state.discord.set_activity(
             &info.title,
             &info.artist,
-            Some(info.duration_secs),
+            Some(now),
+            Some(now + info.duration_secs as i64),
             None,
             Some(info.album.clone()),
         );
@@ -180,10 +186,15 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
                 }
 
                 // Update Discord
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
                 let _ = discord_clone.set_activity(
                     &title,
                     &artist,
-                    Some(duration),
+                    Some(now),
+                    Some(now + duration as i64),
                     Some(url),
                     Some(album),
                 );
@@ -198,7 +209,7 @@ fn play_file(path: String, state: State<AppState>) -> Result<(), String> {
             .unwrap_or("Unknown Track");
         let _ = state
             .discord
-            .set_activity(filename, "Listening", None, None, None);
+            .set_activity(filename, "Listening", None, None, None, None);
     }
 
     let player_guard = state.player.lock().unwrap();
@@ -239,13 +250,15 @@ fn pause(state: State<AppState>) -> Result<(), String> {
                 &format!("(Paused) {}", track.title),
                 &track.artist,
                 None,
+                None,
                 cover_url,
                 Some(track.album),
             );
         } else {
-            let _ = state
-                .discord
-                .set_activity("Paused", "Vibe Music Player", None, None, None);
+            let _ =
+                state
+                    .discord
+                    .set_activity("Paused", "Vibe Music Player", None, None, None, None);
         }
 
         // Update Windows Media Controls
@@ -269,10 +282,23 @@ fn resume(state: State<AppState>) -> Result<(), String> {
         let cover_url = state.current_cover_url.lock().unwrap().clone();
 
         if let Some(track) = status.track {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+
+            // When resuming, we need to calculate effective start time based on current position
+            // status.position_secs is where we are.
+            // effective_start = now - position
+            let position = status.position_secs as i64;
+            let start = now - position;
+            let end = start + track.duration_secs as i64;
+
             let _ = state.discord.set_activity(
                 &track.title,
                 &track.artist,
-                Some(track.duration_secs),
+                Some(start),
+                Some(end),
                 cover_url,
                 Some(track.album),
             );
@@ -709,9 +735,24 @@ fn update_yt_status(
             &status.title,
             &status.artist,
             if status.is_playing {
-                // Estimate end time based on progress
-                let remaining = status.duration - status.progress;
-                Some(remaining)
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
+                let start = now - status.progress as i64;
+                let end = start + status.duration as i64;
+                Some(start)
+            } else {
+                None
+            },
+            if status.is_playing {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64;
+                let start = now - status.progress as i64;
+                let end = start + status.duration as i64;
+                Some(end) // End timestamp
             } else {
                 None
             },

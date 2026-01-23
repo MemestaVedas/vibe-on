@@ -40,36 +40,38 @@ impl DiscordRpc {
         &self,
         details: &str,
         state: &str,
-        duration_secs: Option<f64>,
-        _image_url: Option<String>,
-        _album_name: Option<String>,
+        start_timestamp: Option<i64>,
+        end_timestamp: Option<i64>,
+        image_url: Option<String>,
+        album_name: Option<String>,
     ) -> Result<(), String> {
         let mut client_guard = self.client.lock().map_err(|e| e.to_string())?;
 
         if let Some(client) = client_guard.as_mut() {
             let mut assets = activity::Assets::new();
 
-            // Per user request: use the default app icon only
-            assets = assets
-                .large_image("vibe_icon")
-                .large_text(_album_name.as_deref().unwrap_or("Vibe Music Player"));
+            // Use album art URL if available, otherwise use app icon
+            if let Some(ref url) = image_url {
+                assets = assets
+                    .large_image(url)
+                    .large_text(album_name.as_deref().unwrap_or("Vibe Music Player"));
+            } else {
+                assets = assets
+                    .large_image("vibe_icon")
+                    .large_text(album_name.as_deref().unwrap_or("Vibe Music Player"));
+            }
 
             let mut activity = activity::Activity::new()
                 .details(details)
                 .state(state)
                 .assets(assets);
 
-            if let Some(duration) = duration_secs {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64;
-
-                // If we have a duration, we show "Time Remaining"
-                // duration argument is treated as "seconds remaining"
-                let end = now + duration as i64;
-
-                activity = activity.timestamps(activity::Timestamps::new().end(end));
+            if let Some(start) = start_timestamp {
+                let mut timestamps = activity::Timestamps::new().start(start);
+                if let Some(end) = end_timestamp {
+                    timestamps = timestamps.end(end);
+                }
+                activity = activity.timestamps(timestamps);
             }
 
             match client.set_activity(activity) {

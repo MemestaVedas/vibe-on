@@ -6,27 +6,47 @@ export default {
     ],
     theme: {
         extend: {
+            fontFamily: {
+                outfit: ['Outfit', 'sans-serif'],
+            },
             colors: {
-                background: '#0b0c0e',
+                surface: 'var(--md-sys-color-surface)',
+                'on-surface': 'var(--md-sys-color-on-surface)',
+                'surface-container-low': 'var(--md-sys-color-surface-container-low)',
+                'surface-container': 'var(--md-sys-color-surface-container)',
+                'surface-container-high': 'var(--md-sys-color-surface-container-high)',
+
+                primary: 'var(--md-sys-color-primary)',
+                'on-primary': 'var(--md-sys-color-on-primary)',
+                'primary-container': 'var(--md-sys-color-primary-container)',
+                'on-primary-container': 'var(--md-sys-color-on-primary-container)',
+
+                secondary: 'var(--md-sys-color-secondary)',
+                'on-secondary': 'var(--md-sys-color-on-secondary)',
+                'secondary-container': 'var(--md-sys-color-secondary-container)',
+                'on-secondary-container': 'var(--md-sys-color-on-secondary-container)',
+
+                tertiary: 'var(--md-sys-color-tertiary)',
+                'on-tertiary': 'var(--md-sys-color-on-tertiary)',
+                'tertiary-container': 'var(--md-sys-color-tertiary-container)',
+                'on-tertiary-container': 'var(--md-sys-color-on-tertiary-container)',
+
+                outline: 'var(--md-sys-color-outline)',
+                'outline-variant': 'var(--md-sys-color-outline-variant)',
             },
-            backgroundImage: {
-                'glass-gradient': 'linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%)',
-                'mesh': 'radial-gradient(at 0% 0%, rgba(76, 29, 149, 0.2) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%), radial-gradient(at 0% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%)',
+            borderRadius: {
+                'xs': '4px',
+                'sm': '8px',
+                'md': '12px',
+                'lg': '16px',
+                'xl': '24px',   // Large M3
+                '2xl': '32px',  // Extra Large M3
+                '3xl': '48px', // Full/Pill
             },
-            backdropBlur: {
-                'xs': '2px',
-                '3xl': '64px',
-            },
-            backdropSaturate: {
-                '150': '1.5',
-                '180': '1.8',
-                '200': '2.0',
-            },
-            keyframes: {
-                bounce: {
-                    '0%, 100%': { height: '100%' },
-                    '50%': { height: '40%' },
-                }
+            boxShadow: {
+                'elevation-1': '0px 1px 2px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15)',
+                'elevation-2': '0px 1px 2px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15)',
+                'elevation-3': '0px 4px 8px 3px rgba(0,0,0,0.15), 0px 1px 3px rgba(0,0,0,0.3)',
             }
         },
     },

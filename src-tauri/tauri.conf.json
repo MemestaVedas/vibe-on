@@ -16,7 +16,7 @@
         "width": 1000,
         "height": 800,
         "decorations": false,
-        "transparent": true,
+        "transparent": false,
         "resizable": true,
         "maximizable": true,
         "shadow": true

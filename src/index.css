@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        /* Font Family */
+        --font-outfit: 'Outfit', sans-serif;
+
+        /* M3 Dynamic Colors (Defaults - overwritten by ThemeManager) */
+        --md-sys-color-surface: #0a0a0f;
+        --md-sys-color-on-surface: #f1f1f1;
+        --md-sys-color-surface-container-low: #141419;
+        --md-sys-color-surface-container: #1e1e24;
+        --md-sys-color-surface-container-high: #282830;
+
+        --md-sys-color-primary: #6366f1;
+        --md-sys-color-on-primary: #ffffff;
+        --md-sys-color-primary-container: #3f4090;
+        --md-sys-color-on-primary-container: #e0e0ff;
+
+        --md-sys-color-secondary: #8b5cf6;
+        --md-sys-color-on-secondary: #ffffff;
+        --md-sys-color-secondary-container: #5b3fa8;
+        --md-sys-color-on-secondary-container: #eddcff;
+
+        --md-sys-color-tertiary: #f472b6;
+        --md-sys-color-on-tertiary: #ffffff;
+        --md-sys-color-tertiary-container: #9e2a6a;
+        --md-sys-color-on-tertiary-container: #ffdfee;
+
+        --md-sys-color-outline: #79747e;
+        --md-sys-color-outline-variant: #49454f;
+    }
+
+    body {
+        background-color: #0a0a0f;
+        /* Fallback opaque */
+        @apply bg-surface text-on-surface font-outfit antialiased overflow-hidden;
+        /* Enforce 2D */
+        transform-style: flat !important;
+    }
+
+    /* Reset any possible 3D transforms on everything */
+    * {
+        transform-style: flat !important;
+        scrollbar-width: thin;
+        scrollbar-color: var(--md-sys-color-outline-variant) transparent;
+    }
+
+    /* Custom Webkit Scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background-color: var(--md-sys-color-outline-variant);
+        border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--md-sys-color-outline);
+    }
+}
+
+@layer utilities {
+    .animate-spin-slow {
+        animation: spin 8s linear infinite;
+    }
+}

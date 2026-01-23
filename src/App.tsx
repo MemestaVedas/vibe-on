@@ -1,13 +1,15 @@
 import { TrackList } from './components/TrackList';
 import { PlayerBar } from './components/PlayerBar';
-import './App.css';
+// import './App.css'; // Removed styling
 
 import { useMediaSession } from './hooks/useMediaSession';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePlayerStore } from './store/playerStore';
+import { useSettingsStore } from './store/settingsStore';
 
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
 import { RightPanel } from './components/RightPanel';
 import { AlbumGrid } from './components/AlbumGrid';
 import { ArtistList } from './components/ArtistList';
@@ -67,39 +69,85 @@ function App() {
     });
   }, [resume, pause]); // Dependencies logic handled inside or via getState
 
+  // Autoplay: when track ends, play next track if enabled
+  const autoplay = useSettingsStore(state => state.autoplay);
+  const lastTrackPathRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Only trigger autoplay for local source
+    if (status.state !== 'Playing' || !status.track || usePlayerStore.getState().activeSource !== 'local') {
+      return;
+    }
+
+    const duration = status.track.duration_secs;
+    const position = status.position_secs;
+
+    // Check if track has ended (position within 0.5s of duration)
+    if (duration > 0 && position >= duration - 0.5) {
+      // Prevent double-triggers for same track
+      if (lastTrackPathRef.current === status.track.path) {
+        return;
+      }
+      lastTrackPathRef.current = status.track.path;
+
+      if (autoplay) {
+        // Small delay to let state settle
+        setTimeout(() => {
+          usePlayerStore.getState().nextTrack();
+        }, 300);
+      }
+    }
+  }, [status.position_secs, status.state, status.track, autoplay]);
+
+  // Reset lastTrackPath when track changes
+  useEffect(() => {
+    if (status.track?.path && status.track.path !== lastTrackPathRef.current) {
+      lastTrackPathRef.current = null;
+    }
+  }, [status.track?.path]);
+
+  const { expandedArtMode } = useSettingsStore();
+
   return (
-    <div className="flex h-screen overflow-hidden relative">
+    <div>
       <ThemeManager />
-      <AmbientBackground />
+      {expandedArtMode === 'background' && <AmbientBackground />}
       <TitleBar />
 
-      {/* Left Sidebar */}
-      <div className="relative z-10 backdrop-blur-xl bg-black/30 border-r border-white/5 h-full">
-        <Sidebar view={view} onViewChange={setView} />
-      </div>
+      {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
+      <div className="fixed inset-0 top-10 flex p-3 gap-3 overflow-hidden bg-black text-on-surface">
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative z-10">
-        {/* Header Area with drag region */}
-        <div data-tauri-drag-region className="h-14 flex items-center px-6 border-b border-white/5 select-none bg-black/10 backdrop-blur-sm">
-          <h2 className="text-lg font-semibold text-white">
-            {view === 'tracks' ? 'All Songs' : view === 'albums' ? 'Albums' : 'Artists'}
-          </h2>
+        {/* Sidebar */}
+        <div className="shrink-0 h-full z-20">
+          <Sidebar view={view} onViewChange={setView} />
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {view === 'tracks' && <TrackList />}
-          {view === 'albums' && <AlbumGrid />}
-          {view === 'artists' && <ArtistList />}
-          {view === 'settings' && <SettingsPage />}
-          {view === 'ytmusic' && <YouTubeMusic />}
-        </div>
-      </main>
+        {/* Center: Main Content Area (Floating Card) */}
+        <div className="flex-1 flex flex-col min-w-0 relative bg-surface rounded-[2rem] overflow-hidden shadow-sm z-10 transition-all duration-300">
 
-      {/* Right Panel */}
-      <div className="relative z-10 backdrop-blur-xl bg-black/30 border-l border-white/5 h-full">
-        <RightPanel />
+          {/* Main Content Area */}
+          <main className="flex-1 flex flex-col min-h-0 relative">
+            {/* Header Area with drag region */}
+            <div className="shrink-0">
+              <Header view={view} onViewChange={setView} />
+            </div>
+
+            {/* Scrollable Content Container */}
+            <div className="flex-1 overflow-hidden relative pb-24"> {/* Added padding for PlayerBar */}
+              {view === 'tracks' && <TrackList />}
+              {view === 'albums' && <AlbumGrid />}
+              {view === 'artists' && <ArtistList />}
+              {view === 'settings' && <SettingsPage />}
+              {view === 'ytmusic' && <YouTubeMusic />}
+            </div>
+          </main>
+
+        </div>
+
+        {/* Right Panel (Floating Card) */}
+        <aside className="w-80 bg-surface-container rounded-[2rem] z-20 hidden xl:block overflow-hidden shadow-sm transition-all duration-300">
+          <RightPanel />
+        </aside>
       </div>
 
       {/* Player Bar */}
