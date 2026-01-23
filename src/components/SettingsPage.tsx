@@ -1,5 +1,9 @@
 import { useSettingsStore } from '../store/settingsStore';
 import { useThemeStore } from '../store/themeStore';
+import { usePlayerStore } from '../store/playerStore';
+import { open } from '@tauri-apps/plugin-dialog';
+import { ask } from '@tauri-apps/plugin-dialog';
+import packageJson from '../../package.json';
 
 export function SettingsPage() {
     const {
@@ -10,8 +14,60 @@ export function SettingsPage() {
     const { colors } = useThemeStore();
     const { primary } = colors;
 
+    // Player store for folders
+    const { folders, scanFolder, removeFolder, clearAllData } = usePlayerStore();
+    const appVersion = packageJson.version;
+
+    const handleOpenFolder = async () => {
+        try {
+            const selected = await open({
+                directory: true,
+                multiple: false,
+                title: 'Select Music Folder',
+            });
+
+            if (selected && typeof selected === 'string') {
+                await scanFolder(selected);
+            }
+        } catch (e) {
+            console.error('Failed to open folder:', e);
+        }
+    };
+
+    const handleClearAllData = async () => {
+        console.log('[SettingsPage] Clear Data requested');
+        const confirmed = await ask(
+            'This will permanently delete all music library data, covers, recently played history, and folder settings. This action cannot be undone.',
+            {
+                title: 'Clear All Data?',
+                kind: 'warning',
+            }
+        );
+
+        if (confirmed) {
+            console.log('[SettingsPage] User confirmed clear data');
+            try {
+                await clearAllData();
+                console.log('[SettingsPage] Data cleared successfully');
+                // Optionally show success message
+                await ask('All data has been cleared successfully.', {
+                    title: 'Success',
+                    kind: 'info',
+                });
+            } catch (e) {
+                console.error('Failed to clear data:', e);
+                await ask('Failed to clear data. Please try again.', {
+                    title: 'Error',
+                    kind: 'error',
+                });
+            }
+        } else {
+            console.log('[SettingsPage] Clear data cancelled');
+        }
+    };
+
     return (
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="h-full w-full overflow-y-auto p-8 pt-20">
             <h1 className="text-3xl font-bold text-white mb-8">Settings</h1>
 
             <div className="max-w-2xl flex flex-col gap-8">
@@ -93,6 +149,59 @@ export function SettingsPage() {
                     </div>
                 </section>
 
+                {/* Section: Local Files */}
+                <section>
+                    <h2 className="text-xl font-semibold text-white mb-4">Local Files</h2>
+                    <div className="bg-white/5 rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-base font-medium text-white">Music Folders</h3>
+                                <p className="text-sm text-white/50">Manage the folders where Vibe searches for music.</p>
+                            </div>
+                            <button
+                                onClick={handleOpenFolder}
+                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/20 hover:bg-primary/30 text-primary transition-colors text-sm font-medium"
+                                style={{ color: primary, backgroundColor: `${primary}33` }}
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
+                                    <path d="M12 5v14m-7-7h14" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                Add Folder
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            {folders && folders.length > 0 ? (
+                                folders.map((folder) => (
+                                    <div key={folder} className="flex items-center justify-between p-3 rounded-lg bg-white/5 group">
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 text-white/50">
+                                                <path d="M19.5 21a3 3 0 0 0 3-3v-4.5a3 3 0 0 0-3-3h-15a3 3 0 0 0-3 3V18a3 3 0 0 0 3 3h15ZM1.5 10.146V6a3 3 0 0 1 3-3h5.379a2.25 2.25 0 0 1 1.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 0 1 3 3v1.146A4.483 4.483 0 0 0 19.5 9h-15a4.483 4.483 0 0 0-3 1.146Z" />
+                                            </svg>
+                                            <span className="text-sm text-white/80 truncate font-mono" title={folder}>
+                                                {folder}
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => removeFolder(folder)}
+                                            className="p-2 rounded-full hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                            title="Remove Folder"
+                                        >
+                                            <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
+                                                <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-8 text-white/30 text-sm">
+                                    No folders added yet. Click "Add Folder" to start.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </section>
+
                 {/* Section: Playback */}
                 <section>
                     <h2 className="text-xl font-semibold text-white mb-4">Playback</h2>
@@ -111,10 +220,39 @@ export function SettingsPage() {
                     </div>
                 </section>
 
-                {/* Info Section */}
-                <section className="text-center pt-8 text-white/20 text-xs">
-                    <p>VIBE-ON! v0.1.0</p>
-                    <p>Created with Antigravity</p>
+                {/* Section: About */}
+                <section>
+                    <h2 className="text-xl font-semibold text-white mb-4">About</h2>
+                    <div className="bg-white/5 rounded-xl p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-medium text-white">Version</h3>
+                                <p className="text-sm text-white/50">Current installed version.</p>
+                            </div>
+                            <div className="text-white/80 font-mono bg-white/10 px-3 py-1 rounded">
+                                v{appVersion}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section: Data Management */}
+                <section>
+                    <h2 className="text-xl font-semibold text-white mb-4">Data Management</h2>
+                    <div className="bg-white/5 rounded-xl p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                                <h3 className="text-base font-medium text-white">Clear All Data</h3>
+                                <p className="text-sm text-white/50">Remove all music library, covers, history, and settings.</p>
+                            </div>
+                            <button
+                                onClick={handleClearAllData}
+                                className="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 transition-colors text-sm font-medium"
+                            >
+                                Clear Data
+                            </button>
+                        </div>
+                    </div>
                 </section>
             </div>
         </div>

@@ -1,7 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useState, useEffect } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
-import { usePlayerStore } from '../store/playerStore';
 import { SearchBar } from './SearchBar';
 
 export function TitleBar() {
@@ -9,7 +7,6 @@ export function TitleBar() {
     const [isMaximized, setIsMaximized] = useState(false);
     const [closeHovered, setCloseHovered] = useState(false);
     const [isMacOS, setIsMacOS] = useState(false);
-    const scanFolder = usePlayerStore(state => state.scanFolder);
 
     // Detect OS on mount
     useEffect(() => {
@@ -17,22 +14,6 @@ export function TitleBar() {
         const userAgent = navigator.userAgent.toLowerCase();
         setIsMacOS(platform.includes('mac') || userAgent.includes('mac'));
     }, []);
-
-    const handleOpenFolder = async () => {
-        try {
-            const selected = await open({
-                directory: true,
-                multiple: false,
-                title: 'Select Music Folder',
-            });
-
-            if (selected && typeof selected === 'string') {
-                await scanFolder(selected);
-            }
-        } catch (e) {
-            console.error('Failed to open folder:', e);
-        }
-    };
 
     // Window Controls Component
     const WindowControls = () => (
@@ -139,21 +120,6 @@ export function TitleBar() {
             <div className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
                 <span className="text-primary text-xl">♪</span> VIBE-ON!
             </div>
-
-            {/* Add Folder Button - M3 Rounded Square Shape */}
-            <button
-                onClick={handleOpenFolder}
-                className="w-5 h-5 group flex items-center justify-center relative opacity-70 hover:opacity-100 hover:scale-110 transition-all duration-150"
-                title="Add Folder"
-            >
-                <svg viewBox="0 0 320 320" className="absolute w-full h-full transition-colors" style={{ color: 'var(--md-sys-color-tertiary-container)' }}>
-                    <path d="M320 172C320 216.72 320 239.08 312.98 256.81C302.81 282.49 282.49 302.81 256.81 312.98C239.08 320 216.72 320 172 320H148C103.28 320 80.9199 320 63.1899 312.98C37.5099 302.81 17.19 282.49 7.02002 256.81C1.95503e-05 239.08 0 216.72 0 172V148C0 103.28 1.95503e-05 80.92 7.02002 63.19C17.19 37.515 37.5099 17.187 63.1899 7.02197C80.9199 -2.71797e-05 103.28 0 148 0H172C216.72 0 239.08 -2.71797e-05 256.81 7.02197C282.49 17.187 302.81 37.515 312.98 63.19C320 80.92 320 103.28 320 148V172Z" fill="currentColor" />
-                </svg>
-                {/* Plus Icon */}
-                <svg viewBox="0 0 24 24" width="12" height="12" className="relative z-10 transition-colors" style={{ color: 'var(--md-sys-color-on-tertiary-container)' }}>
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
-                </svg>
-            </button>
         </div>
     );
 
