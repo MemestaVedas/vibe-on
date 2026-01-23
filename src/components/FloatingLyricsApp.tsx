@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { TitleBar } from './TitleBar';
 import { SideLyrics } from './SideLyrics';
 import { usePlayerStore } from '../store/playerStore';
 import { ThemeManager } from './ThemeManager';
