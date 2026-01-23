@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { TitleBar } from './TitleBar';
+
 import { SideLyrics } from './SideLyrics';
 import { usePlayerStore } from '../store/playerStore';
 import { ThemeManager } from './ThemeManager';
@@ -33,7 +33,7 @@ export function FloatingLyricsApp() {
             </div>
 
             <div className="flex-1 min-h-0 relative p-4">
-                <SideLyrics />
+                <SideLyrics variant="scrollable" />
             </div>
         </div>
     );

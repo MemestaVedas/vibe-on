@@ -1,11 +1,12 @@
 import { SideLyrics } from './SideLyrics';
 import { useLyricsStore } from '../store/lyricsStore';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMusicNote, IconPlay, IconExternalLink } from './Icons';
 import { MarqueeText } from './MarqueeText';
+import { SquigglySlider } from './SquigglySlider';
 
 export function RightPanel() {
     const { status, library, history, playFile } = usePlayerStore();
@@ -48,10 +49,25 @@ export function RightPanel() {
 
     // Determine what to show in the bottom section
     const hasContent = (lines && lines.length > 0) || (plainLyrics && plainLyrics.trim().length > 0);
-    // Show lyrics window if:
-    // 1. Loading (to show spinner)
-    // 2. OR Valid content exists AND Not instrumental AND No error
-    const showLyrics = isLoading || (hasContent && !isInstrumental && !error);
+
+    // Ideal state: Show if loading OR (valid content AND not instrumental AND no error)
+    const shouldShowLyricsIdeally = isLoading || (hasContent && !isInstrumental && !error);
+
+    const [showLyrics, setShowLyrics] = useState(shouldShowLyricsIdeally);
+
+    useEffect(() => {
+        if (shouldShowLyricsIdeally) {
+            setShowLyrics(true);
+        } else {
+            // Keep showing if we have a specific error message to let user read it
+            if (error && error.includes("recents view")) {
+                const timer = setTimeout(() => setShowLyrics(false), 3000);
+                return () => clearTimeout(timer);
+            } else {
+                setShowLyrics(false);
+            }
+        }
+    }, [shouldShowLyricsIdeally, error]);
 
     return (
         <aside className="h-full flex flex-col p-6 gap-6 overflow-hidden">
@@ -89,6 +105,18 @@ export function RightPanel() {
                         {track?.album}
                     </p>
                 </div>
+            </div>
+
+            {/* Separator */}
+            <div className="px-8 py-2">
+                <SquigglySlider
+                    value={50}
+                    max={100}
+                    onChange={() => { }}
+                    isPlaying={status.state === 'Playing'}
+                    className="h-4 pointer-events-none opacity-50"
+                    accentColor="var(--md-sys-color-outline-variant)"
+                />
             </div>
 
             {/* Content Switcher: Lyrics or Recent History */}

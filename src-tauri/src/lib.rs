@@ -3,6 +3,7 @@ mod cover_fetcher;
 mod database;
 mod discord_rpc;
 mod lyrics_fetcher;
+mod taskbar_controls;
 mod youtube_searcher;
 
 use std::path::Path;
@@ -164,7 +165,7 @@ async fn play_file(
                 );
 
                 // Helper to emit progress
-                let emit_progress = |msg: &str| {
+                let _emit_progress = |msg: &str| {
                     let _ = app_h_lyrics.emit("lyrics-loading-status", msg);
                 };
 
@@ -660,7 +661,7 @@ async fn get_lyrics(
         };
 
         // First check for local LRC file (instant!)
-        // Note: fetch_lyrics_with_local will call cb1("Checking for local file...")
+        // Check for local LRC file manually
         if let Some(local) = lyrics_fetcher::find_local_lrc(&audio_path) {
             cb1("Using local LRC file");
             return Ok(local);
@@ -968,6 +969,12 @@ fn move_yt_window(x: f64, y: f64, width: f64, height: f64, app: AppHandle) -> Re
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use windows::Win32::System::Threading::*;
+        SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS).unwrap_or_default();
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -1006,11 +1013,16 @@ pub fn run() {
                 use tauri::Manager;
 
                 if let Some(window) = app.get_webview_window("main") {
+                    // Initialize Taskbar Buttons (Thumbnail Toolbar)
+                    taskbar_controls::init(window.clone());
+
                     // Get HWND from the window
                     let hwnd = window.hwnd().map(|h| h.0 as isize).unwrap_or(0);
 
                     if hwnd != 0 {
-                        let tx = MediaControlService::start(app.handle().clone(), hwnd);
+                        // Pass 0 (None) for HWND to MediaControlService as per previous fix
+                        // Use app.handle().clone()
+                        let tx = MediaControlService::start(app.handle().clone(), 0);
                         let state = app.state::<AppState>();
 
                         match state.media_cmd_tx.lock() {

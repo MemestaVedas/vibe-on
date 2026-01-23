@@ -307,25 +307,6 @@ pub fn fetch_lyrics<F: Fn(&str)>(
     Err("No sources founded for lyrics changing to recents view".to_string())
 }
 
-/// Fetch with local file check first
-pub fn fetch_lyrics_with_local<F: Fn(&str)>(
-    audio_path: &str,
-    artist: &str,
-    track: &str,
-    duration_secs: u32,
-    on_progress: F,
-) -> Result<LyricsResponse, String> {
-    // Check for local LRC file first (instant!)
-    on_progress("Checking for local file...");
-    if let Some(local) = find_local_lrc(audio_path) {
-        println!("[Lyrics] ✓ Using local LRC file!");
-        return Ok(local);
-    }
-
-    // Fall back to API search
-    fetch_lyrics(artist, track, duration_secs, on_progress)
-}
-
 pub fn fetch_lyrics_fallback<F: Fn(&str)>(
     artist: &str,
     track: &str,

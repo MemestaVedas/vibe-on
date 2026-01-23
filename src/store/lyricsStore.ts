@@ -16,6 +16,7 @@ interface LyricsStore {
     lines: LyricsLine[] | null;      // Parsed synced lyrics
     plainLyrics: string | null;       // Fallback plain lyrics
     isLoading: boolean;
+    loadingStatus: string;            // Verbose loading status
     error: string | null;
     showLyrics: boolean;              // Panel visibility
     currentTrackId: string | null;    // Track we fetched lyrics for (path)
@@ -64,6 +65,7 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
     lines: null,
     plainLyrics: null,
     isLoading: false,
+    loadingStatus: '',
     error: null,
     showLyrics: false,
     currentTrackId: null,
@@ -78,7 +80,7 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
         }
 
         console.log('[Lyrics] Loading cached lyrics for:', trackPath);
-        set({ isLoading: true, error: null, lines: null, plainLyrics: null, isInstrumental: false });
+        set({ isLoading: true, loadingStatus: 'Checking cache...', error: null, lines: null, plainLyrics: null, isInstrumental: false });
 
         // Poll the cache - lyrics are being prefetched in the background
         const maxAttempts = 20; // 10 seconds max wait
@@ -87,6 +89,9 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
         const checkCache = async (): Promise<boolean> => {
             try {
                 console.log('[Lyrics] Checking cache, attempt:', attempts + 1);
+                // Also update status for user feedback
+                if (attempts > 0) set({ loadingStatus: `Waiting for background fetch...` });
+
                 const response = await invoke<CachedLyricsResponse>('get_cached_lyrics', {
                     trackPath
                 });
@@ -192,7 +197,19 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
             return;
         }
 
-        set({ isLoading: true, error: null, lines: null, plainLyrics: null, isInstrumental: false });
+        set({ isLoading: true, loadingStatus: 'Starting search...', error: null, lines: null, plainLyrics: null, isInstrumental: false });
+
+        // Listen for progress events
+        let unlisten: (() => void) | undefined;
+        try {
+            unlisten = await import('@tauri-apps/api/event').then(m =>
+                m.listen<string>('lyrics-loading-status', (event) => {
+                    set({ loadingStatus: event.payload });
+                })
+            );
+        } catch (e) {
+            console.warn('Failed to setup lyrics progress listener', e);
+        }
 
         try {
             // Duration needs to be in whole seconds for the API
@@ -252,6 +269,8 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
                 isLoading: false,
                 currentTrackId: trackPath
             });
+        } finally {
+            if (unlisten) unlisten();
         }
     },
 
