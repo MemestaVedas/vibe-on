@@ -689,6 +689,34 @@ async fn get_lyrics(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+fn remove_folder(
+    path: String,
+    state: State<AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    if let Some(db) = state.db.lock().unwrap().as_ref() {
+        db.remove_folder(&path).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn clear_all_data(
+    state: State<AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    if let Some(db) = state.db.lock().unwrap().as_ref() {
+        db.clear_all_data().map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
 // ============================================================================
 // YouTube Music Integration
 // ============================================================================
@@ -998,6 +1026,8 @@ pub fn run() {
             save_unreleased_track,
             remove_unreleased_track,
             get_unreleased_library,
+            remove_folder,
+            clear_all_data,
         ])
         .setup(|app| {
             // Initialize Windows Media Controls with the main window handle

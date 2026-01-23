@@ -11,7 +11,8 @@ interface PlayerStore {
     library: TrackDisplay[];
     history: TrackDisplay[];
     coversDir: string | null;
-    currentFolder: string | null;
+    currentFolder: string | null; // Kept for now, maybe deprecated later
+    folders: string[]; // NEW: List of scanned folders
     isLoading: boolean;
     error: string | null;
     sort: { key: keyof TrackDisplay; direction: 'asc' | 'desc' } | null;
@@ -35,6 +36,7 @@ interface PlayerStore {
     seek: (value: number) => Promise<void>;
     refreshStatus: () => Promise<void>;
     scanFolder: (path: string) => Promise<void>;
+    removeFolder: (path: string) => Promise<void>; // NEW: Remove folder action
     loadLibrary: () => Promise<void>;
     setError: (error: string | null) => void;
     nextTrack: () => Promise<void>;
@@ -44,6 +46,7 @@ interface PlayerStore {
     setSort: (key: keyof TrackDisplay) => void;
     updateYtStatus: (status: any) => void;
     setSearchQuery: (query: string) => void; // NEW: Set search query
+    clearAllData: () => Promise<void>; // NEW: Clear all data
 
     // Repeat mode actions
     cycleRepeatMode: () => void;
@@ -51,6 +54,8 @@ interface PlayerStore {
     // Favorites actions
     toggleFavorite: (trackPath: string) => void;
     isFavorite: (trackPath: string) => boolean;
+
+
 }
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -68,6 +73,7 @@ export const usePlayerStore = create<PlayerStore>()(
             playCounts: {},
             coversDir: null,
             currentFolder: null,
+            folders: [], // Initial empty folders list
             isLoading: false,
             error: null,
             sort: null,
@@ -81,6 +87,42 @@ export const usePlayerStore = create<PlayerStore>()(
             favorites: new Set<string>(),
 
             // Actions
+            clearAllData: async () => {
+                console.log('[PlayerStore] clearAllData called');
+                try {
+                    // Reset all state to initial values
+                    set({
+                        status: {
+                            state: 'Stopped',
+                            track: null,
+                            position_secs: 0,
+                            volume: 1.0,
+                        },
+                        library: [],
+                        history: [],
+                        playCounts: {},
+                        coversDir: null,
+                        currentFolder: null,
+                        folders: [],
+                        isLoading: false,
+                        error: null,
+                        sort: null,
+                        activeSource: 'local',
+                        searchQuery: '',
+                        repeatMode: 'off',
+                        favorites: new Set(),
+                    });
+
+                    // Clear persistence (zustand persist middleware handles this if we just reset state, 
+                    // but we might want to explicitly clear if needed. 
+                    // Actually, setting state overwrites persisted state.)
+
+                    console.log('[PlayerStore] All data cleared');
+                } catch (e) {
+                    console.error('[PlayerStore] Failed to clear data:', e);
+                }
+            },
+
             setSearchQuery: (query: string) => set({ searchQuery: query }),
 
             setSort: (key: keyof TrackDisplay) => {
@@ -227,8 +269,44 @@ export const usePlayerStore = create<PlayerStore>()(
                     const tracks = await invoke<TrackDisplay[]>('init_library', { path });
                     // Add ID property
                     const tracksWithId = tracks.map(t => ({ ...t, id: t.path }));
-                    set({ library: tracksWithId, currentFolder: path, isLoading: false });
+
+                    set(state => {
+                        // Add path to folders if not exists
+                        const newFolders = state.folders.includes(path)
+                            ? state.folders
+                            : [...state.folders, path];
+
+                        // Merge new tracks with existing library to support multiple folders?
+                        // Or does init_library return ALL tracks? 
+                        // The Rust code calls `db.get_all_tracks()` at the end, so it returns EVERYTHING.
+                        // So straightforward assignment is correct.
+                        return {
+                            library: tracksWithId,
+                            currentFolder: path,
+                            folders: newFolders,
+                            isLoading: false
+                        };
+                    });
                 } catch (e) {
+                    set({ error: String(e), isLoading: false });
+                }
+            },
+
+            removeFolder: async (path: string) => {
+                try {
+                    set({ isLoading: true });
+                    await invoke('remove_folder', { path });
+
+                    // Update state
+                    set(state => ({
+                        folders: state.folders.filter(f => f !== path),
+                        // We also need to reload the library to reflect removed tracks
+                        // Or we could filter them out manually but reloading is safer
+                    }));
+
+                    await get().loadLibrary();
+                } catch (e) {
+                    console.error('Failed to remove folder:', e);
                     set({ error: String(e), isLoading: false });
                 }
             },
@@ -335,6 +413,8 @@ export const usePlayerStore = create<PlayerStore>()(
             isFavorite: (trackPath: string) => {
                 return get().favorites.has(trackPath);
             },
+
+
         }),
         {
             name: 'vibe-player-storage',
@@ -342,13 +422,16 @@ export const usePlayerStore = create<PlayerStore>()(
                 history: state.history,
                 playCounts: state.playCounts,
                 // Convert Set to array for JSON serialization
-                favorites: Array.from(state.favorites)
+                favorites: Array.from(state.favorites),
+                // Persist folders list
+                folders: state.folders
             }),
             // Convert array back to Set on load
             merge: (persistedState: any, currentState) => ({
                 ...currentState,
                 ...persistedState,
-                favorites: new Set(persistedState?.favorites || [])
+                favorites: new Set(persistedState?.favorites || []),
+                folders: persistedState?.folders || []
             })
         }
     )

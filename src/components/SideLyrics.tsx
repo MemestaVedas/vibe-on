@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { useLyricsStore } from '../store/lyricsStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -89,7 +89,7 @@ export function SideLyrics() {
                     {lines.map((line, index) => (
                         <motion.div
                             key={`${line.time}-${index}`}
-                            ref={el => lineRefs.current[index] = el}
+                            ref={el => { lineRefs.current[index] = el }}
                             onClick={() => seek(line.time)}
                             initial={false}
                             animate={{

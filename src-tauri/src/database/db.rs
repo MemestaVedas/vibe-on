@@ -189,8 +189,8 @@ impl DatabaseManager {
     pub fn get_unreleased_tracks(&self) -> Result<Vec<UnreleasedTrack>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT video_id, title, artist, duration_secs, thumbnail_url, content_type, added_at 
-             FROM unreleased_tracks 
+            "SELECT video_id, title, artist, duration_secs, thumbnail_url, content_type, added_at
+             FROM unreleased_tracks
              ORDER BY added_at DESC",
         )?;
 
@@ -233,5 +233,44 @@ impl DatabaseManager {
             tracks.push(track?);
         }
         Ok(tracks)
+    }
+
+    pub fn remove_folder(&self, path: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        // Delete all tracks where path starts with the folder path
+        // We ensure path ends with separator to avoid partial matches on similar folder names
+        // But users might pass path without separator.
+        // Let's rely on LIKE 'path%' but maybe be careful.
+        // Actually, tracks.path is absolute. folder path is absolute.
+        // Ideally we should normalize separators.
+        // For simple usage: LIKE ? || '%'
+        conn.execute(
+            "DELETE FROM tracks WHERE path LIKE ?1 || '%'",
+            params![path],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_all_data(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        
+        // Delete all tracks, albums, and unreleased tracks
+        conn.execute("DELETE FROM tracks", [])?;
+        conn.execute("DELETE FROM albums", [])?;
+        conn.execute("DELETE FROM unreleased_tracks", [])?;
+        
+        // Clear all cover images from disk
+        if self.covers_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&self.covers_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        let _ = std::fs::remove_file(path);
+                    }
+                }
+            }
+        }
+        
+        Ok(())
     }
 }
