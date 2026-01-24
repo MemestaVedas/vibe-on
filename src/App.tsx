@@ -62,6 +62,11 @@ function App() {
         listen('media:pause', () => pause()),
         listen('media:next', () => usePlayerStore.getState().nextTrack()), // Use getState to avoid dependency cycle/stale closure
         listen('media:prev', () => usePlayerStore.getState().prevTrack()),
+        listen('media:toggle', () => {
+          const store = usePlayerStore.getState();
+          if (store.status.state === 'Playing') store.pause();
+          else store.resume();
+        }),
         listen('media:stop', () => usePlayerStore.getState().stop()),
       ]);
 
@@ -163,7 +168,11 @@ function App() {
               {view === 'settings' && <SettingsPage />}
               {view === 'ytmusic' && <YouTubeMusic />}
             </div>
+
           </main>
+
+          {/* Player Bar - Constrained to Middle Column */}
+          <PlayerBar />
 
         </div>
 
@@ -171,10 +180,9 @@ function App() {
         <aside className="w-[25rem] bg-surface-container z-20 hidden xl:block overflow-hidden transition-all duration-300 rounded-[2rem]">
           <RightPanel />
         </aside>
-      </div>
+      </div >
 
-      {/* Player Bar */}
-      <PlayerBar />
+
 
       {/* Lyrics Panel Overlay */}
       <LyricsPanel />

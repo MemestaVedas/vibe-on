@@ -61,17 +61,60 @@ impl MediaControlService {
 
     #[cfg(target_os = "windows")]
     fn run_loop(app: AppHandle, _hwnd: isize, rx: Receiver<MediaCmd>) -> Result<(), String> {
-        // Initialize COM as STA (Single Threaded Apartment) for this thread
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         }
 
-        // Use internal window (hwnd: None) to ensure correct Identity/Display Name use
-        // and avoid thread-ownership issues with the main window.
+        // Create a dummy window for the background thread to receive messages
+        // This is necessary because souvlaki requires an HWND on Windows,
+        // and using the main window from a background thread causes thread-safety issues.
+        let dummy_hwnd = unsafe {
+            use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+            use windows::Win32::UI::WindowsAndMessaging::{
+                CreateWindowExW, DefWindowProcW, RegisterClassW, CS_OWNDC, CW_USEDEFAULT,
+                WNDCLASSW, WS_OVERLAPPEDWINDOW,
+            };
+
+            let instance = GetModuleHandleW(None).unwrap_or_default();
+            let class_name = windows::core::w!("VibeOnMediaDummy");
+
+            let wnd_class = WNDCLASSW {
+                lpfnWndProc: Some(std::mem::transmute(
+                    DefWindowProcW as *const std::ffi::c_void,
+                )),
+                hInstance: std::mem::transmute(instance),
+                lpszClassName: class_name,
+                style: CS_OWNDC,
+                ..Default::default()
+            };
+
+            RegisterClassW(&wnd_class);
+
+            CreateWindowExW(
+                windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE::default(),
+                class_name,
+                windows::core::w!("VibeOnMediaDummy"),
+                WS_OVERLAPPEDWINDOW,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                None,                                // Parent HWND
+                None,                                // Menu HMENU
+                Some(std::mem::transmute(instance)), // hInstance
+                None,
+            )
+            .unwrap_or_default()
+        };
+
+        if dummy_hwnd.0 == 0 as _ {
+            return Err("Failed to create dummy window for media controls".to_string());
+        }
+
         let config = PlatformConfig {
             dbus_name: "vibe_on",
             display_name: "VIBE-ON!",
-            hwnd: None,
+            hwnd: Some(dummy_hwnd.0 as *mut std::ffi::c_void),
         };
 
         let mut controls = MediaControls::new(config)
@@ -114,12 +157,15 @@ impl MediaControlService {
                     }
                     Ok(MediaCmd::SetPlaying) => {
                         let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
+                        crate::taskbar_controls::update_play_status(true);
                     }
                     Ok(MediaCmd::SetPaused) => {
                         let _ = controls.set_playback(MediaPlayback::Paused { progress: None });
+                        crate::taskbar_controls::update_play_status(false);
                     }
                     Ok(MediaCmd::SetStopped) => {
                         let _ = controls.set_playback(MediaPlayback::Stopped);
+                        crate::taskbar_controls::update_play_status(false);
                     }
                     Ok(MediaCmd::Shutdown) => return Ok(()),
                     Err(TryRecvError::Empty) => break,
