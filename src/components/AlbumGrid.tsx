@@ -15,17 +15,29 @@ interface Album {
 }
 
 // M3 Very Sunny Shape for Play Button - positioned outside bottom right
-const VerySunnyPlayButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => (
-    <div
-        onClick={onClick}
-        className="absolute -bottom-2 -right-2 w-11 h-11 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30 cursor-pointer"
-    >
-        <svg viewBox="0 0 320 320" className="absolute w-full h-full drop-shadow-lg" style={{ color: 'var(--md-sys-color-primary)' }}>
-            <path d="M136.72 13.1925C147.26 -4.3975 172.74 -4.3975 183.28 13.1925L195.12 32.9625C201.27 43.2125 213.4 48.2425 224.99 45.3325L247.35 39.7325C267.24 34.7525 285.25 52.7626 280.27 72.6526L274.67 95.0126C271.76 106.603 276.79 118.733 287.04 124.883L306.81 136.723C324.4 147.263 324.4 172.743 306.81 183.283L287.04 195.123C276.79 201.273 271.76 213.403 274.67 224.993L280.27 247.353C285.25 267.243 267.24 285.253 247.35 280.273L224.99 274.673C213.4 271.763 201.27 276.793 195.12 287.043L183.28 306.813C172.74 324.403 147.26 324.403 136.72 306.813L124.88 287.043C118.73 276.793 106.6 271.763 95.0102 274.673L72.6462 280.273C52.7632 285.253 34.7472 267.243 39.7292 247.353L45.3332 224.993C48.2382 213.403 43.2143 201.273 32.9603 195.123L13.1873 183.283C-4.39575 172.743 -4.39575 147.263 13.1873 136.723L32.9603 124.883C43.2143 118.733 48.2382 106.603 45.3332 95.0126L39.7292 72.6526C34.7472 52.7626 52.7633 34.7525 72.6453 39.7325L95.0102 45.3325C106.6 48.2425 118.73 43.2125 124.88 32.9625L136.72 13.1925Z" fill="currentColor" />
-        </svg>
-        <IconPlay size={18} fill="var(--md-sys-color-on-primary)" className="relative z-10" />
-    </div>
-);
+const VerySunnyPlayButton = ({ onClick }: { onClick: (e: React.MouseEvent) => void }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
+    return (
+        <div
+            onClick={onClick}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className="absolute -bottom-2 -right-2 w-11 h-11 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30 cursor-pointer"
+        >
+            <motion.svg
+                viewBox="0 0 320 320"
+                className="absolute w-full h-full drop-shadow-lg"
+                style={{ color: 'var(--md-sys-color-primary)' }}
+                animate={{ rotate: isHovered ? 120 : 0, scale: isHovered ? 1.1 : 1 }}
+                transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            >
+                <path d="M136.72 13.1925C147.26 -4.3975 172.74 -4.3975 183.28 13.1925L195.12 32.9625C201.27 43.2125 213.4 48.2425 224.99 45.3325L247.35 39.7325C267.24 34.7525 285.25 52.7626 280.27 72.6526L274.67 95.0126C271.76 106.603 276.79 118.733 287.04 124.883L306.81 136.723C324.4 147.263 324.4 172.743 306.81 183.283L287.04 195.123C276.79 201.273 271.76 213.403 274.67 224.993L280.27 247.353C285.25 267.243 267.24 285.253 247.35 280.273L224.99 274.673C213.4 271.763 201.27 276.793 195.12 287.043L183.28 306.813C172.74 324.403 147.26 324.403 136.72 306.813L124.88 287.043C118.73 276.793 106.6 271.763 95.0102 274.673L72.6462 280.273C52.7632 285.253 34.7472 267.243 39.7292 247.353L45.3332 224.993C48.2382 213.403 43.2143 201.273 32.9603 195.123L13.1873 183.283C-4.39575 172.743 -4.39575 147.263 13.1873 136.723L32.9603 124.883C43.2143 118.733 48.2382 106.603 45.3332 95.0126L39.7292 72.6526C34.7472 52.7626 52.7633 34.7525 72.6453 39.7325L95.0102 45.3325C106.6 48.2425 118.73 43.2125 124.88 32.9625L136.72 13.1925Z" fill="currentColor" />
+            </motion.svg>
+            <IconPlay size={18} fill="var(--md-sys-color-on-primary)" className="relative z-10 pointer-events-none" />
+        </div>
+    );
+};
 
 // M3 Rounded Square Shape Component (using SVG clip)
 const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback: React.ReactNode }) => {
@@ -70,7 +82,7 @@ const GridItem = ({ children, ...props }: React.ComponentPropsWithoutRef<'div'>)
 
 export function AlbumGrid() {
     const library = usePlayerStore(state => state.library);
-    const playFile = usePlayerStore(state => state.playFile);
+    const playQueue = usePlayerStore(state => state.playQueue);
     const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
 
     const albums = useMemo(() => {
@@ -94,7 +106,7 @@ export function AlbumGrid() {
 
     const handlePlayAlbum = (album: Album) => {
         if (album.tracks.length > 0) {
-            playFile(album.tracks[0].path);
+            playQueue(album.tracks, 0);
         }
     };
 
@@ -174,7 +186,7 @@ function AlbumCard({ album, onClick, onPlay }: { album: Album, onClick: () => vo
 }
 
 function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () => void, onPlay: () => void }) {
-    const { playFile } = usePlayerStore();
+    const { playQueue } = usePlayerStore();
     const coverUrl = useCoverArt(album.cover);
 
     const containerVariants = {
@@ -255,7 +267,7 @@ function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () =
                     itemContent={(i, track) => (
                         <div
                             key={track.id}
-                            onClick={() => playFile(track.path)}
+                            onClick={() => playQueue(album.tracks, i)}
                             className="group flex items-center gap-6 p-4 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
                         >
                             <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">{i + 1}</span>

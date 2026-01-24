@@ -21,6 +21,11 @@ interface PlayerStore {
     // Repeat mode
     repeatMode: RepeatMode;
 
+    // Queue & Shuffle
+    queue: TrackDisplay[];
+    originalQueue: TrackDisplay[];
+    isShuffled: boolean;
+
     // Favorites
     favorites: Set<string>; // Set of track paths
     searchQuery: string; // NEW: Search query
@@ -36,7 +41,7 @@ interface PlayerStore {
     seek: (value: number) => Promise<void>;
     refreshStatus: () => Promise<void>;
     scanFolder: (path: string) => Promise<void>;
-    removeFolder: (path: string) => Promise<void>; // NEW: Remove folder action
+    removeFolder: (path: string) => Promise<void>;
     loadLibrary: () => Promise<void>;
     setError: (error: string | null) => void;
     nextTrack: () => Promise<void>;
@@ -45,8 +50,15 @@ interface PlayerStore {
     addToHistory: (track: TrackDisplay) => void;
     setSort: (key: keyof TrackDisplay) => void;
     updateYtStatus: (status: any) => void;
-    setSearchQuery: (query: string) => void; // NEW: Set search query
-    clearAllData: () => Promise<void>; // NEW: Clear all data
+    setSearchQuery: (query: string) => void;
+    clearAllData: () => Promise<void>;
+
+    // Queue Actions
+    setQueue: (tracks: TrackDisplay[]) => void;
+    addToQueue: (track: TrackDisplay) => void;
+    playNext: (track: TrackDisplay) => void;
+    toggleShuffle: () => void;
+    playQueue: (tracks: TrackDisplay[], startIndex?: number) => Promise<void>;
 
     // Repeat mode actions
     cycleRepeatMode: () => void;
@@ -55,7 +67,12 @@ interface PlayerStore {
     toggleFavorite: (trackPath: string) => void;
     isFavorite: (trackPath: string) => boolean;
 
+    // Immersive Mode
+    immersiveMode: boolean;
+    toggleImmersiveMode: () => void;
 
+    // Autoplay Helpers
+    playRandomAlbum: () => Promise<void>;
 }
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -73,32 +90,37 @@ export const usePlayerStore = create<PlayerStore>()(
             playCounts: {},
             coversDir: null,
             currentFolder: null,
-            folders: [], // Initial empty folders list
+            folders: [],
             isLoading: false,
             error: null,
             sort: null,
             activeSource: 'local',
-            searchQuery: '', // NEW: Empty search query by default
+            searchQuery: '',
+
+            // Queue & Shuffle
+            queue: [],
+            originalQueue: [],
+            isShuffled: false,
 
             // Repeat mode
             repeatMode: 'off' as RepeatMode,
 
-            // Favorites (stored as array for persistence, used as Set in memory)
+            // Favorites
             favorites: new Set<string>(),
+
+            // Immersive Mode
+            immersiveMode: false,
 
             // Actions
             clearAllData: async () => {
                 console.log('[PlayerStore] clearAllData called');
                 try {
-                    // Reset all state to initial values
                     set({
-                        status: {
-                            state: 'Stopped',
-                            track: null,
-                            position_secs: 0,
-                            volume: 1.0,
-                        },
+                        status: { state: 'Stopped', track: null, position_secs: 0, volume: 1.0 },
                         library: [],
+                        queue: [],
+                        originalQueue: [],
+                        isShuffled: false,
                         history: [],
                         playCounts: {},
                         coversDir: null,
@@ -112,12 +134,6 @@ export const usePlayerStore = create<PlayerStore>()(
                         repeatMode: 'off',
                         favorites: new Set(),
                     });
-
-                    // Clear persistence (zustand persist middleware handles this if we just reset state, 
-                    // but we might want to explicitly clear if needed. 
-                    // Actually, setting state overwrites persisted state.)
-
-                    console.log('[PlayerStore] All data cleared');
                 } catch (e) {
                     console.error('[PlayerStore] Failed to clear data:', e);
                 }
@@ -132,15 +148,11 @@ export const usePlayerStore = create<PlayerStore>()(
                         direction = 'desc';
                     }
 
-                    // Sort logic
                     const sortedLibrary = [...state.library].sort((a, b) => {
                         const valA = a[key];
                         const valB = b[key];
-
                         if (typeof valA === 'string' && typeof valB === 'string') {
-                            return direction === 'asc'
-                                ? valA.localeCompare(valB)
-                                : valB.localeCompare(valA);
+                            return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
                         }
                         if (typeof valA === 'number' && typeof valB === 'number') {
                             return direction === 'asc' ? valA - valB : valB - valA;
@@ -148,10 +160,7 @@ export const usePlayerStore = create<PlayerStore>()(
                         return 0;
                     });
 
-                    return {
-                        sort: { key, direction },
-                        library: sortedLibrary
-                    };
+                    return { sort: { key, direction }, library: sortedLibrary };
                 });
             },
 
@@ -167,20 +176,137 @@ export const usePlayerStore = create<PlayerStore>()(
                 });
             },
 
+            // --- Queue Actions ---
+
+            setQueue: (tracks: TrackDisplay[]) => {
+                set({
+                    queue: tracks,
+                    originalQueue: tracks, // Backup for un-shuffle
+                    isShuffled: false
+                });
+            },
+
+            addToQueue: (track: TrackDisplay) => {
+                set(state => ({
+                    queue: [...state.queue, track],
+                    originalQueue: [...state.originalQueue, track]
+                }));
+            },
+
+            playNext: (track: TrackDisplay) => {
+                // Insert track after current playing track
+                const { queue, status } = get();
+                const currentPath = status.track?.path;
+                let insertIndex = -1;
+
+                if (currentPath) {
+                    insertIndex = queue.findIndex(t => t.path === currentPath);
+                }
+
+                // If no track playing or not found, add to end (or front?) -> Let's add to front if stopped, after current if playing
+                if (insertIndex === -1) {
+                    // Add to front
+                    set(state => ({
+                        queue: [track, ...state.queue],
+                        originalQueue: [track, ...state.originalQueue]
+                    }));
+                } else {
+                    const newQueue = [...queue];
+                    newQueue.splice(insertIndex + 1, 0, track);
+
+                    // Also update originalQueue roughly? 
+                    // Dealing with originalQueue when shuffling is complex. 
+                    // For now, let's just insert into originalQueue at the end or try to sync.
+                    // Simple approach: append to original queue if shuffled to avoid messing order.
+                    // Or ideally, insert after current in originalQueue too.
+
+                    set(state => ({
+                        queue: newQueue,
+                        originalQueue: [...state.originalQueue, track] // Simplified
+                    }));
+                }
+            },
+
+            toggleShuffle: () => {
+                const { isShuffled, originalQueue, queue, status } = get();
+
+                if (isShuffled) {
+                    // Un-shuffle: Restore original order
+                    // Try to keep current track playing
+                    set({
+                        isShuffled: false,
+                        queue: [...originalQueue]
+                    });
+                } else {
+                    // Shuffle
+                    // Fisher-Yates shuffle
+                    const newQueue = [...queue];
+                    let currentIndex = newQueue.length;
+
+                    // While there remain elements to shuffle...
+                    while (currentIndex != 0) {
+                        // Pick a remaining element...
+                        let randomIndex = Math.floor(Math.random() * currentIndex);
+                        currentIndex--;
+                        // And swap it with the current element.
+                        [newQueue[currentIndex], newQueue[randomIndex]] = [
+                            newQueue[randomIndex], newQueue[currentIndex]];
+                    }
+
+                    // Move currently playing track to top if exists
+                    const currentPath = status.track?.path;
+                    if (currentPath) {
+                        const trackIndex = newQueue.findIndex(t => t.path === currentPath);
+                        if (trackIndex > -1) {
+                            const [track] = newQueue.splice(trackIndex, 1);
+                            newQueue.unshift(track);
+                        }
+                    }
+
+                    set({
+                        isShuffled: true,
+                        queue: newQueue
+                    });
+                }
+            },
+
+            // --- Playback --
+
+            playQueue: async (tracks: TrackDisplay[], startIndex = 0) => {
+                try {
+                    if (tracks.length === 0) return;
+
+                    const trackToPlay = tracks[startIndex];
+                    if (!trackToPlay) return;
+
+                    console.log("[PlayerStore] Setting queue and playing:", trackToPlay.title);
+
+                    set({ queue: tracks });
+                    await get().playFile(trackToPlay.path);
+
+                } catch (e) {
+                    console.error("[PlayerStore] playQueue failed:", e);
+                    set({ error: String(e) });
+                }
+            },
+
             playFile: async (path: string) => {
                 try {
                     console.log("[PlayerStore] Attempting to play:", path);
                     set({ error: null, activeSource: 'local' });
-                    // Ensure YT is paused/hidden? (Handled by View change usually, but good to be sure)
-                    // await invoke('yt_control', { action: 'pause' }); 
 
                     await invoke('play_file', { path });
-                    console.log("[PlayerStore] Play command sent successfully");
 
                     // Add to history
-                    const track = get().library.find((t) => t.path === path);
+                    const track = get().library.find((t) => t.path === path) || get().queue.find(t => t.path === path);
                     if (track) {
                         get().addToHistory(track);
+                    }
+
+                    // If queue is empty, auto-populate with library (Fallback behavior)
+                    const { queue } = get();
+                    if (queue.length === 0) {
+                        get().setQueue(get().library);
                     }
 
                     await get().refreshStatus();
@@ -195,7 +321,6 @@ export const usePlayerStore = create<PlayerStore>()(
                     const { activeSource } = get();
                     if (activeSource === 'youtube') {
                         await invoke('yt_control', { action: 'pause' });
-                        // Manually update status to paused for UI responsiveness
                         set((state) => ({ status: { ...state.status, state: 'Paused' } }));
                     } else {
                         await invoke('pause');
@@ -246,7 +371,7 @@ export const usePlayerStore = create<PlayerStore>()(
                         await invoke('yt_control', { action: 'seek', value });
                     } else {
                         await invoke('seek', { value });
-                        await get().refreshStatus(); // Refresh to update UI immediately
+                        await get().refreshStatus();
                     }
                 } catch (e) {
                     set({ error: String(e) });
@@ -265,26 +390,22 @@ export const usePlayerStore = create<PlayerStore>()(
             scanFolder: async (path: string) => {
                 try {
                     set({ isLoading: true, error: null });
-                    // Use new backend command that inserts into DB
                     const tracks = await invoke<TrackDisplay[]>('init_library', { path });
-                    // Add ID property
                     const tracksWithId = tracks.map(t => ({ ...t, id: t.path }));
 
                     set(state => {
-                        // Add path to folders if not exists
-                        const newFolders = state.folders.includes(path)
-                            ? state.folders
-                            : [...state.folders, path];
+                        const newFolders = state.folders.includes(path) ? state.folders : [...state.folders, path];
 
-                        // Merge new tracks with existing library to support multiple folders?
-                        // Or does init_library return ALL tracks? 
-                        // The Rust code calls `db.get_all_tracks()` at the end, so it returns EVERYTHING.
-                        // So straightforward assignment is correct.
+                        // If queue is empty, set it to library
+                        const shouldUpdateQueue = state.queue.length === 0;
+
                         return {
                             library: tracksWithId,
                             currentFolder: path,
                             folders: newFolders,
-                            isLoading: false
+                            isLoading: false,
+                            queue: shouldUpdateQueue ? tracksWithId : state.queue,
+                            originalQueue: shouldUpdateQueue ? tracksWithId : state.originalQueue,
                         };
                     });
                 } catch (e) {
@@ -296,14 +417,9 @@ export const usePlayerStore = create<PlayerStore>()(
                 try {
                     set({ isLoading: true });
                     await invoke('remove_folder', { path });
-
-                    // Update state
                     set(state => ({
                         folders: state.folders.filter(f => f !== path),
-                        // We also need to reload the library to reflect removed tracks
-                        // Or we could filter them out manually but reloading is safer
                     }));
-
                     await get().loadLibrary();
                 } catch (e) {
                     console.error('Failed to remove folder:', e);
@@ -315,14 +431,20 @@ export const usePlayerStore = create<PlayerStore>()(
                 try {
                     set({ isLoading: true });
                     const tracks = await invoke<TrackDisplay[]>('get_library_tracks');
-                    // Fetch covers directory if we don't have it (or always)
                     let { coversDir } = get();
                     if (!coversDir) {
                         coversDir = await invoke<string>('get_covers_dir');
                     }
-
                     const tracksWithId = tracks.map(t => ({ ...t, id: t.path }));
-                    set({ library: tracksWithId, coversDir, isLoading: false });
+
+                    set(state => ({
+                        library: tracksWithId,
+                        coversDir,
+                        isLoading: false,
+                        // If queue is empty (fresh start), populate it
+                        queue: state.queue.length === 0 ? tracksWithId : state.queue,
+                        originalQueue: state.originalQueue.length === 0 ? tracksWithId : state.originalQueue
+                    }));
                 } catch (e) {
                     console.error('Failed to load library:', e);
                     set({ isLoading: false });
@@ -332,13 +454,13 @@ export const usePlayerStore = create<PlayerStore>()(
             setError: (error: string | null) => set({ error }),
 
             getCurrentTrackIndex: () => {
-                const { status, library } = get();
+                const { status, queue } = get();
                 if (!status.track) return -1;
-                return library.findIndex(t => t.path === status.track?.path);
+                return queue.findIndex(t => t.path === status.track?.path);
             },
 
             prevTrack: async () => {
-                const { library, playFile, getCurrentTrackIndex, activeSource } = get();
+                const { queue, playFile, getCurrentTrackIndex, activeSource } = get();
 
                 if (activeSource === 'youtube') {
                     await invoke('yt_control', { action: 'prev' });
@@ -347,12 +469,14 @@ export const usePlayerStore = create<PlayerStore>()(
 
                 const currentIndex = getCurrentTrackIndex();
                 if (currentIndex > 0) {
-                    await playFile(library[currentIndex - 1].path);
+                    await playFile(queue[currentIndex - 1].path);
+                } else {
+                    // Optional: Wrap around?
                 }
             },
 
             nextTrack: async () => {
-                const { library, playFile, getCurrentTrackIndex, activeSource } = get();
+                const { queue, playFile, getCurrentTrackIndex, activeSource, repeatMode } = get();
 
                 if (activeSource === 'youtube') {
                     await invoke('yt_control', { action: 'next' });
@@ -360,8 +484,17 @@ export const usePlayerStore = create<PlayerStore>()(
                 }
 
                 const currentIndex = getCurrentTrackIndex();
-                if (currentIndex >= 0 && currentIndex < library.length - 1) {
-                    await playFile(library[currentIndex + 1].path);
+
+                // Repeat One Logic: Handled by 'media_controls.rs' auto-play usually, but for manual next click:
+                // If repeat one is on, Next button SHOULD go to next track or replay? 
+                // Standard convention: Next button ALWAYS goes to next track. Auto-finish respects repeat mode.
+                // But if Repeat One is play, next button usually forces next track.
+
+                if (currentIndex >= 0 && currentIndex < queue.length - 1) {
+                    await playFile(queue[currentIndex + 1].path);
+                } else if (repeatMode === 'all' && queue.length > 0) {
+                    // Wrap around
+                    await playFile(queue[0].path);
                 }
             },
 
@@ -370,42 +503,34 @@ export const usePlayerStore = create<PlayerStore>()(
                     activeSource: 'youtube',
                     status: {
                         state: ytStatus.is_playing ? 'Playing' : 'Paused',
-                        volume: 1.0, // Unknown?
+                        volume: 1.0,
                         position_secs: ytStatus.progress,
                         track: {
                             title: ytStatus.title,
                             artist: ytStatus.artist,
                             album: ytStatus.album,
                             duration_secs: ytStatus.duration,
-                            path: 'youtube', // dummy
-                            cover_image: null, // we need url support in type?
-                            // We might need to handle cover_url separately or hack cover_image type
+                            path: 'youtube',
+                            cover_image: null,
                         } as any
                     }
                 });
-                // Store cover url separately or hack it?
-                // Let's rely on the fact that PlayerBar probably uses useImageColors or similar which might need URL
             },
 
-            // Repeat mode actions
             cycleRepeatMode: () => {
                 const { repeatMode } = get();
                 const modes: RepeatMode[] = ['off', 'all', 'one'];
                 const currentIndex = modes.indexOf(repeatMode);
                 const nextMode = modes[(currentIndex + 1) % modes.length];
-                console.log('[Repeat] Cycling mode:', repeatMode, '->', nextMode);
                 set({ repeatMode: nextMode });
             },
 
-            // Favorites actions
             toggleFavorite: (trackPath: string) => {
                 const favorites = new Set(get().favorites);
                 if (favorites.has(trackPath)) {
                     favorites.delete(trackPath);
-                    console.log('[Favorites] Removed:', trackPath);
                 } else {
                     favorites.add(trackPath);
-                    console.log('[Favorites] Added:', trackPath);
                 }
                 set({ favorites });
             },
@@ -414,24 +539,54 @@ export const usePlayerStore = create<PlayerStore>()(
                 return get().favorites.has(trackPath);
             },
 
+            toggleImmersiveMode: () => {
+                set(state => ({ immersiveMode: !state.immersiveMode }));
+            },
 
+            playRandomAlbum: async () => {
+                const { library, playQueue } = get();
+                if (library.length === 0) return;
+
+                // Group by albums
+                const albumsMap = new Map<string, TrackDisplay[]>();
+                library.forEach(track => {
+                    const albumKey = track.album || 'Unknown Album';
+                    if (!albumsMap.has(albumKey)) {
+                        albumsMap.set(albumKey, []);
+                    }
+                    albumsMap.get(albumKey)!.push(track);
+                });
+
+                const albumNames = Array.from(albumsMap.keys());
+                const randomAlbumName = albumNames[Math.floor(Math.random() * albumNames.length)];
+                const albumTracks = albumsMap.get(randomAlbumName) || [];
+
+                if (albumTracks.length > 0) {
+                    console.log(`[PlayerStore] Autoplay: Starting random album "${randomAlbumName}"`);
+                    await playQueue(albumTracks, 0);
+                }
+            },
         }),
         {
             name: 'vibe-player-storage',
             partialize: (state) => ({
                 history: state.history,
                 playCounts: state.playCounts,
-                // Convert Set to array for JSON serialization
                 favorites: Array.from(state.favorites),
-                // Persist folders list
-                folders: state.folders
+                folders: state.folders,
+                // Persist Queue? Yes
+                queue: state.queue,
+                originalQueue: state.originalQueue,
+                isShuffled: state.isShuffled
             }),
-            // Convert array back to Set on load
             merge: (persistedState: any, currentState) => ({
                 ...currentState,
                 ...persistedState,
                 favorites: new Set(persistedState?.favorites || []),
-                folders: persistedState?.folders || []
+                folders: persistedState?.folders || [],
+                queue: persistedState?.queue || [],
+                originalQueue: persistedState?.originalQueue || [],
+                isShuffled: persistedState?.isShuffled || false
             })
         }
     )

@@ -7,13 +7,14 @@ import { useSettingsStore } from '../store/settingsStore';
 import { SquigglySlider } from './SquigglySlider';
 import { MarqueeText } from './MarqueeText';
 import {
-    IconLyrics,
     IconPrevious,
     IconPlay,
     IconPause,
     IconNext,
     IconVolume,
-    IconMusicNote
+    IconMusicNote,
+    IconShuffle,
+    IconQueue
 } from './Icons';
 
 // Repeat icon component
@@ -45,39 +46,50 @@ function formatTime(seconds: number): string {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Lyrics button component
-function LyricsButton({ track }: { track: { title: string; artist: string; duration_secs: number; path: string } | null }) {
-    const { showLyrics, toggleLyrics, loadCachedLyrics, isLoading } = useLyricsStore();
+// Expressive Button with Click Animation and Scalloped Shape
+const ExpressiveControlButton = ({ onClick, icon, disabled, direction = 'left' }: { onClick: () => void, icon: React.ReactNode, disabled: boolean, direction?: 'left' | 'right' }) => {
+    const [rotation, setRotation] = useState(0);
 
     const handleClick = () => {
-        if (track) {
-            // Load lyrics from backend cache (prefetched when song started playing)
-            loadCachedLyrics(track.path);
+        if (!disabled) {
+            setRotation(prev => prev + 120);
+            onClick();
         }
-        toggleLyrics();
     };
 
     return (
-        <button
+        <motion.button
+            initial={{ opacity: 0, scale: 0.8, x: direction === 'left' ? 20 : -20 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.8, x: direction === 'left' ? 20 : -20 }}
+            whileHover={{ scale: 1.2 }}
             onClick={handleClick}
-            disabled={!track}
-            className={`p-2 rounded-full transition-colors ${showLyrics ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'}`}
-            title="Lyrics"
+            disabled={disabled}
+            className="group relative w-10 h-10 flex items-center justify-center pointer-events-auto transition-transform disabled:opacity-50"
         >
-            {isLoading ? (
-                <div className="text-label-small">(Loading)</div>
-            ) : (
-                <IconLyrics size={24} />
-            )}
-        </button>
+            {/* Rotating Background Shape */}
+            <motion.svg
+                viewBox="0 0 340 340"
+                className="absolute inset-0 w-full h-full text-tertiary-container drop-shadow-md group-hover:drop-shadow-lg transition-all"
+                animate={{ rotate: rotation }}
+                transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            >
+                <path d="M261.856 41.2425C272.431 41.9625 277.718 42.3226 281.991 44.1826C288.175 46.8926 293.111 51.8325 295.816 58.0125C297.685 62.2825 298.044 67.5725 298.762 78.1425L300.402 102.273C300.693 106.553 300.838 108.693 301.303 110.733C301.975 113.683 303.142 116.503 304.754 119.063C305.869 120.843 307.279 122.453 310.097 125.683L326.001 143.903C332.97 151.893 336.455 155.882 338.155 160.222C340.615 166.512 340.615 173.493 338.155 179.783C336.455 184.123 332.97 188.112 326.001 196.102L310.097 214.322C307.279 217.552 305.869 219.162 304.754 220.942C303.142 223.502 301.975 226.323 301.303 229.273C300.838 231.313 300.693 233.452 300.402 237.732L298.762 261.863C298.044 272.433 297.685 277.723 295.816 281.993C293.111 288.173 288.175 293.112 281.991 295.822C277.718 297.682 272.431 298.043 261.856 298.763L237.725 300.403C233.448 300.693 231.31 300.843 229.267 301.303C226.316 301.973 223.499 303.143 220.937 304.753C219.164 305.873 217.549 307.283 214.319 310.103L196.097 326.003C188.111 332.973 184.119 336.453 179.775 338.153C173.491 340.623 166.509 340.623 160.225 338.153C155.881 336.453 151.889 332.973 143.903 326.003L125.681 310.103C122.451 307.283 120.836 305.873 119.063 304.753C116.501 303.143 113.684 301.973 110.733 301.303C108.69 300.843 106.552 300.693 102.275 300.403L78.1438 298.763C67.5694 298.043 62.2822 297.682 58.0088 295.822C51.8252 293.112 46.8887 288.173 44.1844 281.993C42.3154 277.723 41.9561 272.433 41.2375 261.863L39.5977 237.732C39.3071 233.452 39.1618 231.313 38.6969 229.273C38.0251 226.323 36.8584 223.502 35.2463 220.942C34.1306 219.162 32.7213 217.552 29.9027 214.322L13.999 196.102C7.02996 188.112 3.54542 184.123 1.84516 179.783C-0.615054 173.493 -0.615053 166.512 1.84516 160.222C3.54542 155.882 7.02996 151.893 13.999 143.903L29.9027 125.683C32.7213 122.453 34.1306 120.843 35.2463 119.063C36.8584 116.503 38.0251 113.683 38.6969 110.733C39.1618 108.693 39.3071 106.553 39.5977 102.273L41.2375 78.1425C41.9561 67.5725 42.3154 62.2825 44.1844 58.0125C46.8887 51.8325 51.8252 46.8926 58.0088 44.1826C62.2823 42.3226 67.5694 41.9625 78.1438 41.2425L102.275 39.6025C106.552 39.3125 108.69 39.1625 110.733 38.7025C113.684 38.0325 116.501 36.8625 119.063 35.2525C120.836 34.1325 122.451 32.7225 125.681 29.9025L143.903 14.0025C151.889 7.03252 155.881 3.5525 160.225 1.8525C166.509 -0.6175 173.491 -0.6175 179.775 1.8525C184.119 3.5525 188.111 7.03252 196.097 14.0025L214.319 29.9025C217.549 32.7225 219.164 34.1325 220.937 35.2525C223.499 36.8625 226.316 38.0325 229.267 38.7025C231.31 39.1625 233.448 39.3125 237.725 39.6025L261.856 41.2425Z" fill="currentColor" />
+            </motion.svg>
+
+            {/* Icon */}
+            <div className="relative z-10 text-on-tertiary-container">
+                {icon}
+            </div>
+        </motion.button>
     );
-}
+};
 
 export function PlayerBar() {
     const {
         status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack,
         getCurrentTrackIndex, library, playFile, seek, repeatMode, cycleRepeatMode,
-        error, setError
+        error, setError, isShuffled, toggleShuffle
     } = usePlayerStore();
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
     const { state, track, position_secs, volume } = status;
@@ -86,7 +98,7 @@ export function PlayerBar() {
     // Poll for status updates while playing
     useEffect(() => {
         if (state === 'Playing') {
-            const interval = setInterval(refreshStatus, 500);
+            const interval = setInterval(refreshStatus, 200);
             return () => clearInterval(interval);
         }
     }, [state, refreshStatus]);
@@ -102,13 +114,22 @@ export function PlayerBar() {
     // Auto-play next track when current track ends
     useEffect(() => {
         if (lastStateRef.current === 'Playing' && state === 'Stopped' && track) {
-            const isFinished = position_secs >= track.duration_secs - 0.5;
+            // Threshold increased to 2.0s to account for polling latency
+            const isFinished = position_secs >= track.duration_secs - 2.0;
+
+            console.log('[Autoplay] Transitioned to Stopped. Finished?', isFinished, { pos: position_secs, dur: track.duration_secs });
+
             if (isFinished) {
-                nextTrack();
+                if (repeatMode === 'one') {
+                    // Replay current track
+                    playFile(track.path);
+                } else {
+                    nextTrack();
+                }
             }
         }
         lastStateRef.current = state;
-    }, [state, track, position_secs, nextTrack]);
+    }, [state, track, position_secs, nextTrack, repeatMode, playFile]);
 
     const handlePlayPause = () => {
         if (state === 'Playing') {
@@ -129,13 +150,23 @@ export function PlayerBar() {
     };
 
     const currentIndex = getCurrentTrackIndex();
+    const { queue } = usePlayerStore();
     const hasPrev = currentIndex > 0;
-    const hasNext = currentIndex >= 0 && currentIndex < library.length - 1;
+    const hasNext = currentIndex >= 0 && currentIndex < queue.length - 1;
 
-    const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
-    const isYtUrl = currentLibraryTrack?.cover_url !== undefined;
-    const coverUrl = isYtUrl ? currentLibraryTrack?.cover_url : useCoverArt(currentLibraryTrack?.cover_image);
-    const activeCoverUrl = track?.cover_url || coverUrl;
+    // Find the current track in the library to get authoritative metadata (like cover_image path)
+    const libIndex = library.findIndex(t => t.path === track?.path);
+    const currentLibraryTrack = libIndex >= 0 ? library[libIndex] : null;
+
+    // Determine Cover URL
+    const isYtUrl = currentLibraryTrack?.cover_url !== undefined || track?.cover_url !== undefined;
+    // Prefer library cover image if available, falling back to track's cover image
+    const coverImageToLoad = currentLibraryTrack?.cover_image || track?.cover_image;
+
+    // Only call useCoverArt if we have a local cover image and NOT a YT url
+    const localCoverUrl = useCoverArt(coverImageToLoad);
+
+    const activeCoverUrl = (isYtUrl ? (currentLibraryTrack?.cover_url || track?.cover_url) : localCoverUrl);
 
     const [isHovered, setIsHovered] = useState(false);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,131 +205,139 @@ export function PlayerBar() {
             {/* Container for Pill and Side Buttons */}
             <div className="flex items-center justify-center gap-4 w-full">
                 {/* Previous Button */}
-                <AnimatePresence>
+                <AnimatePresence mode="popLayout">
                     {!isHovered && (
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0.8, x: 20 }}
-                            animate={{ opacity: 1, scale: 1, x: 0 }}
-                            exit={{ opacity: 0, scale: 0.8, x: 20 }}
+                        <ExpressiveControlButton
                             onClick={prevTrack}
                             disabled={!hasPrev}
-                            className="p-3 rounded-full bg-surface-container-high text-on-surface hover:bg-surface-container-highest shadow-elevation-3 pointer-events-auto transition-colors"
-                        >
-                            <IconPrevious size={24} />
-                        </motion.button>
+                            icon={<IconPrevious size={24} />}
+                            direction="left"
+                        />
                     )}
                 </AnimatePresence>
 
                 {/* Player Container */}
                 <motion.div
+                    layout
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                     initial={false}
                     animate={{
-                        width: isHovered ? '90%' : '20rem', // 20rem is w-80
-                        height: isHovered ? '6rem' : '4rem', // 6rem is h-24, 4rem is h-16
-                        borderRadius: '9999px', // Always pill shape
-                        maxWidth: isHovered ? '56rem' : '20rem', // 56rem is max-w-4xl
+                        width: isHovered ? '90%' : '20rem',
+                        height: isHovered ? '6rem' : '4rem',
+                        borderRadius: '9999px',
+                        maxWidth: isHovered ? '56rem' : '20rem',
+                        backgroundColor: isHovered
+                            ? 'rgba(0,0,0,0.4)'
+                            : 'var(--md-sys-color-surface-container-high)',
+                        borderColor: isHovered ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                        boxShadow: isHovered
+                            ? '0 20px 40px -10px rgba(0,0,0,0.5), 0 0 20px -5px var(--md-sys-color-primary)'
+                            : '0 10px 30px -10px rgba(0,0,0,0.4)'
                     }}
-                    transition={{ type: "spring", stiffness: 120, damping: 20, mass: 1 }}
+                    transition={{ type: "spring", stiffness: 100, damping: 15, mass: 1 }}
                     className={`
                     pointer-events-auto
                     relative 
                     z-20
-                    bg-surface-container-high 
                     text-on-surface
-                    shadow-elevation-3
                     overflow-hidden
                     isolation-isolate
                     flex items-center
+                    backdrop-blur-xl
+                    border
                     ${isHovered ? 'px-6 py-3 gap-6' : 'px-4 py-2 gap-4'}
                 `}
                 >
-                    {/* Background Art Overlay (Expanded Mode) */}
+                    {/* Background Art Overlay (Expanded Mode - Smoother Bleed) */}
                     <AnimatePresence>
                         {isHovered && expandedArtMode === 'background' && activeCoverUrl && (
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-[2rem]"
+                                className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
                             >
-                                <div className="absolute left-0 top-0 bottom-0 w-3/4">
+                                {/* Layer 1: Blurred base for smooth bleed */}
+                                <div className="absolute inset-0">
                                     <img
                                         src={activeCoverUrl}
                                         alt=""
-                                        className="w-full h-full object-cover opacity-50"
+                                        className="w-full h-full object-cover opacity-30 blur-2xl scale-110"
                                     />
-                                    {/* Smooth fade into the pill background */}
+                                </div>
+
+                                {/* Layer 2: Main art with gradient mask */}
+                                <div className="absolute left-0 top-0 bottom-0 w-full overflow-hidden">
+                                    <img
+                                        src={activeCoverUrl}
+                                        alt=""
+                                        className="h-full w-1/2 object-cover opacity-40 transition-opacity duration-500"
+                                        style={{
+                                            maskImage: 'linear-gradient(to right, black 20%, transparent 90%)',
+                                            WebkitMaskImage: 'linear-gradient(to right, black 20%, transparent 90%)'
+                                        }}
+                                    />
+                                    {/* Overlay to ensure controls are legible */}
                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-container-high/20 to-surface-container-high" />
                                 </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
 
-                    {!isHovered && track && (
-                        <div
-                            className="absolute left-0 top-0 bottom-0 z-[1] pointer-events-none flex items-stretch text-primary opacity-40 rounded-l-full"
-                            style={{
-                                width: `${(position_secs / (track.duration_secs || 1)) * 100}%`,
-                                transition: 'width 0.5s cubic-bezier(0.2, 0, 0, 1)'
-                            }}
-                        >
-                            {/* Solid fill part */}
-                            <div className="flex-1 bg-current" />
+                    <AnimatePresence>
+                        {!isHovered && track && (
+                            <motion.div
+                                key="progress-wave"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="absolute left-0 top-0 bottom-0 z-[1] pointer-events-none flex items-stretch text-secondary-container rounded-l-full"
+                                style={{
+                                    width: `${(position_secs / (track.duration_secs || 1)) * 100}%`
+                                }}
+                            >
+                                {/* Solid fill part */}
+                                <div className="flex-1 bg-current" />
 
-                            {/* Vertical Wave Edge */}
-                            <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-[1px]">
-                                {/* -mr-1 to ensure no gaps if render is sub-pixel */}
-                                <motion.div
-                                    className="w-full absolute top-0 left-0"
-                                    style={{ height: 'calc(100% + 40px)', top: '-40px' }}
-                                    animate={state === 'Playing' ? { y: ['0px', '40px'] } : { y: '0px' }}
-                                    transition={{
-                                        duration: 1, // Speed of one cycle (40px)
-                                        ease: "linear",
-                                        repeat: Infinity
-                                    }}
-                                >
-                                    <svg
-                                        className="h-full w-full"
-                                        preserveAspectRatio="none"
+                                {/* Vertical Wave Edge */}
+                                <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-[1px]">
+                                    <motion.div
+                                        className="w-full absolute top-0 left-0"
+                                        style={{ height: 'calc(100% + 40px)', top: '-40px' }}
+                                        animate={state === 'Playing' ? { y: ['0px', '40px'] } : { y: '0px' }}
+                                        transition={{
+                                            duration: 1,
+                                            ease: "linear",
+                                            repeat: Infinity
+                                        }}
                                     >
-                                        <defs>
-                                            <pattern id="pill-progress-wave" x="0" y="0" width="12" height="40" patternUnits="userSpaceOnUse">
-                                                {/* We use motion.path to morph between wave and straight line */}
-                                                {/* Note: pattern paths inside defs might not animate well with framer-motion if rerendered. 
-                                                However, Framer Motion needs to control the DOM element. 
-                                                If it's inside a pattern, it might be tricky. 
-                                                Alternative: Don't use pattern?
-                                                Actually, if we animate the 'd' of a path inside a pattern, it should update.
-                                            */}
-                                                <motion.path
-                                                    // Wave Path: M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z
-                                                    // Straight Path (matched points): M 0 0 L 6 0 L 6 20 L 6 40 L 0 40 Z
-                                                    // To match Q/T commands, we can use curves that are actually straight lines.
-                                                    // Wave: Q 1 10 6 20 (Control point 1 at x=1 pulls it left)
-                                                    // Straight: Q 6 10 6 20 (Control point at x=6 keeps it straight)
-                                                    // Wave: T 6 40 (Implied reflection, effectively Q 11 30 6 40)
-                                                    // Straight: T 6 40 (Implied reflection of straight is straight? Q 6 30 6 40)
-
-                                                    initial={false}
-                                                    animate={{
-                                                        d: state === 'Playing'
-                                                            ? "M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z" // Wavy
-                                                            : "M 0 0 L 6 0 Q 6 10 6 20 T 6 40 L 0 40 Z" // Straight (Control points aligned)
-                                                    }}
-                                                    transition={{ duration: 0.3 }}
-                                                    fill="currentColor"
-                                                />
-                                            </pattern>
-                                        </defs>
-                                        <rect x="0" y="0" width="100%" height="100%" fill="url(#pill-progress-wave)" />
-                                    </svg>
-                                </motion.div>
-                            </div>
-                        </div>
-                    )}
+                                        <svg
+                                            className="h-full w-full"
+                                            preserveAspectRatio="none"
+                                        >
+                                            <defs>
+                                                <pattern id="pill-progress-wave" x="0" y="0" width="12" height="40" patternUnits="userSpaceOnUse">
+                                                    <motion.path
+                                                        initial={false}
+                                                        animate={{
+                                                            d: state === 'Playing'
+                                                                ? "M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z"
+                                                                : "M 0 0 L 6 0 Q 6 10 6 20 T 6 40 L 0 40 Z"
+                                                        }}
+                                                        transition={{ duration: 0.3 }}
+                                                        fill="currentColor"
+                                                    />
+                                                </pattern>
+                                            </defs>
+                                            <rect x="0" y="0" width="100%" height="100%" fill="url(#pill-progress-wave)" />
+                                        </svg>
+                                    </motion.div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     <AnimatePresence mode="wait">
                         {isHovered ? (
@@ -345,7 +384,7 @@ export function PlayerBar() {
                                         </div>
                                     )}
 
-                                    <div className="flex flex-col min-w-0">
+                                    <div className="flex flex-col min-w-0 justify-center">
                                         <div className="text-title-medium font-bold truncate  text-on-surface">
                                             <MarqueeText text={track?.title || "Not Playing"} />
                                         </div>
@@ -356,8 +395,8 @@ export function PlayerBar() {
                                 </div>
 
                                 {/* Center: Controls */}
-                                <div className="flex flex-col items-center flex-[2] gap-1">
-                                    <div className="flex items-center gap-6">
+                                <div className="flex flex-col items-center justify-center flex-[2] gap-1 relative z-20">
+                                    <div className="flex items-center justify-center gap-6">
                                         <button onClick={prevTrack} disabled={!hasPrev} className="text-on-surface-variant hover:text-on-surface disabled:opacity-30 p-2 rounded-full hover:bg-surface-container-highest">
                                             <IconPrevious size={28} />
                                         </button>
@@ -409,6 +448,18 @@ export function PlayerBar() {
                                         </button>
                                     )}
 
+                                    {/* Shuffle Button */}
+                                    <button
+                                        onClick={toggleShuffle}
+                                        className={`p-2 rounded-full transition-colors ${isShuffled
+                                            ? 'text-primary bg-primary-container'
+                                            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
+                                            }`}
+                                        title={isShuffled ? 'Shuffle On' : 'Shuffle Off'}
+                                    >
+                                        <IconShuffle size={22} />
+                                    </button>
+
                                     {/* Repeat Button */}
                                     <button
                                         onClick={cycleRepeatMode}
@@ -421,7 +472,17 @@ export function PlayerBar() {
                                         <IconRepeat size={22} mode={repeatMode} />
                                     </button>
 
-                                    <LyricsButton track={track} />
+                                    {/* Queue Toggle Button */}
+                                    <button
+                                        onClick={() => useLyricsStore.getState().toggleLyrics()}
+                                        className={`p-2 rounded-full transition-colors ${!useLyricsStore.getState().showLyrics
+                                            ? 'bg-primary-container text-on-primary-container'
+                                            : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
+                                            }`}
+                                        title={useLyricsStore.getState().showLyrics ? "Show Queue" : "Show Lyrics"}
+                                    >
+                                        <IconQueue size={22} />
+                                    </button>
 
                                     <div className="flex items-center gap-2 group relative">
                                         <IconVolume size={24} className="text-on-surface-variant" />
@@ -497,21 +558,17 @@ export function PlayerBar() {
                 </motion.div>
 
                 {/* Next Button */}
-                <AnimatePresence>
+                <AnimatePresence mode="popLayout">
                     {!isHovered && (
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0.8, x: -20 }}
-                            animate={{ opacity: 1, scale: 1, x: 0 }}
-                            exit={{ opacity: 0, scale: 0.8, x: -20 }}
+                        <ExpressiveControlButton
                             onClick={nextTrack}
                             disabled={!hasNext}
-                            className="p-3 rounded-full bg-surface-container-high text-on-surface hover:bg-surface-container-highest shadow-elevation-3 pointer-events-auto transition-colors"
-                        >
-                            <IconNext size={24} />
-                        </motion.button>
+                            icon={<IconNext size={24} />}
+                            direction="right"
+                        />
                     )}
                 </AnimatePresence>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

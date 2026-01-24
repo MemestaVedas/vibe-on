@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { IconMusicNote, IconPlay } from './Icons';
+import { IconMusicNote, IconPlay, IconHeart, IconPlus, IconPause } from './Icons';
 import { WavySeparator } from './WavySeparator';
+import { ContextMenu } from './ContextMenu';
 import type { TrackDisplay } from '../types';
 
 
@@ -14,40 +15,56 @@ function formatDuration(seconds: number): string {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-function TrackRow({ track, index, isActive, isPlaying, onClick }: {
+function Equalizer() {
+    return (
+        <div className="flex items-end gap-[2px] h-4 w-4">
+            <div className="w-[3px] bg-primary rounded-t-sm animate-equalize" style={{ animationDelay: '0s' }}></div>
+            <div className="w-[3px] bg-primary rounded-t-sm animate-equalize" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-[3px] bg-primary rounded-t-sm animate-equalize" style={{ animationDelay: '0.4s' }}></div>
+        </div>
+    );
+}
+
+function TrackRow({ track, index, isActive, isPlaying, onClick, onContextMenu }: {
     track: TrackDisplay,
     index: number,
     isActive: boolean,
     isPlaying: boolean,
-    onClick: () => void
+    onClick: () => void,
+    onContextMenu: (e: React.MouseEvent) => void
 }) {
     const coverUrl = useCoverArt(track.cover_image);
+    const isFavorite = usePlayerStore(state => state.isFavorite(track.path));
+    const toggleFavorite = usePlayerStore(state => state.toggleFavorite);
+    const addToQueue = usePlayerStore(state => state.addToQueue);
 
     return (
         <div
             onClick={onClick}
+            onContextMenu={onContextMenu}
             className={`
-                group grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem] gap-4 items-center 
-                px-4 py-4 mx-2 rounded-xl cursor-pointer transition-colors
+                group grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem_6rem] gap-4 items-center 
+                px-4 py-3 mx-2 rounded-xl cursor-pointer transition-all duration-200
                 ${isActive
-                    ? 'bg-secondary-container text-on-secondary-container'
-                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'
+                    ? 'bg-secondary-container/10 text-primary'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'
                 }
             `}
         >
-            <span className="flex justify-center font-medium">
+            <span className="flex justify-center font-medium relative w-8">
                 {isActive && isPlaying ? (
-                    <IconPlay size={16} fill="currentColor" />
+                    <div className="group-hover:hidden"><Equalizer /></div>
                 ) : (
-                    <span className="group-hover:hidden">{index + 1}</span>
+                    <span className="group-hover:hidden text-label-medium">{isActive ? <IconPlay size={16} fill="currentColor" /> : index + 1}</span>
                 )}
-                <span className="hidden group-hover:block text-primary">
-                    <IconPlay size={16} fill="currentColor" />
+
+                <span className="hidden group-hover:flex absolute inset-0 items-center justify-center text-primary animate-in fade-in zoom-in duration-200">
+                    {isActive && isPlaying ? <IconPause size={20} fill="currentColor" /> : <IconPlay size={20} fill="currentColor" />}
                 </span>
             </span>
 
-            <span className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 shrink-0 rounded-md overflow-hidden bg-surface-container shadow-sm">
+            <span className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-surface-container shadow-sm group-hover:scale-110 transition-transform duration-300">
                     {coverUrl ? (
                         <img src={coverUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
                     ) : (
@@ -56,14 +73,38 @@ function TrackRow({ track, index, isActive, isPlaying, onClick }: {
                         </div>
                     )}
                 </div>
-                <span className={`truncate font-medium ${isActive ? '' : 'text-on-surface'}`}>
-                    {track.title}
-                </span>
+                <div className="flex flex-col min-w-0">
+                    <span className={`truncate font-medium text-body-large ${isActive ? 'text-primary' : 'text-on-surface'}`}>
+                        {track.title}
+                    </span>
+                    <span className="truncate text-body-small opacity-70 lg:hidden">{track.artist}</span>
+                </div>
             </span>
 
-            <span className="truncate text-body-medium opacity-80">{track.artist}</span>
-            <span className="truncate text-body-medium opacity-80">{track.album}</span>
-            <span className="text-right text-label-medium tabular-nums opacity-60">{formatDuration(track.duration_secs)}</span>
+            <span className="truncate text-body-medium opacity-80 hidden lg:block">{track.artist}</span>
+            <span className="truncate text-body-medium opacity-80 hidden xl:block">{track.album}</span>
+
+            <span className="text-right text-label-medium tabular-nums opacity-60 group-hover:hidden">
+                {formatDuration(track.duration_secs)}
+            </span>
+
+            {/* Hover Actions replacing Duration/Extra Space */}
+            <div className="hidden group-hover:flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleFavorite(track.path); }}
+                    className={`p-2 rounded-full hover:bg-on-surface/10 ${isFavorite ? 'text-red-400' : 'text-on-surface-variant'}`}
+                    title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                >
+                    <IconHeart size={18} filled={isFavorite} />
+                </button>
+                <button
+                    onClick={(e) => { e.stopPropagation(); addToQueue(track); }}
+                    className="p-2 rounded-full hover:bg-on-surface/10 text-on-surface-variant"
+                    title="Add to Queue"
+                >
+                    <IconPlus size={18} />
+                </button>
+            </div>
         </div>
     );
 }
@@ -95,11 +136,19 @@ function SortHeader({ label, sortKey, align = 'left' }: { label: string, sortKey
 
 export function TrackList() {
     const library = usePlayerStore(state => state.library);
-    const playFile = usePlayerStore(state => state.playFile);
+    const playQueue = usePlayerStore(state => state.playQueue);
     const isLoading = usePlayerStore(state => state.isLoading);
     const currentPath = usePlayerStore(state => state.status.track?.path);
     const isPlaying = usePlayerStore(state => state.status.state === 'Playing');
     const searchQuery = usePlayerStore(state => state.searchQuery);
+
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
+
+    const handleContextMenu = (e: React.MouseEvent, track: TrackDisplay) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY, track });
+    };
 
     // Filter library based on search query
     const filteredLibrary = useMemo(() => {
@@ -156,10 +205,6 @@ export function TrackList() {
                         const prevTrack = index > 0 ? filteredLibrary[index - 1] : null;
                         const showSeparator = prevTrack && prevTrack.album !== track.album;
 
-                        // User asked for "1 ... 25 (separator) 26". So only between albums. 
-                        // If index==0, we might want it if we want to label the first group, but user example didn't explicitly ask.
-                        // Let's stick to "separating". So index > 0.
-
                         return (
                             <div key={track.id}>
                                 {showSeparator && (
@@ -172,7 +217,8 @@ export function TrackList() {
                                     index={index}
                                     isActive={currentPath === track.path}
                                     isPlaying={isPlaying}
-                                    onClick={() => playFile(track.path)}
+                                    onClick={() => playQueue(filteredLibrary, index)}
+                                    onContextMenu={(e) => handleContextMenu(e, track)}
                                 />
                             </div>
                         );
@@ -182,6 +228,14 @@ export function TrackList() {
                     }}
                 />
             </div>
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    track={contextMenu.track}
+                    onClose={() => setContextMenu(null)}
+                />
+            )}
         </div>
     );
 }

@@ -6,12 +6,9 @@ use windows::core::{Result as WindowsResult, PCWSTR};
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
-use windows::Win32::System::LibraryLoader::LoadLibraryW;
+
 // Needed for .hwnd() on WebviewWindow
-use tauri::listener::Listener; // Wait, Listener? No.
-                               // Try to include the trait if we can guess it. In Tauri 2 rc, it might be tauri::platform::windows::WindowExtWindows.
-                               // Let's safe bet verify first? No, blind shot:
-use tauri::platform::windows::WindowExtWindows;
+use raw_window_handle::HasWindowHandle;
 use windows::Win32::UI::Shell::{
     ITaskbarList3, TaskbarList, THBF_ENABLED, THBN_CLICKED, THUMBBUTTON, THUMBBUTTONMASK,
 };
@@ -30,19 +27,28 @@ static mut OLD_WND_PROC: Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPA
 static INIT: Once = Once::new();
 
 static mut GLOBAL_APP_HANDLE: Option<AppHandle> = None;
-static mut GLOBAL_WINDOW_HANDLE: HWND = HWND(std::ptr::null_mut());
+static mut GLOBAL_WINDOW_HANDLE: HWND = HWND(0 as _);
 
 // Store icons globally so we can update them
-static mut ICON_BACK: HICON = HICON(std::ptr::null_mut());
-static mut ICON_PLAY: HICON = HICON(std::ptr::null_mut());
-static mut ICON_PAUSE: HICON = HICON(std::ptr::null_mut());
-static mut ICON_NEXT: HICON = HICON(std::ptr::null_mut());
+static mut ICON_BACK: HICON = HICON(0 as _);
+static mut ICON_PLAY: HICON = HICON(0 as _);
+static mut ICON_PAUSE: HICON = HICON(0 as _);
+static mut ICON_NEXT: HICON = HICON(0 as _);
 
 // Cache current playing state to avoid redundant updates
 static mut IS_PLAYING: bool = false;
 
 pub fn init(window: WebviewWindow) {
-    let hwnd_isize = window.hwnd().unwrap().0 as isize;
+    let hwnd_isize = if let Ok(handle) = window.window_handle() {
+        if let raw_window_handle::RawWindowHandle::Win32(h) = handle.as_raw() {
+            h.hwnd.get()
+        } else {
+            0
+        }
+    } else {
+        0
+    } as isize;
+
     let hwnd = HWND(hwnd_isize as _);
 
     unsafe {
@@ -68,7 +74,7 @@ pub fn update_play_status(playing: bool) {
         IS_PLAYING = playing;
 
         let hwnd = GLOBAL_WINDOW_HANDLE;
-        if hwnd.0.is_null() {
+        if hwnd.0 == 0 {
             return;
         }
 
@@ -172,11 +178,11 @@ fn setup_taskbar_buttons(hwnd: HWND, app_handle: &AppHandle) -> WindowsResult<()
                 );
 
                 match handle {
-                    Ok(h) => std::mem::transmute(h),
-                    Err(_) => HICON(std::ptr::null_mut()),
+                    Ok(h) => HICON(h.0 as _),
+                    Err(_) => HICON(0 as _),
                 }
             } else {
-                HICON(std::ptr::null_mut())
+                HICON(0 as _)
             }
         };
 

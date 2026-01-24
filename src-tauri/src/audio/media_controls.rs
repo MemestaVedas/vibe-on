@@ -71,17 +71,26 @@ impl MediaControlService {
         let dummy_hwnd = unsafe {
             use windows::Win32::System::LibraryLoader::GetModuleHandleW;
             use windows::Win32::UI::WindowsAndMessaging::{
-                CreateWindowExW, DefWindowProcW, RegisterClassW, CS_OWNDC, CW_USEDEFAULT,
-                WNDCLASSW, WS_OVERLAPPEDWINDOW,
+                CreateWindowExW, RegisterClassW, CS_OWNDC, CW_USEDEFAULT, WNDCLASSW,
+                WS_OVERLAPPEDWINDOW,
             };
 
             let instance = GetModuleHandleW(None).unwrap_or_default();
             let class_name = windows::core::w!("VibeOnMediaDummy");
 
+            use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+
+            unsafe extern "system" fn media_wnd_proc(
+                hwnd: HWND,
+                msg: u32,
+                wparam: WPARAM,
+                lparam: LPARAM,
+            ) -> LRESULT {
+                windows::Win32::UI::WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
+
             let wnd_class = WNDCLASSW {
-                lpfnWndProc: Some(std::mem::transmute(
-                    DefWindowProcW as *const std::ffi::c_void,
-                )),
+                lpfnWndProc: Some(media_wnd_proc),
                 hInstance: std::mem::transmute(instance),
                 lpszClassName: class_name,
                 style: CS_OWNDC,
@@ -104,10 +113,9 @@ impl MediaControlService {
                 Some(std::mem::transmute(instance)), // hInstance
                 None,
             )
-            .unwrap_or_default()
         };
 
-        if dummy_hwnd.0 == 0 as _ {
+        if dummy_hwnd.0 == 0 {
             return Err("Failed to create dummy window for media controls".to_string());
         }
 

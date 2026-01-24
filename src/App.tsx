@@ -20,10 +20,12 @@ import { ThemeManager } from './components/ThemeManager';
 import { YouTubeMusic } from './components/YouTubeMusic';
 import { FavoritesView } from './components/FavoritesView';
 import { StatisticsPage } from './components/StatisticsPage';
+import { ImmersiveView } from './components/ImmersiveView';
+import { AnimatePresence } from 'motion/react';
 
 function App() {
   useMediaSession(); // Initialize System Media Controls
-  const { loadLibrary, status, pause, resume, playFile } = usePlayerStore();
+  const { loadLibrary, status, pause, resume, playFile, immersiveMode } = usePlayerStore();
   const [view, setView] = useState<'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics'>('tracks');
 
   useEffect(() => {
@@ -98,7 +100,7 @@ function App() {
       }
       lastTrackPathRef.current = status.track.path;
 
-      const { repeatMode, playFile, library, getCurrentTrackIndex, nextTrack } = store;
+      const { repeatMode, playFile, getCurrentTrackIndex, nextTrack } = store;
 
       // Small delay to let state settle
       setTimeout(() => {
@@ -111,15 +113,22 @@ function App() {
         } else if (repeatMode === 'all') {
           // Repeat All: Go to next track, or loop to first if at end
           const currentIndex = getCurrentTrackIndex();
-          if (currentIndex >= library.length - 1 && library.length > 0) {
+          if (currentIndex >= store.queue.length - 1 && store.queue.length > 0) {
             console.log('[Autoplay] Repeat All - looping to first track');
-            playFile(library[0].path);
+            playFile(store.queue[0].path);
           } else {
             nextTrack();
           }
         } else if (autoplay) {
           // Normal autoplay (no repeat)
-          nextTrack();
+          const currentIndex = getCurrentTrackIndex();
+          if (currentIndex >= store.queue.length - 1) {
+            // Queue ended! Play a random album as requested
+            console.log('[Autoplay] Queue ended. Picking a random album...');
+            store.playRandomAlbum();
+          } else {
+            nextTrack();
+          }
         }
       }, 300);
     }
@@ -186,6 +195,10 @@ function App() {
 
       {/* Lyrics Panel Overlay */}
       <LyricsPanel />
+
+      <AnimatePresence>
+        {immersiveMode && <ImmersiveView />}
+      </AnimatePresence>
     </div>
   );
 }

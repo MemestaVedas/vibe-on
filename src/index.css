@@ -148,9 +148,27 @@
         display: none !important;
     }
 
-    /* Fade Mask Y - Heavy fade at top and bottom for lyrics */
     .fade-mask-y {
         mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
         -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    }
+
+    /* Equalizer Animation */
+    @keyframes equalize {
+        0% {
+            height: 10%;
+        }
+
+        50% {
+            height: 100%;
+        }
+
+        100% {
+            height: 10%;
+        }
+    }
+
+    .animate-equalize {
+        animation: equalize 1s infinite;
     }
 }

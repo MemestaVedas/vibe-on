@@ -4,14 +4,28 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { IconMusicNote, IconPlay, IconExternalLink } from './Icons';
+import { IconMusicNote, IconPlay, IconQueue, IconLyrics, IconFullscreen } from './Icons';
 import { MarqueeText } from './MarqueeText';
 import { SquigglySlider } from './SquigglySlider';
 
 export function RightPanel() {
-    const { status, library, history, playFile } = usePlayerStore();
+    const { status, queue, playFile, toggleImmersiveMode } = usePlayerStore();
     const { lines, plainLyrics, isInstrumental, isLoading, fetchLyrics, error } = useLyricsStore();
     const { track } = status;
+
+    // Clover Shape from TitleBar
+    const CloverIcon = ({ children, active, color }: { children: React.ReactNode, active: boolean, color: string }) => (
+        <div className="relative w-8 h-8 flex items-center justify-center">
+            {active && (
+                <svg viewBox="0 0 280 280" className="absolute inset-0 w-full h-full opacity-20" style={{ color }}>
+                    <path d="M178.73 6.2068C238.87 -19.9132 299.91 41.1269 273.79 101.267L269.47 111.207C261.5 129.577 261.5 150.417 269.47 168.787L273.79 178.727C299.91 238.867 238.87 299.907 178.73 273.787L168.79 269.467C150.42 261.497 129.58 261.497 111.21 269.467L101.27 273.787C41.1281 299.907 -19.9139 238.867 6.20706 178.727L10.5261 168.787C18.5011 150.417 18.5011 129.577 10.5261 111.207L6.20706 101.267C-19.9139 41.1269 41.1281 -19.9132 101.27 6.2068L111.21 10.5269C129.58 18.4969 150.42 18.4969 168.79 10.5269L178.73 6.2068Z" fill="currentColor" />
+                </svg>
+            )}
+            <div className="relative z-10" style={{ color: active ? 'var(--md-sys-color-primary)' : 'var(--md-sys-color-on-surface-variant)' }}>
+                {children}
+            </div>
+        </div>
+    );
 
     // Fetch lyrics automatically when track changes
     useEffect(() => {
@@ -40,12 +54,10 @@ export function RightPanel() {
     }, [lines, plainLyrics, isInstrumental, isLoading, error]);
 
     // Get cover from library
+    const { library } = usePlayerStore();
     const currentIndex = library.findIndex(t => t.path === track?.path);
     const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
     const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
-
-    // Get recently played from store (limit to 10 for display)
-    const recentTracks = history.slice(0, 10);
 
     // Determine what to show in the bottom section
     const hasContent = (lines && lines.length > 0) || (plainLyrics && plainLyrics.trim().length > 0);
@@ -53,7 +65,7 @@ export function RightPanel() {
     // Ideal state: Show if loading OR (valid content AND not instrumental AND no error)
     const shouldShowLyricsIdeally = isLoading || (hasContent && !isInstrumental && !error);
 
-    const [showLyrics, setShowLyrics] = useState(shouldShowLyricsIdeally);
+    const [showLyrics, setShowLyrics] = useState<boolean>(!!shouldShowLyricsIdeally);
 
     useEffect(() => {
         if (shouldShowLyricsIdeally) {
@@ -74,6 +86,13 @@ export function RightPanel() {
             {/* Now Playing Header */}
             <div className="flex items-center justify-between shrink-0">
                 <h2 className="text-title-medium font-bold text-on-surface">Now Playing</h2>
+                <button
+                    onClick={toggleImmersiveMode}
+                    className="p-2 -mr-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface"
+                    title="Immersive Mode"
+                >
+                    <IconFullscreen size={20} />
+                </button>
             </div>
 
             {/* Main Art & Info */}
@@ -107,19 +126,19 @@ export function RightPanel() {
                 </div>
             </div>
 
-            {/* Separator */}
-            <div className="px-8 py-2">
+            {/* Interactive Separator / Seeker */}
+            <div className="px-8 py-2 w-full">
                 <SquigglySlider
-                    value={50}
-                    max={100}
-                    onChange={() => { }}
+                    value={status.position_secs}
+                    max={status.track?.duration_secs || 100}
+                    onChange={(val) => usePlayerStore.getState().seek(val)}
                     isPlaying={status.state === 'Playing'}
-                    className="h-4 pointer-events-none opacity-50"
-                    accentColor="var(--md-sys-color-outline-variant)"
+                    className="h-6 w-full cursor-pointer text-primary hover:text-primary-container transition-colors"
+                    accentColor="currentColor"
                 />
             </div>
 
-            {/* Content Switcher: Lyrics or Recent History */}
+            {/* Content Switcher: Lyrics or Queue */}
             <div className="flex-1 min-h-0 relative">
                 <AnimatePresence mode="wait">
                     {showLyrics ? (
@@ -136,13 +155,26 @@ export function RightPanel() {
                                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                                     <h3 className="text-title-small font-semibold text-on-surface">Lyrics</h3>
                                 </div>
-                                <button
-                                    onClick={() => import('../utils/windowUtils').then(m => m.openLyricsWindow())}
-                                    className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded-lg transition-colors"
-                                    title="Open Floating Window"
-                                >
-                                    <IconExternalLink size={16} />
-                                </button>
+                                <div className="flex items-center gap-1 bg-surface-container rounded-full p-1">
+                                    <button
+                                        onClick={() => setShowLyrics(false)}
+                                        className="transition-all duration-200"
+                                        title="Show Queue"
+                                    >
+                                        <CloverIcon active={!showLyrics} color="var(--md-sys-color-primary)">
+                                            <IconQueue size={18} />
+                                        </CloverIcon>
+                                    </button>
+                                    <button
+                                        onClick={() => setShowLyrics(true)}
+                                        className="transition-all duration-200"
+                                        title="Show Lyrics"
+                                    >
+                                        <CloverIcon active={showLyrics} color="var(--md-sys-color-primary)">
+                                            <IconLyrics size={18} />
+                                        </CloverIcon>
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Window-like container */}
@@ -152,25 +184,47 @@ export function RightPanel() {
                         </motion.div>
                     ) : (
                         <motion.div
-                            key="history"
+                            key="queue"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20 }}
                             className="absolute inset-0 flex flex-col"
                         >
-                            <h3 className="text-title-small font-semibold text-on-surface-variant/80 px-1 mb-4">Recently Played</h3>
+                            <div className="flex items-center justify-between mb-4 px-1">
+                                <h3 className="text-title-small font-semibold text-on-surface-variant/80">Queue</h3>
+                                <div className="flex items-center gap-1 bg-surface-container rounded-full p-1">
+                                    <button
+                                        onClick={() => setShowLyrics(false)}
+                                        className="transition-all duration-200"
+                                        title="Show Queue"
+                                    >
+                                        <CloverIcon active={!showLyrics} color="var(--md-sys-color-primary)">
+                                            <IconQueue size={18} />
+                                        </CloverIcon>
+                                    </button>
+                                    <button
+                                        onClick={() => setShowLyrics(true)}
+                                        className="transition-all duration-200"
+                                        title="Show Lyrics"
+                                    >
+                                        <CloverIcon active={showLyrics} color="var(--md-sys-color-primary)">
+                                            <IconLyrics size={18} />
+                                        </CloverIcon>
+                                    </button>
+                                </div>
+                            </div>
                             <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-surface-container-high gap-2 flex flex-col pb-4">
-                                {recentTracks.length === 0 && (
+                                {queue.length === 0 && (
                                     <div className="p-4 rounded-xl bg-surface-container-high/50 text-center">
-                                        <p className="text-body-small text-on-surface-variant">Start playing music to build your history!</p>
+                                        <p className="text-body-small text-on-surface-variant">Queue is empty</p>
                                     </div>
                                 )}
 
-                                {recentTracks.map((t, i) => (
+                                {queue.map((t, i) => (
                                     <QueueItem
-                                        key={`${t.path}-${i}`}
+                                        key={`${t.path}-${i}`} // Use index in key to handle duplicate tracks in queue if we support that later
                                         track={t}
-                                        isActive={t.path === track?.path}
+                                        isActive={!!(track && t.path === track.path)}
                                         onClick={() => playFile(t.path)}
                                     />
                                 ))}
@@ -183,7 +237,7 @@ export function RightPanel() {
     );
 }
 
-function QueueItem({ track, isActive, onClick }: {
+export function QueueItem({ track, isActive, onClick }: {
     track: { title: string; artist: string; cover_image?: string | null };
     isActive: boolean;
     onClick?: () => void;
@@ -228,6 +282,11 @@ function QueueItem({ track, isActive, onClick }: {
                     {track.artist}
                 </span>
             </div>
+
+            {/* Playing Indicator */}
+            {isActive && (
+                <div className="w-2 h-2 rounded-full bg-primary shrink-0 mr-2" />
+            )}
         </button>
     );
 }
