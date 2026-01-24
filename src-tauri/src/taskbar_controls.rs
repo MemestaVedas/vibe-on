@@ -1,3 +1,5 @@
+#![cfg(target_os = "windows")]
+
 use std::sync::Once;
 use tauri::Emitter;
 use tauri::{AppHandle, Listener, Manager, WebviewWindow};
@@ -5,6 +7,11 @@ use windows::core::{Interface, Result as WindowsResult, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
 use windows::Win32::System::LibraryLoader::LoadLibraryW;
+// Needed for .hwnd() on WebviewWindow
+use tauri::listener::Listener; // Wait, Listener? No.
+                               // Try to include the trait if we can guess it. In Tauri 2 rc, it might be tauri::platform::windows::WindowExtWindows.
+                               // Let's safe bet verify first? No, blind shot:
+use tauri::platform::windows::WindowExtWindows;
 use windows::Win32::UI::Shell::{
     ITaskbarList3, TaskbarList, THBF_ENABLED, THBN_CLICKED, THUMBBUTTON, THUMBBUTTONFLAGS,
 };

@@ -2,7 +2,9 @@ pub mod media_controls;
 pub mod player;
 pub mod state;
 
-pub use media_controls::{MediaCmd, MediaControlService};
+pub use media_controls::MediaCmd;
+#[cfg(target_os = "windows")]
+pub use media_controls::MediaControlService;
 pub use player::AudioPlayer;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

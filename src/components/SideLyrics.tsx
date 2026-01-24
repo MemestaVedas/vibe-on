@@ -1,5 +1,4 @@
 import { useEffect, useRef, useMemo, useState } from 'react';
-import { useEffect, useRef, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { useLyricsStore } from '../store/lyricsStore';
 import { usePlayerStore } from '../store/playerStore';
