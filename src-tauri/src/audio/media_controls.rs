@@ -3,10 +3,16 @@
 //! Service pattern: Spawns a dedicated thread to manage media controls.
 //! Uses 'windows' crate for message pumping on the background thread.
 
+#[cfg(target_os = "windows")]
 use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig};
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Sender};
+#[cfg(target_os = "windows")]
+use std::sync::mpsc::{Receiver, TryRecvError};
+#[cfg(target_os = "windows")]
 use std::thread;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+#[cfg(target_os = "windows")]
+use tauri::Emitter;
 
 #[cfg(target_os = "windows")]
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
@@ -16,6 +22,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 #[derive(Debug)]
+#[allow(dead_code)] // Variants unused on non-Windows
 pub enum MediaCmd {
     SetMetadata {
         title: String,
@@ -28,8 +35,10 @@ pub enum MediaCmd {
     Shutdown,
 }
 
+#[allow(dead_code)] // Struct unused on non-Windows
 pub struct MediaControlService;
 
+#[allow(dead_code)] // Methods unused on non-Windows
 impl MediaControlService {
     #[cfg(target_os = "windows")]
     pub fn start(app: AppHandle, hwnd: isize) -> Sender<MediaCmd> {

@@ -3,6 +3,7 @@ mod cover_fetcher;
 mod database;
 mod discord_rpc;
 mod lyrics_fetcher;
+#[cfg(target_os = "windows")]
 mod taskbar_controls;
 mod youtube_searcher;
 
@@ -11,7 +12,9 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use audio::state::PlayerStatus;
-use audio::{AudioPlayer, MediaCmd, MediaControlService, SearchFilter, TrackInfo, UnreleasedTrack};
+#[cfg(target_os = "windows")]
+use audio::MediaControlService;
+use audio::{AudioPlayer, MediaCmd, SearchFilter, TrackInfo, UnreleasedTrack};
 use database::DatabaseManager;
 use discord_rpc::DiscordRpc;
 
@@ -705,10 +708,7 @@ fn remove_folder(
 }
 
 #[tauri::command]
-fn clear_all_data(
-    state: State<AppState>,
-    app_handle: AppHandle,
-) -> Result<(), String> {
+fn clear_all_data(state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
     get_or_init_db(&state, &app_handle)?;
     if let Some(db) = state.db.lock().unwrap().as_ref() {
         db.clear_all_data().map_err(|e| e.to_string())?;
@@ -734,7 +734,7 @@ async fn open_yt_music(app: tauri::AppHandle, width: f64, height: f64) -> Result
         return Ok(());
     }
 
-    let main_window = app
+    let _main_window = app
         .get_webview_window("main")
         .ok_or("Main window not found")?;
 
@@ -742,6 +742,7 @@ async fn open_yt_music(app: tauri::AppHandle, width: f64, height: f64) -> Result
     // Initial size/position will be set by move_yt_window immediately after
 
     // We update to WebviewWindowBuilder for Tauri v2 compatibility
+    #[allow(unused_mut)] // Mutable only on Windows
     let mut builder = WebviewWindowBuilder::new(
         &app,
         "ytmusic",
@@ -755,7 +756,7 @@ async fn open_yt_music(app: tauri::AppHandle, width: f64, height: f64) -> Result
 
     #[cfg(target_os = "windows")]
     {
-        builder = builder.parent(&main_window).map_err(|e| e.to_string())?;
+        builder = builder.parent(&_main_window).map_err(|e| e.to_string())?;
     }
 
     builder.build().map_err(|e| e.to_string())?;
@@ -1036,13 +1037,13 @@ pub fn run() {
             remove_folder,
             clear_all_data,
         ])
-        .setup(|app| {
+        .setup(|_app| {
             // Initialize Windows Media Controls with the main window handle
             #[cfg(target_os = "windows")]
             {
                 use tauri::Manager;
 
-                if let Some(window) = app.get_webview_window("main") {
+                if let Some(window) = _app.get_webview_window("main") {
                     // Initialize Taskbar Buttons (Thumbnail Toolbar)
                     taskbar_controls::init(window.clone());
 
@@ -1052,8 +1053,8 @@ pub fn run() {
                     if hwnd != 0 {
                         // Pass 0 (None) for HWND to MediaControlService as per previous fix
                         // Use app.handle().clone()
-                        let tx = MediaControlService::start(app.handle().clone(), 0);
-                        let state = app.state::<AppState>();
+                        let tx = MediaControlService::start(_app.handle().clone(), 0);
+                        let state = _app.state::<AppState>();
 
                         match state.media_cmd_tx.lock() {
                             Ok(mut tx_guard) => {
