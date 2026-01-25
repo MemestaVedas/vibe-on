@@ -110,7 +110,8 @@ export function TorrentAddModal({ isOpen, onClose, onAdded }: Props) {
                 defaultPath: downloadPath || undefined,
             });
             if (selected && typeof selected === 'string') {
-                setDownloadPath(selected);
+                // Ensure path ends with slash
+                setDownloadPath(selected.endsWith('/') ? selected : selected + '/');
             }
         } catch (e) {
             console.error('Failed to select path:', e);
@@ -127,11 +128,13 @@ export function TorrentAddModal({ isOpen, onClose, onAdded }: Props) {
         setError(null);
         
         try {
+            // ALWAYS pass selectedFiles - this ensures only selected files are downloaded
+            // Never pass null unless you want ALL files
             await invoke('add_torrent_with_options', {
                 magnet: inputType === 'magnet' ? magnetLink : null,
                 fileBytes: inputType === 'file' && fileBytes ? Array.from(fileBytes) : null,
                 path: downloadPath,
-                selectedFiles: selectedIndices.length === files.length ? null : selectedIndices,
+                selectedFiles: selectedIndices, // Always pass the explicit list
             });
             onAdded();
             onClose();

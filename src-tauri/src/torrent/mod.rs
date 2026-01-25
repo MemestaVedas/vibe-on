@@ -41,7 +41,6 @@ const PUBLIC_TRACKERS: &[&str] = &[
     "udp://9.rarbg.com:2810/announce",
     "udp://9.rarbg.me:2710/announce",
     "udp://9.rarbg.to:2710/announce",
-    "udp://tracker.opentrackr.org:1337/announce",
     "udp://tracker.ds.is:6969/announce",
     "udp://retracker.lanta-net.ru:2710/announce",
     "udp://tracker.dler.org:6969/announce",
@@ -105,6 +104,7 @@ struct PersistedTorrent {
 
 /// Metadata about a torrent we're tracking
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 struct TorrentMetadata {
     id: usize,
     name: String,
@@ -189,32 +189,66 @@ impl TorrentManager {
     pub async fn inspect_magnet(&self, magnet: &str) -> Result<(String, Vec<TorrentFile>), String> {
         println!("[Torrent] Inspecting magnet: {}...", &magnet[..magnet.len().min(60)]);
 
-        let magnet_with_trackers = Self::inject_trackers(magnet);
+        // Collect trackers for better metadata fetching
+        let trackers: Vec<String> = PUBLIC_TRACKERS.iter().map(|s| s.to_string()).collect();
 
-        // Add torrent in paused state to get metadata
+        // Add torrent in list_only mode to get metadata without downloading
         let opts = AddTorrentOptions {
-            paused: true,
+            list_only: true,  // Just get file list, don't start download
+            trackers: Some(trackers),
             ..Default::default()
         };
 
         let handle = self
             .session
-            .add_torrent(AddTorrent::from_url(&magnet_with_trackers), Some(opts))
+            .add_torrent(AddTorrent::from_url(magnet), Some(opts))
             .await
             .map_err(|e| format!("Failed to add torrent for inspection: {}", e))?;
 
-        let (id, _managed) = match handle {
-            AddTorrentResponse::Added(id, m) => (id, m),
-            AddTorrentResponse::AlreadyManaged(id, m) => (id, m),
-            _ => return Err("Unexpected response when adding torrent".to_string()),
+        // For list_only, we get the files directly from ListOnlyResponse
+        let (name, files): (String, Vec<TorrentFile>) = match handle {
+            AddTorrentResponse::ListOnly(list_only) => {
+                let name = list_only.info.name
+                    .as_ref()
+                    .map(|b| String::from_utf8_lossy(b.as_ref()).to_string())
+                    .unwrap_or_else(|| "Unknown".to_string());
+                
+                let file_details = list_only.info.iter_file_details()
+                    .map_err(|e| format!("Failed to iterate file details: {}", e))?;
+                
+                let mut files = Vec::new();
+                for (idx, fd) in file_details.enumerate() {
+                    let path = fd.filename.to_string()
+                        .map_err(|e| format!("Failed to get filename: {}", e))?;
+                    let fname = std::path::Path::new(&path)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.clone());
+                    let extension = std::path::Path::new(&path)
+                        .extension()
+                        .map(|e| e.to_string_lossy().to_lowercase())
+                        .unwrap_or_default();
+                    let is_audio = AUDIO_EXTENSIONS.contains(&extension.as_str());
+                    
+                    files.push(TorrentFile {
+                        index: idx,
+                        name: fname,
+                        path,
+                        size: fd.len,
+                        is_audio,
+                    });
+                }
+                (name, files)
+            }
+            AddTorrentResponse::Added(id, managed) | AddTorrentResponse::AlreadyManaged(id, managed) => {
+                // Fallback: if we got Added response, wait for metadata then delete
+                println!("[Torrent] Got Added response instead of ListOnly, waiting for metadata...");
+                let files = self.wait_for_metadata(id, Duration::from_secs(120)).await?;
+                let name = managed.name().unwrap_or_else(|| "Unknown".to_string());
+                let _ = self.session.delete(TorrentIdOrHash::Id(id), false).await;
+                (name, files)
+            }
         };
-
-        // Wait for metadata with timeout
-        let files = self.wait_for_metadata(id, Duration::from_secs(60)).await?;
-        let name = self.get_torrent_name(id);
-
-        // Remove the torrent since we're just inspecting
-        let _ = self.session.delete(TorrentIdOrHash::Id(id), false).await;
 
         // Filter to show audio files first
         let mut sorted_files = files;
@@ -233,8 +267,9 @@ impl TorrentManager {
     pub async fn inspect_torrent_file(&self, data: Vec<u8>) -> Result<(String, Vec<TorrentFile>), String> {
         println!("[Torrent] Inspecting torrent file ({} bytes)", data.len());
 
+        // Use list_only mode for .torrent files - no need to add to session
         let opts = AddTorrentOptions {
-            paused: true,
+            list_only: true,
             ..Default::default()
         };
 
@@ -244,18 +279,48 @@ impl TorrentManager {
             .await
             .map_err(|e| format!("Failed to parse torrent file: {}", e))?;
 
-        let (id, _) = match handle {
-            AddTorrentResponse::Added(id, m) => (id, m),
-            AddTorrentResponse::AlreadyManaged(id, m) => (id, m),
-            _ => return Err("Unexpected response".to_string()),
+        let (name, files): (String, Vec<TorrentFile>) = match handle {
+            AddTorrentResponse::ListOnly(list_only) => {
+                let name = list_only.info.name
+                    .as_ref()
+                    .map(|b| String::from_utf8_lossy(b.as_ref()).to_string())
+                    .unwrap_or_else(|| "Unknown".to_string());
+                
+                let file_details = list_only.info.iter_file_details()
+                    .map_err(|e| format!("Failed to iterate file details: {}", e))?;
+                
+                let mut files = Vec::new();
+                for (idx, fd) in file_details.enumerate() {
+                    let path = fd.filename.to_string()
+                        .map_err(|e| format!("Failed to get filename: {}", e))?;
+                    let fname = std::path::Path::new(&path)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.clone());
+                    let extension = std::path::Path::new(&path)
+                        .extension()
+                        .map(|e| e.to_string_lossy().to_lowercase())
+                        .unwrap_or_default();
+                    let is_audio = AUDIO_EXTENSIONS.contains(&extension.as_str());
+                    
+                    files.push(TorrentFile {
+                        index: idx,
+                        name: fname,
+                        path,
+                        size: fd.len,
+                        is_audio,
+                    });
+                }
+                (name, files)
+            }
+            AddTorrentResponse::Added(id, managed) | AddTorrentResponse::AlreadyManaged(id, managed) => {
+                // Fallback if list_only didn't work
+                let files = self.wait_for_metadata(id, Duration::from_secs(5)).await?;
+                let name = managed.name().unwrap_or_else(|| "Unknown".to_string());
+                let _ = self.session.delete(TorrentIdOrHash::Id(id), false).await;
+                (name, files)
+            }
         };
-
-        // For .torrent files, metadata should be available immediately
-        let files = self.wait_for_metadata(id, Duration::from_secs(5)).await?;
-        let name = self.get_torrent_name(id);
-
-        // Remove since we're just inspecting
-        let _ = self.session.delete(TorrentIdOrHash::Id(id), false).await;
 
         let mut sorted_files = files;
         sorted_files.sort_by(|a, b| {
@@ -270,6 +335,7 @@ impl TorrentManager {
     }
 
     /// Add a torrent and start downloading
+    /// selected_files: MUST be provided as file indices to download. Pass None only to download ALL files.
     pub async fn add_torrent(
         &self,
         magnet: Option<String>,
@@ -278,6 +344,7 @@ impl TorrentManager {
         selected_files: Option<Vec<usize>>,
     ) -> Result<usize, String> {
         println!("[Torrent] Adding torrent to: {}", output_folder);
+        println!("[Torrent] Selected files: {:?}", selected_files);
 
         // Ensure output folder exists
         let output_path = PathBuf::from(&output_folder);
@@ -287,9 +354,8 @@ impl TorrentManager {
                 .map_err(|e| format!("Failed to create output folder: {}", e))?;
         }
 
-        let magnet_with_trackers = magnet.as_ref().map(|m| Self::inject_trackers(m));
-
-        let add_source = if let Some(ref m) = magnet_with_trackers {
+        // Build the add source - use raw magnet since we'll inject trackers via opts.trackers
+        let add_source = if let Some(ref m) = magnet {
             AddTorrent::from_url(m)
         } else if let Some(ref bytes) = file_bytes {
             AddTorrent::TorrentFileBytes(bytes.clone().into())
@@ -297,10 +363,16 @@ impl TorrentManager {
             return Err("Either magnet or file_bytes must be provided".to_string());
         };
 
+        // Collect trackers as Vec<String> for the API
+        let trackers: Vec<String> = PUBLIC_TRACKERS.iter().map(|s| s.to_string()).collect();
+
+        // Configure download options
+        // IMPORTANT: only_files is respected - pass the exact file indices you want
         let opts = AddTorrentOptions {
-            output_folder: Some(output_folder.clone().into()),
+            output_folder: Some(output_folder.clone()),
             overwrite: true,
             only_files: selected_files.clone(),
+            trackers: Some(trackers), // Inject trackers via API instead of URL manipulation
             ..Default::default()
         };
 
@@ -319,7 +391,7 @@ impl TorrentManager {
                 println!("[Torrent] Torrent already managed with ID: {}", id);
                 (id, m)
             }
-            _ => return Err("Unexpected response when adding torrent".to_string()),
+            AddTorrentResponse::ListOnly(_) => return Err("Unexpected ListOnly response".to_string()),
         };
 
         // Get torrent name and info hash
@@ -461,26 +533,6 @@ impl TorrentManager {
     // Private Helpers
     // ========================================================================
 
-    fn inject_trackers(magnet: &str) -> String {
-        let mut magnet = magnet.to_string();
-        let mut added_count = 0;
-        
-        for tracker in PUBLIC_TRACKERS {
-            let encoded = urlencoding::encode(tracker);
-            // Check if tracker isn't already in the magnet
-            if !magnet.contains(tracker) && !magnet.contains(&encoded.to_string()) {
-                magnet.push_str(&format!("&tr={}", encoded));
-                added_count += 1;
-            }
-        }
-        
-        if added_count > 0 {
-            println!("[Torrent] Injected {} additional trackers for better peer discovery", added_count);
-        }
-        
-        magnet
-    }
-
     fn get_handle(&self, id: usize) -> Option<Arc<librqbit::ManagedTorrent>> {
         self.session.with_torrents(|torrents| {
             for (tid, handle) in torrents {
@@ -489,17 +541,6 @@ impl TorrentManager {
                 }
             }
             None
-        })
-    }
-
-    fn get_torrent_name(&self, id: usize) -> String {
-        self.session.with_torrents(|torrents| {
-            for (tid, handle) in torrents {
-                if tid == id {
-                    return handle.name().unwrap_or_else(|| format!("Torrent {}", id));
-                }
-            }
-            format!("Torrent {}", id)
         })
     }
 
@@ -604,11 +645,12 @@ impl TorrentManager {
             .map_err(|e| format!("Failed to parse state file: {}", e))?;
 
         println!("[Torrent] Loading {} persisted torrents", persisted.len());
+        
+        // Prepare trackers for all torrents
+        let trackers: Vec<String> = PUBLIC_TRACKERS.iter().map(|s| s.to_string()).collect();
 
         for p in persisted {
-            let magnet_with_trackers = p.magnet.as_ref().map(|m| Self::inject_trackers(m));
-            
-            let add_source = if let Some(ref m) = magnet_with_trackers {
+            let add_source = if let Some(ref m) = p.magnet {
                 AddTorrent::from_url(m)
             } else if let Some(ref bytes) = p.file_bytes {
                 AddTorrent::TorrentFileBytes(bytes.clone().into())
@@ -618,9 +660,10 @@ impl TorrentManager {
             };
 
             let opts = AddTorrentOptions {
-                output_folder: Some(p.output_folder.clone().into()),
+                output_folder: Some(p.output_folder.clone()),
                 overwrite: true,
                 only_files: p.selected_files.clone(),
+                trackers: Some(trackers.clone()), // Inject trackers via API
                 ..Default::default()
             };
 
