@@ -9,30 +9,42 @@
         /* Font Family */
         --font-outfit: 'Outfit', sans-serif;
 
-        /* M3 Dynamic Colors (Defaults - overwritten by ThemeManager) */
-        --md-sys-color-surface: #0a0a0f;
-        --md-sys-color-on-surface: #f1f1f1;
-        --md-sys-color-surface-container-low: #141419;
-        --md-sys-color-surface-container: #1e1e24;
-        --md-sys-color-surface-container-high: #282830;
+        /* M3 Dynamic Colors (Solid Expressive) */
+        /* Surface - Deep Solid Dark */
+        --md-sys-color-surface: #0f0f13;
+        --md-sys-color-on-surface: #f4f4f6;
+        
+        /* Surface Containers */
+        --md-sys-color-surface-container-low: #18181e;
+        --md-sys-color-surface-container: #1f1f26;
+        --md-sys-color-surface-container-high: #2b2b35;
+        --md-sys-color-surface-container-highest: #353541;
 
-        --md-sys-color-primary: #6366f1;
+        /* Primary - Solid Vibrant Indigo/Purple */
+        --md-sys-color-primary: #7c4dff; /* Deep Purple A200 approx */
         --md-sys-color-on-primary: #ffffff;
-        --md-sys-color-primary-container: #3f4090;
-        --md-sys-color-on-primary-container: #e0e0ff;
+        --md-sys-color-primary-container: #5f2eea;
+        --md-sys-color-on-primary-container: #ffffff;
 
-        --md-sys-color-secondary: #8b5cf6;
-        --md-sys-color-on-secondary: #ffffff;
-        --md-sys-color-secondary-container: #5b3fa8;
-        --md-sys-color-on-secondary-container: #eddcff;
+        /* Secondary - Solid Accent */
+        --md-sys-color-secondary: #00e5ff; /* Cyan Accent */
+        --md-sys-color-on-secondary: #000000;
+        --md-sys-color-secondary-container: #00b0c4;
+        --md-sys-color-on-secondary-container: #000000;
 
-        --md-sys-color-tertiary: #f472b6;
+        /* Tertiary - Solid Pink/Rose */
+        --md-sys-color-tertiary: #ff4081; /* Pink Accent */
         --md-sys-color-on-tertiary: #ffffff;
-        --md-sys-color-tertiary-container: #9e2a6a;
-        --md-sys-color-on-tertiary-container: #ffdfee;
+        --md-sys-color-tertiary-container: #c51162;
+        --md-sys-color-on-tertiary-container: #ffffff;
 
-        --md-sys-color-outline: #79747e;
-        --md-sys-color-outline-variant: #49454f;
+        /* Error */
+        --md-sys-color-error: #ff5252;
+        --md-sys-color-on-error: #ffffff;
+
+        /* Otuline */
+        --md-sys-color-outline: #938f99;
+        --md-sys-color-outline-variant: #484649;
     }
 
     body {

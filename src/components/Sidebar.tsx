@@ -152,6 +152,9 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                         onClick={() => onViewChange('statistics')}
                         collapsed={isCollapsed}
                     />
+
+
+
                     <NavItem
                         icon={<IconSettings size={28} />}
                         label="Settings"
@@ -166,21 +169,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
             {/* Footer / Current Folder */}
             <div className={`p-4 shrink-0 flex flex-col gap-3 ${isCollapsed ? 'items-center' : ''}`}>
                 {/* Current Folder Info */}
-                <AnimatePresence>
-                    {!isCollapsed && currentFolder && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 20 }}
-                            className="px-4 py-3 bg-surface-container-high rounded-2xl mb-2"
-                        >
-                            <p className="text-label-small text-on-surface-variant uppercase tracking-wider">Source</p>
-                            <p className="text-body-medium font-medium text-on-surface truncate" title={currentFolder}>
-                                {currentFolder.split('\\').pop()}
-                            </p>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+
             </div>
         </motion.aside>
     );

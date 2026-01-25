@@ -411,8 +411,12 @@ async fn init_library(
         return Err("Path is not a directory".to_string());
     }
 
+    println!("[Library] Scanning folder: {:?}", path_obj);
     let files = scan_music_folder_helper(path_obj);
+    println!("[Library] Found {} files.", files.len());
+
     let mut tracks = Vec::new();
+    let mut inserted_count = 0;
 
     // 3. Process metadata and insert into DB
     let db_guard = state.db.lock().unwrap();
@@ -420,12 +424,18 @@ async fn init_library(
         for file_path in files {
             // Re-use logic from get_track_metadata but we need it available here
             if let Ok((track, cover_data)) = get_track_metadata_helper(&file_path) {
-                if let Err(e) = db.insert_track(&track, cover_data.as_deref()) {
-                    eprintln!("Failed to insert track {}: {}", file_path, e);
+                match db.insert_track(&track, cover_data.as_deref()) {
+                    Ok(_) => inserted_count += 1,
+                    Err(e) => eprintln!("[Library] Failed to insert track {}: {}", file_path, e),
                 }
                 tracks.push(track);
             }
         }
+        println!(
+            "[Library] Successfully processed {}/{} tracks.",
+            inserted_count,
+            tracks.len()
+        );
 
         // Return all tracks currently in DB (or just the new ones? Use get_all_tracks for consistency)
         db.get_all_tracks().map_err(|e| e.to_string())
@@ -469,6 +479,7 @@ fn scan_music_folder_helper(path: &Path) -> Vec<String> {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
+                    // println!("Entering directory: {:?}", path);
                     scan_recursive(&path, extensions, files);
                 } else if let Some(ext) = path.extension() {
                     if let Some(ext_str) = ext.to_str() {
@@ -480,6 +491,8 @@ fn scan_music_folder_helper(path: &Path) -> Vec<String> {
                     }
                 }
             }
+        } else {
+            eprintln!("Failed to read directory: {:?}", dir);
         }
     }
 
@@ -849,8 +862,11 @@ async fn add_magnet_link(
     };
 
     if let Some(manager) = manager {
-        let download_path = path.unwrap_or_else(|| manager.download_dir.to_string_lossy().to_string());
-        manager.add_torrent(Some(magnet), None, download_path, None).await
+        let download_path =
+            path.unwrap_or_else(|| manager.download_dir.to_string_lossy().to_string());
+        manager
+            .add_torrent(Some(magnet), None, download_path, None)
+            .await
     } else {
         Err("Torrent backend not initialized".to_string())
     }
@@ -1209,6 +1225,15 @@ fn move_yt_window(x: f64, y: f64, width: f64, height: f64, app: AppHandle) -> Re
 // App Entry Point
 // ============================================================================
 
+#[tauri::command]
+async fn search_torrents(
+    query: String,
+    sort_by: Option<String>,
+    sort_order: Option<String>,
+) -> Result<Vec<torrent::search::SearchResult>, String> {
+    torrent::search::search_nyaa(query, sort_by, sort_order).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -1259,6 +1284,7 @@ pub fn run() {
             delete_torrent,
             pause_torrent,
             resume_torrent,
+            search_torrents,
         ])
         .setup(|_app| {
             // Initialize Windows Media Controls with the main window handle
