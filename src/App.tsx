@@ -18,6 +18,7 @@ import { AmbientBackground } from './components/AmbientBackground';
 import { LyricsPanel } from './components/LyricsPanel';
 import { ThemeManager } from './components/ThemeManager';
 import { YouTubeMusic } from './components/YouTubeMusic';
+import { TorrentManager } from './components/TorrentManager';
 import { FavoritesView } from './components/FavoritesView';
 import { StatisticsPage } from './components/StatisticsPage';
 import { ImmersiveView } from './components/ImmersiveView';
@@ -26,7 +27,7 @@ import { AnimatePresence } from 'motion/react';
 function App() {
   useMediaSession(); // Initialize System Media Controls
   const { loadLibrary, status, pause, resume, playFile, immersiveMode } = usePlayerStore();
-  const [view, setView] = useState<'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics'>('tracks');
+  const [view, setView] = useState<'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents'>('tracks');
 
   useEffect(() => {
     loadLibrary();
@@ -176,6 +177,7 @@ function App() {
               {view === 'statistics' && <StatisticsPage />}
               {view === 'settings' && <SettingsPage />}
               {view === 'ytmusic' && <YouTubeMusic />}
+              {view === 'torrents' && <TorrentManager />}
             </div>
 
           </main>

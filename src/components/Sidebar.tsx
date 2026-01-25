@@ -9,6 +9,7 @@ import {
     IconMicrophone,
     IconSettings,
     IconYoutube,
+    IconDownload,
 } from './Icons';
 
 // Heart icon for favorites
@@ -32,8 +33,8 @@ function IconStats({ size = 24 }: { size?: number }) {
 }
 
 interface SidebarProps {
-    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics';
-    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics') => void;
+    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents';
+    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents') => void;
 }
 
 const sidebarSpring = {
@@ -137,6 +138,13 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
 
                 {/* Settings Section */}
                 <div className={`flex flex-col gap-1 ${isCollapsed ? 'items-center w-full' : ''}`}>
+                    <NavItem
+                        icon={<IconDownload size={24} />}
+                        label="Downloads"
+                        active={view === 'torrents'}
+                        onClick={() => onViewChange('torrents')}
+                        collapsed={isCollapsed}
+                    />
                     <NavItem
                         icon={<IconStats size={24} />}
                         label="Statistics"

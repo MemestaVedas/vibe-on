@@ -1,7 +1,7 @@
 
 interface HeaderProps {
-    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics';
-    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics') => void;
+    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents';
+    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents') => void;
 }
 
 export function Header({ view }: HeaderProps) {
@@ -32,7 +32,8 @@ export function Header({ view }: HeaderProps) {
             <h2 data-tauri-drag-region className="text-headline-small font-semibold">
                 {view === 'settings' ? 'Settings' :
                     view === 'ytmusic' ? 'YouTube Music' :
-                        'Library'}
+                        view === 'torrents' ? 'Downloads' :
+                            'Library'}
             </h2>
         </header>
     );

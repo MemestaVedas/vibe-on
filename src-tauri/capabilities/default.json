@@ -7,10 +7,14 @@
   ],
   "permissions": [
     "core:default",
+    "core:path:default",
     "opener:default",
     "dialog:allow-open",
     "fs:allow-read-dir",
     "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-create",
+    "fs:allow-mkdir",
     {
       "identifier": "fs:scope",
       "allow": [
