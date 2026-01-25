@@ -5,6 +5,7 @@ mod discord_rpc;
 mod lyrics_fetcher;
 #[cfg(target_os = "windows")]
 mod taskbar_controls;
+mod torrent;
 mod youtube_searcher;
 
 use std::path::Path;
@@ -43,6 +44,7 @@ pub struct AppState {
     media_cmd_tx: Mutex<Option<Sender<MediaCmd>>>,
     last_rpc_update: Mutex<String>, // De-duplication key
     lyrics_cache: Arc<Mutex<CachedLyrics>>,
+    torrent_manager: Arc<Mutex<Option<torrent::TorrentManager>>>,
 }
 
 impl Default for AppState {
@@ -55,6 +57,7 @@ impl Default for AppState {
             media_cmd_tx: Mutex::new(None),
             last_rpc_update: Mutex::new(String::new()),
             lyrics_cache: Arc::new(Mutex::new(CachedLyrics::default())),
+            torrent_manager: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -718,6 +721,42 @@ fn clear_all_data(state: State<AppState>, app_handle: AppHandle) -> Result<(), S
     }
 }
 
+#[tauri::command]
+fn apply_lrc_file(
+    track_path: String,
+    lrc_path: String,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let track_path = Path::new(&track_path);
+    let lrc_source_path = Path::new(&lrc_path);
+
+    if !track_path.exists() {
+        return Err("Track file does not exist".to_string());
+    }
+    if !lrc_source_path.exists() {
+        return Err("Selected LRC file does not exist".to_string());
+    }
+
+    // Determine destination path: same folder as track, same stem, .lrc extension
+    let dest_path = track_path.with_extension("lrc");
+
+    // Copy file
+    std::fs::copy(lrc_source_path, &dest_path)
+        .map_err(|e| format!("Failed to copy LRC file: {}", e))?;
+
+    // Invalidate/Update cache if current track
+    if let Ok(mut guard) = state.lyrics_cache.lock() {
+        if guard.track_path == track_path.to_string_lossy() {
+            // We can either clear it or try to reload immediately.
+            // Clearing it is safer, frontend will re-fetch.
+            guard.is_fetching = true;
+            // Ideally we should reload the content here but reading file again is easy enough for next fetch
+        }
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // YouTube Music Integration
 // ============================================================================
@@ -762,6 +801,180 @@ async fn open_yt_music(app: tauri::AppHandle, width: f64, height: f64) -> Result
     builder.build().map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+// ============================================================================
+// Torrent Integration
+// ============================================================================
+
+#[tauri::command]
+async fn init_torrent_backend(
+    download_dir: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let dir = std::path::PathBuf::from(download_dir);
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+
+    // Use a block to Scope the lock
+    // Check if initialized
+    let needs_init = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.is_none()
+    };
+
+    if needs_init {
+        let manager = torrent::TorrentManager::new(dir)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let mut guard = state.torrent_manager.lock().unwrap();
+        if guard.is_none() {
+            *guard = Some(manager);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn add_magnet_link(
+    magnet: String,
+    path: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+
+    if let Some(manager) = manager {
+        let download_path = path.unwrap_or_else(|| manager.download_dir.to_string_lossy().to_string());
+        manager.add_torrent(Some(magnet), None, download_path, None).await
+    } else {
+        Err("Torrent backend not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn get_torrents(state: State<'_, AppState>) -> Result<Vec<torrent::TorrentStatus>, String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+
+    if let Some(manager) = manager {
+        Ok(manager.get_all_status())
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+// ============================================================================
+
+/// Response from inspect commands
+#[derive(serde::Serialize)]
+pub struct InspectResult {
+    pub name: String,
+    pub files: Vec<torrent::TorrentFile>,
+}
+
+#[tauri::command]
+async fn inspect_magnet(
+    magnet: String,
+    state: State<'_, AppState>,
+) -> Result<InspectResult, String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+    if let Some(manager) = manager {
+        let (name, files) = manager.inspect_magnet(&magnet).await?;
+        Ok(InspectResult { name, files })
+    } else {
+        Err("Torrent backend not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn inspect_torrent_file(
+    data: Vec<u8>,
+    state: State<'_, AppState>,
+) -> Result<InspectResult, String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+    if let Some(manager) = manager {
+        let (name, files) = manager.inspect_torrent_file(data).await?;
+        Ok(InspectResult { name, files })
+    } else {
+        Err("Torrent backend not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn add_torrent_with_options(
+    magnet: Option<String>,
+    file_bytes: Option<Vec<u8>>,
+    path: String,
+    selected_files: Option<Vec<usize>>,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+    if let Some(manager) = manager {
+        manager
+            .add_torrent(magnet, file_bytes, path, selected_files)
+            .await
+    } else {
+        Err("Torrent backend not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn delete_torrent(
+    id: usize,
+    delete_files: bool,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+    if let Some(manager) = manager {
+        manager.delete(id, delete_files).await
+    } else {
+        Err("Torrent backend not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn pause_torrent(id: usize, state: State<'_, AppState>) -> Result<(), String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+    if let Some(manager) = manager {
+        manager.pause(id).await
+    } else {
+        Err("Torrent backend not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn resume_torrent(id: usize, state: State<'_, AppState>) -> Result<(), String> {
+    let manager = {
+        let guard = state.torrent_manager.lock().unwrap();
+        guard.clone()
+    };
+    if let Some(manager) = manager {
+        manager.resume(id).await
+    } else {
+        Err("Torrent backend not initialized".to_string())
+    }
 }
 
 // ============================================================================
@@ -1036,6 +1249,16 @@ pub fn run() {
             get_unreleased_library,
             remove_folder,
             clear_all_data,
+            apply_lrc_file,
+            init_torrent_backend,
+            add_magnet_link,
+            get_torrents,
+            inspect_magnet,
+            inspect_torrent_file,
+            add_torrent_with_options,
+            delete_torrent,
+            pause_torrent,
+            resume_torrent,
         ])
         .setup(|_app| {
             // Initialize Windows Media Controls with the main window handle

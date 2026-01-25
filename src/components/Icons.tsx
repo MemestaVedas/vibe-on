@@ -102,6 +102,14 @@ export function IconSearch({ size = 24, className, ...props }: IconProps) {
     );
 }
 
+export function IconDownload({ size = 24, className, ...props }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
+            <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+        </svg>
+    );
+}
+
 export function IconPlus({ size = 24, className, ...props }: IconProps) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>

@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useLyricsStore } from '../store/lyricsStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
+import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 
 export function LyricsPanel() {
-    const { lines, plainLyrics, showLyrics, closeLyrics, isLoading, error, isInstrumental } = useLyricsStore();
+    const { lines, plainLyrics, showLyrics, closeLyrics, isLoading, error, isInstrumental, fetchLyrics } = useLyricsStore();
     const { status, seek } = usePlayerStore();
     const { colors } = useThemeStore();
     const { primary, surface } = colors; // Destructure needed colors
@@ -65,6 +67,35 @@ export function LyricsPanel() {
         };
     }, []);
 
+    const handleAddLrc = async () => {
+        if (!status.track) return;
+
+        try {
+            const selected = await open({
+                multiple: false,
+                filters: [{
+                    name: 'Lyrics',
+                    extensions: ['lrc', 'txt']
+                }]
+            });
+
+            if (selected) {
+                await invoke('apply_lrc_file', {
+                    trackPath: status.track.path,
+                    lrcPath: selected
+                });
+
+                // Refresh lyrics
+                // Assuming fetchLyrics accepts info overrides or just re-fetches with current info
+                if (status.track) {
+                    fetchLyrics(status.track.artist, status.track.title, status.track.duration_secs, status.track.path);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to link LRC file:", e);
+        }
+    };
+
     if (!showLyrics) return null;
 
     return (
@@ -117,15 +148,32 @@ export function LyricsPanel() {
                             </div>
                         </div>
 
-                        {/* Close Button */}
-                        <button
-                            onClick={closeLyrics}
-                            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                        >
-                            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M18 6L6 18M6 6l12 12" />
-                            </svg>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* Add LRC Button */}
+                            <button
+                                onClick={handleAddLrc}
+                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-white/70 hover:text-white transition-colors flex items-center gap-1.5 border border-white/5"
+                                title="Link local .lrc file"
+                            >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <polyline points="14 2 14 8 20 8" />
+                                    <line x1="12" y1="18" x2="12" y2="12" />
+                                    <line x1="9" y1="15" x2="15" y2="15" />
+                                </svg>
+                                <span>Add .lrc</span>
+                            </button>
+
+                            {/* Close Button */}
+                            <button
+                                onClick={closeLyrics}
+                                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                            >
+                                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M18 6L6 18M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Lyrics Content */}
@@ -149,7 +197,7 @@ export function LyricsPanel() {
                                     </svg>
                                 </div>
                                 <p className="text-white/50">No lyrics found for this track</p>
-                                <p className="text-white/30 text-sm">Try a different song or check the track info</p>
+                                <p className="text-white/30 text-sm">Try adding a local .lrc file</p>
                             </div>
                         )}
 
