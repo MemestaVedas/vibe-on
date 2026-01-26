@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { WavySeparator } from './WavySeparator';
 
 import {
@@ -27,7 +27,7 @@ const sidebarSpring = {
 } as const;
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
-    const { currentFolder, library } = usePlayerStore();
+    const { library } = usePlayerStore();
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     return (

@@ -20,7 +20,6 @@ interface TorrentStatus {
 export function TorrentManager() {
     const [activeTab, setActiveTab] = useState<'downloads' | 'browse'>('downloads');
     const [torrents, setTorrents] = useState<TorrentStatus[]>([]);
-    const [isInitialized, setIsInitialized] = useState(false);
     const [initError, setInitError] = useState<string | null>(null);
 
     const fetchTorrents = async () => {
@@ -44,7 +43,6 @@ export function TorrentManager() {
                 const baseDir = await downloadDir();
                 const path = `${baseDir}vibe-on-music`;
                 await invoke('init_torrent_backend', { downloadDir: path });
-                setIsInitialized(true);
                 fetchTorrents();
                 // Poll for updates
                 const interval = setInterval(fetchTorrents, 2000);

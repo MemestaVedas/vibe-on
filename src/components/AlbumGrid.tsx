@@ -131,7 +131,6 @@ export function AlbumGrid() {
                 <AlbumDetailView
                     album={album}
                     onBack={() => clearSelectedAlbum()}
-                    onPlay={() => handlePlayAlbum(album)}
                 />
             </div>
         );
@@ -189,7 +188,7 @@ type DisplayItem =
     | { type: 'header', disc: number }
     | { type: 'track', track: TrackDisplay, index: number, originalIndex: number };
 
-function AlbumDetailView({ album, onBack, onPlay }: { album: Album, onBack: () => void, onPlay: () => void }) {
+function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }) {
     const { playQueue } = usePlayerStore();
     const coverUrl = useCoverArt(album.cover);
 
