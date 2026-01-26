@@ -314,20 +314,25 @@ export function TorrentBrowser({ onAdded }: Props) {
                             </div>
                         </div>
 
-                        {/* File List */}
-                        <div className="space-y-2 flex-1 flex flex-col min-h-0">
-                            <div className="flex justify-between items-center shrink-0">
-                                <label className="text-sm font-medium text-on-surface-variant">
-                                    Files ({selectedIndices.length} of {files.length} selected)
-                                    {audioFileCount > 0 && (
-                                        <span className="ml-2 text-primary">• {selectedAudioCount} audio files</span>
-                                    )}
-                                </label>
-                                <div className="flex gap-2">
+                        {/* M3 Expressive File List */}
+                        <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                            <div className="flex justify-between items-end shrink-0 px-2">
+                                <div>
+                                    <label className="text-title-small font-bold text-on-surface">
+                                        Files to Download
+                                    </label>
+                                    <p className="text-body-small text-on-surface-variant">
+                                        {selectedIndices.length} of {files.length} selected
+                                        {audioFileCount > 0 && (
+                                            <span className="ml-2 text-primary font-medium">• {selectedAudioCount} audio files</span>
+                                        )}
+                                    </p>
+                                </div>
+                                <div className="flex gap-3">
                                     {audioFileCount > 0 && audioFileCount < files.length && (
                                         <button
                                             onClick={() => setSelectedIndices(files.filter(f => f.is_audio).map(f => f.index))}
-                                            className="text-xs text-primary hover:underline"
+                                            className="px-3 py-1.5 rounded-lg text-label-large font-medium text-primary hover:bg-primary/10 transition-colors"
                                         >
                                             Audio Only
                                         </button>
@@ -337,34 +342,82 @@ export function TorrentBrowser({ onAdded }: Props) {
                                             if (selectedIndices.length === files.length) setSelectedIndices([]);
                                             else setSelectedIndices(files.map(f => f.index));
                                         }}
-                                        className="text-xs text-primary hover:underline"
+                                        className="px-3 py-1.5 rounded-lg text-label-large font-medium text-primary hover:bg-primary/10 transition-colors"
                                     >
                                         {selectedIndices.length === files.length ? 'Deselect All' : 'Select All'}
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto rounded-xl bg-surface-container-high border border-outline/10 p-2 scrollbar-thin scrollbar-thumb-outline/20">
-                                {files.map((file) => (
-                                    <div
-                                        key={file.index}
-                                        className={`flex items-start gap-3 p-2 hover:bg-surface-container-highest rounded-lg transition-colors ${file.is_audio ? 'border-l-2 border-primary' : ''
-                                            }`}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIndices.includes(file.index)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) setSelectedIndices([...selectedIndices, file.index]);
-                                                else setSelectedIndices(selectedIndices.filter(i => i !== file.index));
+
+                            <div className="flex-1 overflow-y-auto rounded-[2rem] bg-surface-container-low p-3 scrollbar-thin scrollbar-thumb-outline/20">
+                                {files.map((file) => {
+                                    const isSelected = selectedIndices.includes(file.index);
+                                    return (
+                                        <div
+                                            key={file.index}
+                                            onClick={() => {
+                                                if (isSelected) setSelectedIndices(selectedIndices.filter(i => i !== file.index));
+                                                else setSelectedIndices([...selectedIndices, file.index]);
                                             }}
-                                            className="mt-1 rounded border-outline text-primary focus:ring-primary"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm text-on-surface break-words">{file.name}</div>
-                                            <div className="text-xs text-on-surface-variant">{formatSize(file.size)}</div>
+                                            className={`
+                                                group flex items-center gap-4 p-4 mb-2 last:mb-0 rounded-[1.25rem] border transition-all duration-200 cursor-pointer
+                                                ${isSelected
+                                                    ? 'bg-secondary-container border-transparent'
+                                                    : 'bg-surface-container hover:bg-surface-container-high border-transparent'
+                                                }
+                                            `}
+                                        >
+                                            {/* Custom Checkbox */}
+                                            <div className={`
+                                                w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors
+                                                ${isSelected
+                                                    ? 'bg-primary border-primary'
+                                                    : 'border-outline group-hover:border-primary'
+                                                }
+                                            `}>
+                                                {isSelected && (
+                                                    <svg className="w-4 h-4 text-on-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                )}
+                                            </div>
+
+                                            {/* File Icon */}
+                                            <div className={`
+                                                w-10 h-10 rounded-xl flex items-center justify-center shrink-0
+                                                ${isSelected
+                                                    ? 'bg-primary/20 text-primary-dark'
+                                                    : 'bg-surface-container-highest text-on-surface-variant'
+                                                }
+                                            `}>
+                                                {file.is_audio ? (
+                                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                    </svg>
+                                                )}
+                                            </div>
+
+                                            {/* Metadata */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className={`text-body-large font-medium truncate ${isSelected ? 'text-on-secondary-container' : 'text-on-surface'}`}>
+                                                    {file.name}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-label-medium text-on-surface-variant/80">
+                                                    <span>{formatSize(file.size)}</span>
+                                                    {file.is_audio && (
+                                                        <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+                                                            Audio
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
 

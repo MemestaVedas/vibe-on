@@ -32,6 +32,10 @@ impl DatabaseManager {
         // Initialize schema
         init_db(&conn)?;
 
+        // Migration: Add new columns if missing
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN disc_number INTEGER", []);
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN track_number INTEGER", []);
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             covers_dir,
@@ -43,14 +47,16 @@ impl DatabaseManager {
 
         // Insert into tracks
         conn.execute(
-            "INSERT OR REPLACE INTO tracks (path, title, artist, album, duration_secs) 
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT OR REPLACE INTO tracks (path, title, artist, album, duration_secs, disc_number, track_number) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 track.path,
                 track.title,
                 track.artist,
                 track.album,
-                track.duration_secs
+                track.duration_secs,
+                track.disc_number,
+                track.track_number
             ],
         )?;
 
@@ -120,10 +126,10 @@ impl DatabaseManager {
 
         // Join tracks with albums to get the cover image path
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path 
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
-             ORDER BY t.artist, t.album, t.title",
+             ORDER BY t.artist, t.album, t.disc_number, t.track_number, t.title",
         )?;
 
         let track_iter = stmt.query_map([], |row| {
@@ -144,6 +150,8 @@ impl DatabaseManager {
                 album: row.get(3)?,
                 duration_secs: row.get(4)?,
                 cover_image: cover_filename,
+                disc_number: row.get(6).unwrap_or(None),
+                track_number: row.get(7).unwrap_or(None),
             })
         })?;
 

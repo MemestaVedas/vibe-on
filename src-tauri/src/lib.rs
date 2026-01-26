@@ -536,31 +536,36 @@ fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8
     let properties = tagged_file.properties();
     let duration_secs = properties.duration().as_secs_f64();
 
-    let (title, artist, album) = if let Some(tag) = tagged_file.primary_tag() {
-        (
-            tag.title().map(|s| s.to_string()).unwrap_or_else(|| {
+    let (title, artist, album, disc_number, track_number) =
+        if let Some(tag) = tagged_file.primary_tag() {
+            (
+                tag.title().map(|s| s.to_string()).unwrap_or_else(|| {
+                    path.file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Unknown")
+                        .to_string()
+                }),
+                tag.artist()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "Unknown Artist".to_string()),
+                tag.album()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "Unknown Album".to_string()),
+                tag.disk(),
+                tag.track(),
+            )
+        } else {
+            (
                 path.file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("Unknown")
-                    .to_string()
-            }),
-            tag.artist()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "Unknown Artist".to_string()),
-            tag.album()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "Unknown Album".to_string()),
-        )
-    } else {
-        (
-            path.file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("Unknown")
-                .to_string(),
-            "Unknown Artist".to_string(),
-            "Unknown Album".to_string(),
-        )
-    };
+                    .to_string(),
+                "Unknown Artist".to_string(),
+                "Unknown Album".to_string(),
+                None,
+                None,
+            )
+        };
 
     // Extract picture
     let mut cover_data = tagged_file
@@ -587,6 +592,8 @@ fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8
             album,
             duration_secs,
             cover_image: None, // Will be populated from DB later
+            disc_number,
+            track_number,
         },
         cover_data,
     ))
