@@ -32,6 +32,10 @@ interface PlayerStore {
 
     playCounts: Record<string, number>; // Map of path -> count
 
+    // Persistence
+    savedVolume: number;
+    lastPlayedTrack: { path: string; position: number } | null;
+
     // Actions
     playFile: (path: string) => Promise<void>;
     pause: () => Promise<void>;
@@ -98,6 +102,10 @@ export const usePlayerStore = create<PlayerStore>()(
             sort: null,
             activeSource: 'local',
             searchQuery: '',
+
+            // Persistence defaults
+            savedVolume: 1.0,
+            lastPlayedTrack: null,
 
             // Queue & Shuffle
             queue: [],
@@ -365,6 +373,7 @@ export const usePlayerStore = create<PlayerStore>()(
             setVolume: async (value: number) => {
                 try {
                     await invoke('set_volume', { value });
+                    set({ savedVolume: value });
                     await get().refreshStatus();
                 } catch (e) {
                     set({ error: String(e) });
@@ -602,9 +611,12 @@ export const usePlayerStore = create<PlayerStore>()(
                 favorites: Array.from(state.favorites),
                 folders: state.folders,
                 // Persist Queue? Yes
+                // Persist Queue? Yes
                 queue: state.queue,
                 originalQueue: state.originalQueue,
-                isShuffled: state.isShuffled
+                isShuffled: state.isShuffled,
+                savedVolume: state.savedVolume,
+                lastPlayedTrack: state.lastPlayedTrack
             }),
             merge: (persistedState: any, currentState) => ({
                 ...currentState,
@@ -613,7 +625,9 @@ export const usePlayerStore = create<PlayerStore>()(
                 folders: persistedState?.folders || [],
                 queue: persistedState?.queue || [],
                 originalQueue: persistedState?.originalQueue || [],
-                isShuffled: persistedState?.isShuffled || false
+                isShuffled: persistedState?.isShuffled || false,
+                savedVolume: persistedState?.savedVolume ?? 1.0,
+                lastPlayedTrack: persistedState?.lastPlayedTrack || null
             })
         }
     )
