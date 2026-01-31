@@ -40,8 +40,31 @@ export function TorrentManager() {
     useEffect(() => {
         const init = async () => {
             try {
-                const baseDir = await downloadDir();
-                const path = `${baseDir}vibe-on-music`;
+                // Use app data directory to avoid permission issues
+                const { appDataDir } = await import('@tauri-apps/api/path');
+                let baseDir: string;
+                
+                try {
+                    baseDir = await appDataDir();
+                    console.log('[Torrent] Using app data directory:', baseDir);
+                } catch (e) {
+                    console.warn("Failed to get app data directory, trying download dir", e);
+                    try {
+                        baseDir = await downloadDir() || '';
+                    } catch {
+                        // Final fallback - use home directory
+                        const { homeDir } = await import('@tauri-apps/api/path');
+                        try {
+                            const home = await homeDir();
+                            baseDir = home ? `${home}.local/share/vibe-on/` : '/tmp/vibe-on/';
+                        } catch {
+                            baseDir = '/tmp/vibe-on/';
+                        }
+                    }
+                }
+                
+                const path = `${baseDir}torrents`;
+                console.log('[Torrent] Initializing with path:', path);
                 await invoke('init_torrent_backend', { downloadDir: path });
                 fetchTorrents();
                 // Poll for updates
@@ -49,7 +72,7 @@ export function TorrentManager() {
                 return () => clearInterval(interval);
             } catch (e) {
                 setInitError(String(e));
-                console.error("Backend init failed", e);
+                console.error("Backend init failed:", e);
             }
         };
         init();
