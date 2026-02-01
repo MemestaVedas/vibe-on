@@ -63,7 +63,8 @@ pub async fn build_swarm(
             })
         })?
         .with_swarm_config(|cfg| {
-            cfg.with_idle_connection_timeout(Duration::from_secs(60))
+            // Increased from 60s to 300s to prevent audio streaming disconnects during pauses
+            cfg.with_idle_connection_timeout(Duration::from_secs(300))
         })
         .build();
     

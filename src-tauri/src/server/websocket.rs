@@ -11,6 +11,7 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::{ConnectedClient, ServerEvent, ServerState};
 
@@ -203,14 +204,42 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
     // Generate client ID
     let client_id = uuid::Uuid::new_v4().to_string();
     let client_id_clone = client_id.clone();
+    let client_id_for_cleanup = client_id.clone();
+    let app_handle = state.app_handle.clone();
     
-    // Spawn task to forward events to client
+    // Create channel for keepalive pings
+    let (ping_tx, mut ping_rx) = tokio::sync::mpsc::channel::<()>(1);
+    
+    // Spawn task to forward events to client and handle keepalive
     let send_task = tokio::spawn(async move {
-        while let Ok(event) = event_rx.recv().await {
-            let msg: ServerMessage = event.into();
-            let json = serde_json::to_string(&msg).unwrap();
-            if sender.send(Message::Text(json.into())).await.is_err() {
-                break;
+        let mut keepalive_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        
+        loop {
+            tokio::select! {
+                // Forward broadcast events
+                event = event_rx.recv() => {
+                    match event {
+                        Ok(event) => {
+                            let msg: ServerMessage = event.into();
+                            let json = serde_json::to_string(&msg).unwrap();
+                            if sender.send(Message::Text(json.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+                // Send keepalive ping every 30 seconds
+                _ = keepalive_interval.tick() => {
+                    let ping_msg = serde_json::to_string(&ServerMessage::Pong).unwrap();
+                    if sender.send(Message::Text(ping_msg.into())).await.is_err() {
+                        break;
+                    }
+                }
+                // Handle close signal
+                _ = ping_rx.recv() => {
+                    break;
+                }
             }
         }
     });
@@ -237,11 +266,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
     }
     
     // Cleanup
+    let _ = ping_tx.send(()).await; // Signal send task to stop
     send_task.abort();
     
-    // Remove client from list
+    // Remove client from list and emit disconnect event
     let mut clients = state.clients.write().await;
-    clients.retain(|c| c.id != client_id_clone);
+    let disconnected_client = clients.iter().find(|c| c.id == client_id_for_cleanup).cloned();
+    clients.retain(|c| c.id != client_id_for_cleanup);
+    
+    // Emit disconnect event to frontend
+    if let Some(client) = disconnected_client {
+        let _ = app_handle.emit("mobile_client_disconnected", serde_json::json!({
+            "client_id": client.id,
+            "client_name": client.name,
+        }));
+        log::info!("Mobile client disconnected: {} ({})", client.name, client.id);
+    }
 }
 
 /// Handle a client message
@@ -250,65 +290,58 @@ async fn handle_client_message(
     client_id: &str,
     msg: ClientMessage,
 ) {
+    let app_state = state.app_state();
+    
     match msg {
         ClientMessage::Hello { client_name } => {
             // Add client to list
             let client = ConnectedClient {
                 id: client_id.to_string(),
-                name: client_name,
+                name: client_name.clone(),
                 connected_at: std::time::Instant::now(),
             };
             state.clients.write().await.push(client);
             
-            // Send welcome
-            let _welcome = ServerEvent::MediaSession {
-                track_id: "".to_string(),
-                title: "".to_string(),
-                artist: "".to_string(),
-                album: "".to_string(),
-                duration: 0.0,
-                cover_url: None,
-                is_playing: false,
-                position: 0.0,
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis() as u64,
-            };
+            // Emit connection event to frontend
+            let _ = state.app_handle.emit("mobile_client_connected", serde_json::json!({
+                "client_id": client_id,
+                "client_name": client_name,
+            }));
+            log::info!("Mobile client connected: {} ({})", client_name, client_id);
             
             // Send current status
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::GetStatus => {
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::Play => {
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     player.resume();
                 }
             }
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::Pause | ClientMessage::Stop => {
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     player.pause();
                 }
             }
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::Resume => {
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     player.resume();
                 }
             }
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::Next => {
@@ -326,36 +359,36 @@ async fn handle_client_message(
         }
         
         ClientMessage::Seek { position_secs } => {
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     player.seek(position_secs);
                 }
             }
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::SetVolume { volume } => {
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     player.set_volume(volume as f32);
                 }
             }
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::PlayTrack { path } => {
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     let _ = player.play_file(&path);
                 }
             }
-            send_current_status(state).await;
+            send_current_status_internal(state, &app_state).await;
         }
         
         ClientMessage::RequestStreamToMobile => {
             // Get current position and prepare handoff
             let (sample, url) = {
-                let player_guard = state.app_state.player.lock().ok();
+                let player_guard = app_state.player.lock().ok();
                 let position = player_guard
                     .as_ref()
                     .and_then(|p| p.as_ref())
@@ -377,7 +410,7 @@ async fn handle_client_message(
         
         ClientMessage::HandoffReady => {
             // Pause desktop playback and commit handoff
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     player.pause();
                 }
@@ -387,7 +420,7 @@ async fn handle_client_message(
         
         ClientMessage::StopStreamToMobile => {
             // Resume desktop playback
-            if let Ok(mut player_guard) = state.app_state.player.lock() {
+            if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     player.resume();
                 }
@@ -406,10 +439,10 @@ async fn handle_client_message(
     }
 }
 
-/// Send current playback status to all clients
-async fn send_current_status(state: &Arc<ServerState>) {
+/// Send current playback status to all clients (internal use)
+async fn send_current_status_internal(state: &Arc<ServerState>, app_state: &tauri::State<'_, crate::AppState>) {
     let (track_id, title, artist, album, duration, cover_url, is_playing, position, volume) = {
-        if let Ok(player_guard) = state.app_state.player.lock() {
+        if let Ok(player_guard) = app_state.player.lock() {
             if let Some(ref player) = *player_guard {
                 let status = player.get_status();
                 let is_playing = status.state == crate::audio::PlayerState::Playing;
@@ -462,6 +495,12 @@ async fn send_current_status(state: &Arc<ServerState>) {
         repeat_mode: "off".to_string(),
         output: "desktop".to_string(),
     });
+}
+
+/// Send current playback status (public, for periodic broadcasting from mod.rs)
+pub async fn send_current_status_with_handle(state: &Arc<ServerState>, app_handle: &AppHandle) {
+    let app_state: tauri::State<'_, crate::AppState> = app_handle.state();
+    send_current_status_internal(state, &app_state).await;
 }
 
 /// Get local IP address

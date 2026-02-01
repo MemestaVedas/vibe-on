@@ -27,6 +27,9 @@ pub struct ServerInfoResponse {
     pub platform: String,
     #[serde(rename = "librarySize")]
     pub library_size: usize,
+    pub port: u16,
+    #[serde(rename = "localIp")]
+    pub local_ip: Option<String>,
 }
 
 /// Playback state response
@@ -175,23 +178,41 @@ pub async fn health_check() -> Json<HealthResponse> {
 pub async fn get_server_info(
     State(state): State<Arc<ServerState>>,
 ) -> Json<ServerInfoResponse> {
-    let library_size = state.app_state.db.lock().ok()
+    let app_state = state.app_state();
+    let library_size = app_state.db.lock().ok()
         .and_then(|db| db.as_ref().map(|d| d.get_all_tracks().map(|t| t.len()).unwrap_or(0)))
         .unwrap_or(0);
+    
+    // Get local IP address
+    let local_ip = get_local_ip();
     
     Json(ServerInfoResponse {
         name: state.config.server_name.clone(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         platform: std::env::consts::OS.to_string(),
         library_size,
+        port: state.config.port,
+        local_ip,
     })
+}
+
+/// Get local IP address for LAN connections
+fn get_local_ip() -> Option<String> {
+    use std::net::UdpSocket;
+    
+    // Create a UDP socket and "connect" to a public IP (doesn't actually send data)
+    // This lets us determine which local interface would be used
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let local_addr = socket.local_addr().ok()?;
+    Some(local_addr.ip().to_string())
 }
 
 /// Get current playback state
 pub async fn get_playback_state(
     State(state): State<Arc<ServerState>>,
 ) -> Json<PlaybackStateResponse> {
-    let app_state = &state.app_state;
+    let app_state = state.app_state();
     
     // Get player status
     let (is_playing, current_track, position_secs, duration_secs, volume) = {
@@ -243,7 +264,8 @@ pub async fn get_library(
     let offset = params.offset.unwrap_or(0);
     let limit = params.limit.unwrap_or(50);
     
-    let tracks = state.app_state.db.lock()
+    let app_state = state.app_state();
+    let tracks = app_state.db.lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .as_ref()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
@@ -279,7 +301,8 @@ pub async fn search_library(
     let offset = params.offset.unwrap_or(0);
     let limit = params.limit.unwrap_or(50);
     
-    let all_tracks = state.app_state.db.lock()
+    let app_state = state.app_state();
+    let all_tracks = app_state.db.lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .as_ref()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
@@ -359,7 +382,8 @@ pub async fn get_albums(
     let offset = params.offset.unwrap_or(0);
     let limit = params.limit.unwrap_or(50);
     
-    let all_tracks = state.app_state.db.lock()
+    let app_state = state.app_state();
+    let all_tracks = app_state.db.lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .as_ref()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
@@ -398,7 +422,8 @@ pub async fn get_album_detail(
     let name = urlencoding::decode(&name).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
     let artist = urlencoding::decode(&artist).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
     
-    let all_tracks = state.app_state.db.lock()
+    let app_state = state.app_state();
+    let all_tracks = app_state.db.lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .as_ref()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
@@ -442,7 +467,8 @@ pub async fn get_artists(
     let offset = params.offset.unwrap_or(0);
     let limit = params.limit.unwrap_or(50);
     
-    let all_tracks = state.app_state.db.lock()
+    let app_state = state.app_state();
+    let all_tracks = app_state.db.lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .as_ref()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
@@ -479,7 +505,8 @@ pub async fn get_artist_detail(
 ) -> Result<Json<ArtistDetailResponse>, StatusCode> {
     let name = urlencoding::decode(&name).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
     
-    let all_tracks = state.app_state.db.lock()
+    let app_state = state.app_state();
+    let all_tracks = app_state.db.lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .as_ref()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
@@ -555,8 +582,9 @@ pub async fn get_cover(
     let track_path = urlencoding::decode(&path).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
     
     // Try to get cover from covers directory by looking up track info
+    let app_state = state.app_state();
     let cover_file_path = {
-        let db_guard = state.app_state.db.lock()
+        let db_guard = app_state.db.lock()
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         
         if let Some(ref db) = *db_guard {
@@ -642,8 +670,9 @@ pub async fn stream_audio(
     let start_sample = params.start.unwrap_or(0);
     
     // Get current track
+    let app_state = state.app_state();
     let track_path = {
-        let player_guard = state.app_state.player.lock()
+        let player_guard = app_state.player.lock()
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         let player = player_guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
         let status = player.get_status();

@@ -1357,24 +1357,14 @@ async fn start_mobile_server(
         *running = true;
     }
     
-    // Get app state as Arc for the server
-    let app_state: Arc<AppState> = Arc::new(AppState::default());
-    
-    // Copy over the initialized components
-    {
-        if let Ok(player) = state.player.lock() {
-            if player.is_some() {
-                // Note: We can't easily clone the player, so server will need to access via State
-            }
-        }
-    }
-    
-    // Start server in background
+    // Start server in background with the real app handle
     let config = server::ServerConfig::default();
+    let port = config.port;
     let server_running = state.server_running.clone();
+    let app_handle_clone = _app_handle.clone();
     
     tokio::spawn(async move {
-        if let Err(e) = server::start_server(app_state, config).await {
+        if let Err(e) = server::start_server(app_handle_clone, config).await {
             eprintln!("[Server] Failed to start: {}", e);
             if let Ok(mut running) = server_running.lock() {
                 *running = false;
@@ -1382,7 +1372,7 @@ async fn start_mobile_server(
         }
     });
     
-    println!("[Server] Mobile companion server started on port 5443");
+    println!("[Server] Mobile companion server started on port {}", port);
     Ok(())
 }
 

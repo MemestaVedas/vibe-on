@@ -18,6 +18,8 @@ use axum::{
 use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 
+use tauri::{AppHandle, Manager};
+
 use self::routes::*;
 use self::websocket::*;
 
@@ -41,8 +43,8 @@ impl Default for ServerConfig {
 
 /// Shared server state
 pub struct ServerState {
-    /// Reference to app state (player, database, etc.)
-    pub app_state: Arc<crate::AppState>,
+    /// Tauri app handle to access the real AppState
+    pub app_handle: AppHandle,
     /// Broadcast channel for events to WebSocket clients
     pub event_tx: broadcast::Sender<ServerEvent>,
     /// Connected WebSocket clients
@@ -52,14 +54,19 @@ pub struct ServerState {
 }
 
 impl ServerState {
-    pub fn new(app_state: Arc<crate::AppState>, config: ServerConfig) -> Self {
+    pub fn new(app_handle: AppHandle, config: ServerConfig) -> Self {
         let (event_tx, _) = broadcast::channel(256);
         Self {
-            app_state,
+            app_handle,
             event_tx,
             clients: RwLock::new(Vec::new()),
             config,
         }
+    }
+    
+    /// Get the app state from the Tauri app handle
+    pub fn app_state(&self) -> tauri::State<'_, crate::AppState> {
+        self.app_handle.state::<crate::AppState>()
     }
     
     /// Broadcast an event to all connected clients
@@ -156,11 +163,27 @@ pub struct ConnectedClient {
 
 /// Start the HTTP/WebSocket server
 pub async fn start_server(
-    app_state: Arc<crate::AppState>,
+    app_handle: AppHandle,
     config: ServerConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = config.port;
-    let server_state = Arc::new(ServerState::new(app_state, config));
+    let server_state = Arc::new(ServerState::new(app_handle.clone(), config));
+    
+    // Spawn periodic status broadcast task (every 2 seconds)
+    let broadcast_state = server_state.clone();
+    let broadcast_handle = app_handle.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+        loop {
+            interval.tick().await;
+            // Only broadcast if there are connected clients
+            let clients = broadcast_state.clients.read().await;
+            if !clients.is_empty() {
+                drop(clients); // Release lock before calling send_current_status
+                websocket::send_current_status_with_handle(&broadcast_state, &broadcast_handle).await;
+            }
+        }
+    });
     
     // Build router
     let app = Router::new()
@@ -193,6 +216,7 @@ pub async fn start_server(
     
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     log::info!("Starting VIBE-ON! server on http://{}", addr);
+    println!("[Server] HTTP/WS listening on http://{}", addr);
     
     // Start mDNS advertisement
     let server_name = server_state.config.server_name.clone();
