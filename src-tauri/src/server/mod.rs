@@ -138,6 +138,21 @@ pub enum ServerEvent {
     },
     /// Pong response
     Pong,
+    /// WebRTC Offer
+    WebrtcOffer {
+        from_peer_id: String,
+        sdp: String,
+    },
+    /// WebRTC Answer
+    WebrtcAnswer {
+        target_peer_id: String, 
+        sdp: String,
+    },
+    /// ICE Candidate
+    IceCandidate {
+        from_peer_id: String,
+        candidate: String,
+    },
 }
 
 /// Track summary for queue updates
@@ -165,6 +180,7 @@ pub struct ConnectedClient {
 pub async fn start_server(
     app_handle: AppHandle,
     config: ServerConfig,
+    mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = config.port;
     let server_state = Arc::new(ServerState::new(app_handle.clone(), config));
@@ -172,15 +188,26 @@ pub async fn start_server(
     // Spawn periodic status broadcast task (every 2 seconds)
     let broadcast_state = server_state.clone();
     let broadcast_handle = app_handle.clone();
+    
+    // Use a separate shutdown signal for the broadcast task
+    let mut broadcast_shutdown = shutdown_rx.resubscribe();
+    
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
         loop {
-            interval.tick().await;
-            // Only broadcast if there are connected clients
-            let clients = broadcast_state.clients.read().await;
-            if !clients.is_empty() {
-                drop(clients); // Release lock before calling send_current_status
-                websocket::send_current_status_with_handle(&broadcast_state, &broadcast_handle).await;
+            tokio::select! {
+                _ = interval.tick() => {
+                    // Only broadcast if there are connected clients
+                    let clients = broadcast_state.clients.read().await;
+                    if !clients.is_empty() {
+                        drop(clients); // Release lock before calling send_current_status
+                        websocket::send_current_status_with_handle(&broadcast_state, &broadcast_handle).await;
+                    }
+                }
+                _ = broadcast_shutdown.recv() => {
+                    println!("[Server] Stopping status broadcast task");
+                    break;
+                }
             }
         }
     });
@@ -220,26 +247,60 @@ pub async fn start_server(
     
     // Start mDNS advertisement
     let server_name = server_state.config.server_name.clone();
+    
+    // Use select to handle mDNS task with shutdown
+    let mut mdns_shutdown = shutdown_rx.resubscribe();
     tokio::spawn(async move {
-        if let Err(e) = advertise_mdns(&server_name, port).await {
-            log::error!("mDNS advertisement failed: {}", e);
+        tokio::select! {
+            _ = advertise_mdns(&server_name, port) => {
+                 log::error!("mDNS advertisement ended unexpectedly");
+            }
+            _ = mdns_shutdown.recv() => {
+                println!("[Server] Stopping mDNS advertisement");
+            }
         }
     });
     
-    // Start server
+    // Start server with graceful shutdown
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            let _ = shutdown_rx.recv().await;
+            println!("[Server] Graceful shutdown signal received");
+        })
+        .await?;
     
     Ok(())
 }
 
 /// Advertise the server via mDNS
-async fn advertise_mdns(_server_name: &str, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Note: For HTTP server discovery, we use a different mDNS service than libp2p
-    // This allows mobile apps to discover the REST API separately from P2P
-    // In production, consider using `mdns-sd` crate for HTTP-specific mDNS
+async fn advertise_mdns(server_name: &str, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use mdns_sd::{ServiceDaemon, ServiceInfo};
     
     log::info!("mDNS: Advertising _vibe-on._tcp on port {}", port);
+    
+    // Create a daemon
+    let mdns = ServiceDaemon::new()?;
+    
+    // Create a service info.
+    // The service type must end with a period.
+    let service_type = "_vibe-on._tcp.local.";
+    let instance_name = server_name;
+    
+    // Create service info with auto address detection
+    let mut service_info = ServiceInfo::new(
+        service_type,
+        instance_name,
+        &format!("{}.local.", instance_name),
+        "", // Auto-detect IP
+        port,
+        &[("version", "1")][..]
+    )?.enable_addr_auto();
+    
+    // Register the service
+    mdns.register(service_info)?;
+    
+    log::info!("mDNS: Service registered successfully");
     
     // Keep the advertisement running
     loop {

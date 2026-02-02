@@ -51,6 +51,7 @@ pub struct AppState {
     torrent_manager: Arc<Mutex<Option<torrent::TorrentManager>>>,
     p2p_manager: Arc<TokioRwLock<Option<P2PManager>>>,
     server_running: Arc<Mutex<bool>>,
+    server_shutdown_tx: Arc<Mutex<Option<tokio::sync::broadcast::Sender<()>>>>,
 }
 
 impl Default for AppState {
@@ -66,6 +67,7 @@ impl Default for AppState {
             torrent_manager: Arc::new(Mutex::new(None)),
             p2p_manager: Arc::new(TokioRwLock::new(None)),
             server_running: Arc::new(Mutex::new(false)),
+            server_shutdown_tx: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -1345,7 +1347,7 @@ async fn start_mobile_server(
 ) -> Result<(), String> {
     // Check if already running
     {
-        let running = state.server_running.lock().map_err(|e| e.to_string())?;
+        let running = state.server_running.lock().map_err(|_| "Failed to lock server_running".to_string())?;
         if *running {
             return Ok(());
         }
@@ -1353,8 +1355,17 @@ async fn start_mobile_server(
     
     // Mark as running
     {
-        let mut running = state.server_running.lock().map_err(|e| e.to_string())?;
+        let mut running = state.server_running.lock().map_err(|_| "Failed to lock server_running".to_string())?;
         *running = true;
+    }
+
+    // Create shutdown channel
+    let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
+    
+    // Store shutdown sender
+    {
+        let mut tx_guard = state.server_shutdown_tx.lock().map_err(|_| "Failed to lock server_shutdown_tx".to_string())?;
+        *tx_guard = Some(shutdown_tx);
     }
     
     // Start server in background with the real app handle
@@ -1364,7 +1375,7 @@ async fn start_mobile_server(
     let app_handle_clone = _app_handle.clone();
     
     tokio::spawn(async move {
-        if let Err(e) = server::start_server(app_handle_clone, config).await {
+        if let Err(e) = server::start_server(app_handle_clone, config, shutdown_rx).await {
             eprintln!("[Server] Failed to start: {}", e);
             if let Ok(mut running) = server_running.lock() {
                 *running = false;
@@ -1378,8 +1389,16 @@ async fn start_mobile_server(
 
 #[tauri::command]
 async fn stop_mobile_server(state: State<'_, AppState>) -> Result<(), String> {
-    // Mark as not running (server will need graceful shutdown logic)
-    let mut running = state.server_running.lock().map_err(|e| e.to_string())?;
+    // Send shutdown signal
+    {
+        let tx_guard = state.server_shutdown_tx.lock().map_err(|_| "Failed to lock server_shutdown_tx".to_string())?;
+        if let Some(ref tx) = *tx_guard {
+            let _ = tx.send(());
+        }
+    }
+    
+    // Mark as not running
+    let mut running = state.server_running.lock().map_err(|_| "Failed to lock server_running".to_string())?;
     *running = false;
     println!("[Server] Mobile companion server stopped");
     Ok(())
@@ -1387,7 +1406,7 @@ async fn stop_mobile_server(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 async fn get_server_status(state: State<'_, AppState>) -> Result<bool, String> {
-    let running = state.server_running.lock().map_err(|e| e.to_string())?;
+    let running = state.server_running.lock().map_err(|_| "Failed to lock server_running".to_string())?;
     Ok(*running)
 }
 

@@ -10,34 +10,34 @@ interface MobilePairingPopupProps {
 }
 
 // Decorative floating shape component
-function FloatingShape({ 
-    color, 
-    size, 
-    delay, 
-    x, 
+function FloatingShape({
+    color,
+    size,
+    delay,
+    x,
     y,
     shape = 'circle'
-}: { 
-    color: string; 
-    size: number; 
-    delay: number; 
-    x: number; 
+}: {
+    color: string;
+    size: number;
+    delay: number;
+    x: number;
     y: number;
     shape?: 'circle' | 'blob' | 'star';
 }) {
     const getPath = () => {
         if (shape === 'blob') {
             return (
-                <path 
-                    d="M50 10 C70 10, 90 30, 90 50 C90 70, 70 90, 50 90 C30 90, 10 70, 10 50 C10 30, 30 10, 50 10" 
+                <path
+                    d="M50 10 C70 10, 90 30, 90 50 C90 70, 70 90, 50 90 C30 90, 10 70, 10 50 C10 30, 30 10, 50 10"
                     fill={color}
                 />
             );
         }
         if (shape === 'star') {
             return (
-                <path 
-                    d="M50 5 L58 35 L90 35 L65 55 L75 90 L50 70 L25 90 L35 55 L10 35 L42 35 Z" 
+                <path
+                    d="M50 5 L58 35 L90 35 L65 55 L75 90 L50 70 L25 90 L35 55 L10 35 L42 35 Z"
                     fill={color}
                 />
             );
@@ -50,7 +50,7 @@ function FloatingShape({
             className="absolute pointer-events-none"
             style={{ left: `${x}%`, top: `${y}%` }}
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ 
+            animate={{
                 scale: [0.8, 1.1, 0.9, 1],
                 opacity: [0.3, 0.5, 0.4, 0.35],
                 x: [0, 10, -5, 0],
@@ -72,10 +72,10 @@ function FloatingShape({
 }
 
 export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
-    const { 
-        status, 
-        serverRunning, 
-        serverPort, 
+    const {
+        status,
+        serverRunning,
+        serverPort,
         localIP,
         discoveredDevices,
         connectedDevice,
@@ -90,7 +90,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
         startDiscoveryPolling,
         stopDiscoveryPolling,
     } = useMobileStore();
-    
+
     const { colors } = useThemeStore();
     const popupRef = useRef<HTMLDivElement>(null);
     const [manualIP, setManualIP] = useState('');
@@ -106,7 +106,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
             });
         }
     }, [anchorRef, popupOpen]);
-    
+
     // Start/stop discovery polling when popup opens/closes
     useEffect(() => {
         if (popupOpen && serverRunning) {
@@ -114,7 +114,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
         } else {
             stopDiscoveryPolling();
         }
-        
+
         return () => stopDiscoveryPolling();
     }, [popupOpen, serverRunning, startDiscoveryPolling, stopDiscoveryPolling]);
 
@@ -122,7 +122,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (
-                popupRef.current && 
+                popupRef.current &&
                 !popupRef.current.contains(e.target as Node) &&
                 anchorRef.current &&
                 !anchorRef.current.contains(e.target as Node)
@@ -145,8 +145,8 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
     }, [popupOpen, serverRunning, startServer]);
 
     // Generate connection URL for QR code
-    const connectionUrl = localIP 
-        ? `vibe-on://${localIP}:${serverPort}`
+    const connectionUrl = localIP
+        ? `vibeon://${localIP}:${serverPort}`
         : null;
 
     const getStatusText = () => {
@@ -201,7 +201,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <IconMobileDevice size={20} style={{ color: colors.primary }} />
-                                <span 
+                                <span
                                     className="font-semibold text-base"
                                     style={{ color: colors.onSurface }}
                                 >
@@ -217,15 +217,15 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                         </div>
 
                         {/* Status Indicator */}
-                        <div 
+                        <div
                             className="flex items-center gap-2 mb-4 px-3 py-2 rounded-full"
                             style={{ backgroundColor: `${getStatusColor()}20` }}
                         >
-                            <div 
+                            <div
                                 className={`w-2 h-2 rounded-full ${status === 'searching' || status === 'connecting' ? 'animate-pulse' : ''}`}
                                 style={{ backgroundColor: getStatusColor() }}
                             />
-                            <span 
+                            <span
                                 className="text-sm font-medium"
                                 style={{ color: getStatusColor() }}
                             >
@@ -235,7 +235,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
 
                         {/* Error Message */}
                         {error && (
-                            <div 
+                            <div
                                 className="mb-4 px-3 py-2 rounded-xl text-sm"
                                 style={{ backgroundColor: '#ef444420', color: '#ef4444' }}
                             >
@@ -246,11 +246,11 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                         {/* QR Code Section */}
                         {serverRunning && connectionUrl && (
                             <div className="mb-4">
-                                <div 
+                                <div
                                     className="p-4 rounded-2xl flex flex-col items-center gap-3"
                                     style={{ backgroundColor: colors.surfaceContainer }}
                                 >
-                                    <div 
+                                    <div
                                         className="p-3 rounded-xl"
                                         style={{ backgroundColor: '#ffffff' }}
                                     >
@@ -262,7 +262,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                                             bgColor="#ffffff"
                                         />
                                     </div>
-                                    <p 
+                                    <p
                                         className="text-xs text-center"
                                         style={{ color: colors.onSurfaceVariant }}
                                     >
@@ -274,22 +274,22 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
 
                         {/* Connection Info */}
                         {serverRunning && localIP && (
-                            <div 
+                            <div
                                 className="mb-4 p-3 rounded-xl"
                                 style={{ backgroundColor: colors.surfaceContainer }}
                             >
                                 <div className="flex items-center gap-2 mb-2">
                                     <IconWifi size={16} style={{ color: colors.secondary }} />
-                                    <span 
+                                    <span
                                         className="text-sm font-medium"
                                         style={{ color: colors.onSurface }}
                                     >
                                         Server Address
                                     </span>
                                 </div>
-                                <code 
+                                <code
                                     className="block text-sm font-mono px-2 py-1 rounded"
-                                    style={{ 
+                                    style={{
                                         backgroundColor: colors.surfaceContainerHighest,
                                         color: colors.primary,
                                     }}
@@ -301,13 +301,13 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
 
                         {/* Discovered Mobile Devices */}
                         {serverRunning && discoveredDevices.length > 0 && (
-                            <div 
+                            <div
                                 className="mb-4 p-3 rounded-xl"
                                 style={{ backgroundColor: colors.surfaceContainer }}
                             >
                                 <div className="flex items-center gap-2 mb-3">
                                     <IconMobileDevice size={16} style={{ color: colors.tertiary }} />
-                                    <span 
+                                    <span
                                         className="text-sm font-medium"
                                         style={{ color: colors.onSurface }}
                                     >
@@ -325,20 +325,20 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                                             onClick={() => connectToDevice(device)}
                                         >
                                             <div className="flex items-center gap-2">
-                                                <div 
+                                                <div
                                                     className="w-8 h-8 rounded-full flex items-center justify-center"
                                                     style={{ backgroundColor: `${colors.tertiary}30` }}
                                                 >
                                                     <IconMobileDevice size={16} style={{ color: colors.tertiary }} />
                                                 </div>
                                                 <div>
-                                                    <p 
+                                                    <p
                                                         className="text-sm font-medium"
                                                         style={{ color: colors.onSurface }}
                                                     >
                                                         {device.name}
                                                     </p>
-                                                    <p 
+                                                    <p
                                                         className="text-xs"
                                                         style={{ color: colors.onSurfaceVariant }}
                                                     >
@@ -346,9 +346,9 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div 
+                                            <div
                                                 className="px-2 py-1 rounded-full text-xs font-medium"
-                                                style={{ 
+                                                style={{
                                                     backgroundColor: `${colors.primary}20`,
                                                     color: colors.primary,
                                                 }}
@@ -360,10 +360,10 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                                 </div>
                             </div>
                         )}
-                        
+
                         {/* Scanning indicator when no devices found */}
                         {serverRunning && discoveredDevices.length === 0 && status === 'searching' && (
-                            <div 
+                            <div
                                 className="mb-4 p-3 rounded-xl"
                                 style={{ backgroundColor: colors.surfaceContainer }}
                             >
@@ -371,7 +371,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                                     <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
                                         style={{ borderColor: `${colors.tertiary}40`, borderTopColor: 'transparent' }}
                                     />
-                                    <span 
+                                    <span
                                         className="text-sm"
                                         style={{ color: colors.onSurfaceVariant }}
                                     >
@@ -382,11 +382,11 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                         )}
 
                         {/* Manual IP Entry (for mobile connecting back) */}
-                        <div 
+                        <div
                             className="mb-4 p-3 rounded-xl"
                             style={{ backgroundColor: colors.surfaceContainer }}
                         >
-                            <label 
+                            <label
                                 className="block text-sm font-medium mb-2"
                                 style={{ color: colors.onSurfaceVariant }}
                             >
@@ -419,7 +419,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
 
                         {/* Last Connected Device */}
                         {lastConnectedDevice && status !== 'connected' && (
-                            <div 
+                            <div
                                 className="mb-4 p-3 rounded-xl cursor-pointer transition-colors hover:opacity-80"
                                 style={{ backgroundColor: colors.surfaceContainer }}
                                 onClick={() => {
@@ -428,13 +428,13 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p 
+                                        <p
                                             className="text-sm font-medium"
                                             style={{ color: colors.onSurface }}
                                         >
                                             {lastConnectedDevice.name}
                                         </p>
-                                        <p 
+                                        <p
                                             className="text-xs"
                                             style={{ color: colors.onSurfaceVariant }}
                                         >

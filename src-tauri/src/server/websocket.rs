@@ -80,6 +80,12 @@ pub enum ServerMessage {
         server_name: String,
         version: String,
     },
+    /// Connection established (what mobile expects)
+    #[serde(rename = "Connected")]
+    Connected {
+        #[serde(rename = "clientId")]
+        client_id: String,
+    },
     /// Current media session state
     #[serde(rename_all = "camelCase")]
     MediaSession {
@@ -101,11 +107,14 @@ pub enum ServerMessage {
         repeat_mode: String,
         output: String,
     },
-    /// Position update
+    /// Position update (mapped to PlaybackState)
+    #[serde(rename = "PlaybackState")]
     #[serde(rename_all = "camelCase")]
-    PositionUpdate {
+    PlaybackState {
+        #[serde(rename = "is_playing")]
+        is_playing: bool,
         position: f64,
-        timestamp: u64,
+        volume: f64,
     },
     /// Lyrics data
     #[serde(rename_all = "camelCase")]
@@ -127,29 +136,41 @@ pub enum ServerMessage {
     /// Stream stopped
     StreamStopped,
     /// Queue update
+    #[serde(rename = "QueueUpdate")]
     #[serde(rename_all = "camelCase")]
     QueueUpdate {
-        tracks: Vec<super::TrackSummary>,
+        queue: Vec<String>,
+        #[serde(rename = "current_index")]
+        current_index: i32,
     },
     /// WebRTC signaling relay
+    #[serde(rename = "WebRTCOffer")]
     #[serde(rename_all = "camelCase")]
-    WebrtcOffer {
+    WebRTCOffer {
+        #[serde(rename = "from_client_id")]
         from_peer_id: String,
+        #[serde(rename = "offer")]
         sdp: String,
     },
     /// WebRTC answer relay
+    #[serde(rename = "WebRTCAnswer")]
     #[serde(rename_all = "camelCase")]
-    WebrtcAnswer {
-        from_peer_id: String,
+    WebRTCAnswer {
+        #[serde(rename = "to_client_id")]
+        to_peer_id: String,
+        #[serde(rename = "answer")]
         sdp: String,
     },
     /// ICE candidate relay
+    #[serde(rename = "ICECandidate")]
     #[serde(rename_all = "camelCase")]
-    IceCandidate {
+    ICECandidate {
+        #[serde(rename = "from_client_id")]
         from_peer_id: String,
         candidate: String,
     },
     /// Error message
+    #[serde(rename = "Error")]
     Error { message: String },
     /// Pong response
     Pong,
@@ -163,14 +184,21 @@ impl From<ServerEvent> for ServerMessage {
             } => ServerMessage::MediaSession {
                 track_id, title, artist, album, duration, cover_url, is_playing, position, timestamp
             },
-            ServerEvent::PositionUpdate { position, timestamp } => {
-                ServerMessage::PositionUpdate { position, timestamp }
+            ServerEvent::PositionUpdate { position, timestamp: _ } => {
+                // Map to PlaybackState for mobile
+                // Note: We don't have is_playing/volume here, so we send defaults/nulls
+                // ideally PositionUpdate should carry more info, or we assume mobile merges state
+                ServerMessage::PlaybackState {
+                    is_playing: true, // If we are sending position updates, we are likely playing
+                    position,
+                    volume: 1.0, // Backend volume is usually handled in Status event
+                }
             }
             ServerEvent::Status { volume, shuffle, repeat_mode, output } => {
                 ServerMessage::Status { volume, shuffle, repeat_mode, output }
             }
             ServerEvent::QueueUpdate { tracks } => {
-                ServerMessage::QueueUpdate { tracks }
+                ServerMessage::QueueUpdate { queue: tracks.iter().map(|t| t.path.clone()).collect(), current_index: 0 } // Mobile expects list of strings (paths)
             }
             ServerEvent::Lyrics { track_path, has_synced, synced_lyrics, plain_lyrics, instrumental } => {
                 ServerMessage::Lyrics { track_path, has_synced, synced_lyrics, plain_lyrics, instrumental }
@@ -180,6 +208,15 @@ impl From<ServerEvent> for ServerMessage {
             }
             ServerEvent::HandoffCommit => ServerMessage::HandoffCommit,
             ServerEvent::StreamStopped => ServerMessage::StreamStopped,
+            ServerEvent::WebrtcOffer { from_peer_id, sdp } => {
+                ServerMessage::WebRTCOffer { from_peer_id, sdp }
+            }
+            ServerEvent::WebrtcAnswer { target_peer_id, sdp } => {
+                ServerMessage::WebRTCAnswer { to_peer_id: target_peer_id, sdp }
+            }
+            ServerEvent::IceCandidate { from_peer_id, candidate } => {
+                ServerMessage::ICECandidate { from_peer_id, candidate }
+            }
             ServerEvent::Error { message } => ServerMessage::Error { message },
             ServerEvent::Pong => ServerMessage::Pong,
         }
@@ -203,13 +240,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
     
     // Generate client ID
     let client_id = uuid::Uuid::new_v4().to_string();
-    let client_id_clone = client_id.clone();
+    let _client_id_clone = client_id.clone();
     let client_id_for_cleanup = client_id.clone();
     let app_handle = state.app_handle.clone();
     
     // Create channel for keepalive pings
     let (ping_tx, mut ping_rx) = tokio::sync::mpsc::channel::<()>(1);
     
+    // Create channel for direct replies from handle_client_message
+    let (reply_tx, mut reply_rx) = tokio::sync::mpsc::channel::<ServerMessage>(32);
+
     // Spawn task to forward events to client and handle keepalive
     let send_task = tokio::spawn(async move {
         let mut keepalive_interval = tokio::time::interval(std::time::Duration::from_secs(30));
@@ -227,6 +267,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
                             }
                         }
                         Err(_) => break,
+                    }
+                }
+                // Forward direct replies
+                reply = reply_rx.recv() => {
+                    match reply {
+                        Some(msg) => {
+                             let json = serde_json::to_string(&msg).unwrap();
+                             if sender.send(Message::Text(json.into())).await.is_err() {
+                                 break;
+                             }
+                        }
+                        None => break,
                     }
                 }
                 // Send keepalive ping every 30 seconds
@@ -250,7 +302,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
             Message::Text(text) => {
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(client_msg) => {
-                        handle_client_message(&state, &client_id, client_msg).await;
+                        handle_client_message(&state, &client_id, client_msg, &reply_tx).await;
                     }
                     Err(e) => {
                         log::warn!("Invalid WebSocket message: {}", e);
@@ -289,6 +341,7 @@ async fn handle_client_message(
     state: &Arc<ServerState>,
     client_id: &str,
     msg: ClientMessage,
+    reply_tx: &tokio::sync::mpsc::Sender<ServerMessage>,
 ) {
     let app_state = state.app_state();
     
@@ -309,6 +362,11 @@ async fn handle_client_message(
             }));
             log::info!("Mobile client connected: {} ({})", client_name, client_id);
             
+            // Send Connected event to confirm handshake
+            let _ = reply_tx.send(ServerMessage::Connected { 
+                client_id: client_id.to_string() 
+            }).await;
+
             // Send current status
             send_current_status_internal(state, &app_state).await;
         }
@@ -429,7 +487,30 @@ async fn handle_client_message(
         }
         
         ClientMessage::Ping => {
-            state.broadcast(ServerEvent::Pong);
+            let _ = reply_tx.send(ServerMessage::Pong).await;
+        }
+
+        ClientMessage::WebrtcOffer { target_peer_id: _, sdp } => {
+            // Broadcast offer to all (filtering usually happens on client or server should unicast)
+            // For now, broadcasting with from_id
+            state.broadcast(ServerEvent::WebrtcOffer { 
+                from_peer_id: client_id.to_string(), 
+                sdp 
+            });
+        }
+        
+        ClientMessage::WebrtcAnswer { target_peer_id, sdp } => {
+             state.broadcast(ServerEvent::WebrtcAnswer { 
+                target_peer_id, 
+                sdp 
+            });
+        }
+        
+        ClientMessage::IceCandidate { target_peer_id: _, candidate } => {
+            state.broadcast(ServerEvent::IceCandidate { 
+                from_peer_id: client_id.to_string(), 
+                candidate 
+            });
         }
         
         // TODO: Implement remaining messages
