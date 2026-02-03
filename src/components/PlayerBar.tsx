@@ -17,6 +17,27 @@ import {
     IconQueue
 } from './Icons';
 
+// Icon for speakers/audio output
+function IconSpeaker({ size = 24 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+            <circle cx="12" cy="14" r="4" />
+            <line x1="12" y1="6" x2="12" y2="6.01" />
+        </svg>
+    );
+}
+
+// Icon for mobile/phone
+function IconMobile({ size = 24 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+            <line x1="12" y1="18" x2="12.01" y2="18" />
+        </svg>
+    );
+}
+
 // --- Animation Constants ---
 const SMOOTH_SPRING = { type: "spring", stiffness: 300, damping: 40, mass: 1 } as const;
 
@@ -109,7 +130,7 @@ export function PlayerBar() {
     const {
         status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack,
         getCurrentTrackIndex, library, playFile, seek, repeatMode, cycleRepeatMode,
-        error, setError, isShuffled, toggleShuffle
+        error, setError, isShuffled, toggleShuffle, audioOutput, setAudioOutput
     } = usePlayerStore();
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
     const { state, track, position_secs, volume } = status;
@@ -176,11 +197,9 @@ export function PlayerBar() {
     const libIndex = library.findIndex(t => t.path === track?.path);
     const currentLibraryTrack = libIndex >= 0 ? library[libIndex] : null;
 
-    // Determine Cover URL
-    const isYtUrl = currentLibraryTrack?.cover_url !== undefined || track?.cover_url !== undefined;
+    // Determine Cover URL - Desktop uses local files
     const coverImageToLoad = currentLibraryTrack?.cover_image || track?.cover_image;
-    const localCoverUrl = useCoverArt(coverImageToLoad);
-    const activeCoverUrl = (isYtUrl ? (currentLibraryTrack?.cover_url || track?.cover_url) : localCoverUrl);
+    const activeCoverUrl = useCoverArt(coverImageToLoad);
 
     const [isHovered, setIsHovered] = useState(false);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -514,6 +533,18 @@ export function PlayerBar() {
                                         transition={{ delay: 0.2 }}
                                     >
                                         <IconQueue size={22} />
+                                    </OrganicControlButton>
+
+                                    {/* Audio Output Selector */}
+                                    <OrganicControlButton
+                                        onClick={() => setAudioOutput(audioOutput === 'desktop' ? 'mobile' : 'desktop')}
+                                        className={`p-2 ${audioOutput === 'mobile' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'}`}
+                                        initial={{ x: -20, opacity: 0 }}
+                                        animate={{ x: 0, opacity: 1 }}
+                                        transition={{ delay: 0.25 }}
+                                        title={audioOutput === 'desktop' ? 'Playing on Desktop' : 'Playing on Mobile'}
+                                    >
+                                        {audioOutput === 'desktop' ? <IconSpeaker size={22} /> : <IconMobile size={22} />}
                                     </OrganicControlButton>
 
                                     <div className="flex items-center gap-2 ml-2">

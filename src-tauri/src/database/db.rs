@@ -274,6 +274,9 @@ impl DatabaseManager {
         conn.execute("VACUUM", [])?;
         println!("[Database] VACUUM complete.");
 
+        // Release lock before file operations
+        drop(conn);
+
         // Clear all cover images from disk
         if self.covers_dir.exists() {
             if let Ok(entries) = std::fs::read_dir(&self.covers_dir) {
