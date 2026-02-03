@@ -678,20 +678,33 @@ pub async fn stream_audio_file(
     let track_path = urlencoding::decode(&encoded_path)
         .map_err(|_| StatusCode::BAD_REQUEST)?
         .to_string();
+        
+    log::info!("📱 Streaming request for: {}", track_path);
     
     // Validate path exists and is accessible
     if !std::path::Path::new(&track_path).exists() {
+        log::error!("❌ Stream file not found: {}", track_path);
         return Err(StatusCode::NOT_FOUND);
     }
     
     // Read file metadata for size
     let file_metadata = tokio::fs::metadata(&track_path).await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+        .map_err(|e| {
+            log::error!("❌ Failed to get metadata for {}: {}", track_path, e);
+            StatusCode::NOT_FOUND
+        })?;
     let file_size = file_metadata.len();
     
     // Read the entire file
-    let data = tokio::fs::read(&track_path).await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let data = match tokio::fs::read(&track_path).await {
+        Ok(d) => d,
+        Err(e) => {
+            log::error!("❌ Failed to read file {}: {}", track_path, e);
+            return Err(StatusCode::NOT_FOUND);
+        }
+    };
+    
+    log::info!("✅ Serving {} bytes for {}", file_size, track_path);
     
     // Determine content type from extension
     let content_type = if track_path.ends_with(".flac") {

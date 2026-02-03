@@ -49,6 +49,8 @@ pub struct ServerState {
     pub event_tx: broadcast::Sender<ServerEvent>,
     /// Connected WebSocket clients
     pub clients: RwLock<Vec<ConnectedClient>>,
+    /// Active output device ("desktop" or "mobile")
+    pub active_output: RwLock<String>,
     /// Server configuration
     pub config: ServerConfig,
 }
@@ -60,6 +62,7 @@ impl ServerState {
             app_handle,
             event_tx,
             clients: RwLock::new(Vec::new()),
+            active_output: RwLock::new("desktop".to_string()),
             config,
         }
     }

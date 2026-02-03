@@ -60,6 +60,8 @@ pub enum ClientMessage {
     HandoffReady,
     /// Network stats from mobile
     NetworkStats { buffer_ms: u32, throughput_kbps: u32 },
+    /// Request library
+    GetLibrary,
     /// Start mobile playback (client-initiated)
     StartMobilePlayback,
     /// Stop mobile playback (client-initiated)
@@ -141,6 +143,11 @@ pub enum ServerMessage {
     HandoffCommit,
     /// Stream stopped
     StreamStopped,
+    /// Library data
+    #[serde(rename_all = "camelCase")]
+    Library {
+        tracks: Vec<super::routes::TrackDetail>,
+    },
     /// Queue update
     #[serde(rename = "QueueUpdate")]
     #[serde(rename_all = "camelCase")]
@@ -521,6 +528,51 @@ async fn handle_client_message(
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "ok:next".to_string(),
                 }).await;
+                
+                // Check if we need to stream to mobile
+                let is_mobile = {
+                    state.active_output.read().await.as_str() == "mobile"
+                };
+
+                if is_mobile {
+                    // Pause PC playback
+                    if let Ok(mut player_guard) = app_state.player.lock() {
+                        if let Some(ref mut player) = *player_guard {
+                            player.pause();
+                        }
+                    }
+                    
+                    // Send stream URL to mobile
+                    let (track_path, position, stream_url) = {
+                        let player_guard = app_state.player.lock().ok();
+                        match player_guard.as_ref().and_then(|p| p.as_ref()) {
+                            Some(player) => {
+                                let status = player.get_status();
+                                match status.track {
+                                    Some(track) => {
+                                        let position = 0.0; // Start from beginning for new track
+                                        let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
+                                        let port = state.config.port;
+                                        let encoded_path = urlencoding::encode(&track.path).to_string();
+                                        let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
+                                        (Some(track.path), position, url)
+                                    }
+                                    None => (None, 0.0, String::new())
+                                }
+                            }
+                            None => (None, 0.0, String::new())
+                        }
+                    };
+                    
+                    if track_path.is_some() {
+                        log::info!("🎵 Sending next track stream via Handoff: {}", stream_url);
+                        let _ = reply_tx.send(ServerMessage::HandoffPrepare { 
+                            sample: 0,
+                            url: stream_url 
+                        }).await;
+                    }
+                }
+
                 send_current_status_internal(state, &app_state, &reply_tx).await;
             } else {
                 log::error!("❌ Could not play next track - no tracks available");
@@ -595,6 +647,51 @@ async fn handle_client_message(
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "ok:previous".to_string(),
                 }).await;
+                
+                // Check if we need to stream to mobile
+                let is_mobile = {
+                    state.active_output.read().await.as_str() == "mobile"
+                };
+
+                if is_mobile {
+                    // Pause PC playback
+                    if let Ok(mut player_guard) = app_state.player.lock() {
+                        if let Some(ref mut player) = *player_guard {
+                            player.pause();
+                        }
+                    }
+                    
+                    // Send stream URL to mobile
+                    let (track_path, position, stream_url) = {
+                        let player_guard = app_state.player.lock().ok();
+                        match player_guard.as_ref().and_then(|p| p.as_ref()) {
+                            Some(player) => {
+                                let status = player.get_status();
+                                match status.track {
+                                    Some(track) => {
+                                        let position = 0.0; // Start from beginning
+                                        let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
+                                        let port = state.config.port;
+                                        let encoded_path = urlencoding::encode(&track.path).to_string();
+                                        let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
+                                        (Some(track.path), position, url)
+                                    }
+                                    None => (None, 0.0, String::new())
+                                }
+                            }
+                            None => (None, 0.0, String::new())
+                        }
+                    };
+                    
+                    if track_path.is_some() {
+                        log::info!("🎵 Sending prev track stream via Handoff: {}", stream_url);
+                        let _ = reply_tx.send(ServerMessage::HandoffPrepare { 
+                            sample: 0,
+                            url: stream_url 
+                        }).await;
+                    }
+                }
+
                 send_current_status_internal(state, &app_state, &reply_tx).await;
             } else {
                 log::error!("❌ Could not play previous track - no tracks available");
@@ -662,6 +759,51 @@ async fn handle_client_message(
             let _ = reply_tx.send(ServerMessage::Error {
                 message: "ok:playTrack".to_string(),
             }).await;
+
+            // Check if we need to stream to mobile
+            let is_mobile = {
+                state.active_output.read().await.as_str() == "mobile"
+            };
+
+            if is_mobile {
+                // Pause PC playback
+                if let Ok(mut player_guard) = app_state.player.lock() {
+                    if let Some(ref mut player) = *player_guard {
+                        player.pause();
+                    }
+                }
+                
+                // Send stream URL to mobile
+                let (track_path, position, stream_url) = {
+                    let player_guard = app_state.player.lock().ok();
+                    match player_guard.as_ref().and_then(|p| p.as_ref()) {
+                        Some(player) => {
+                            let status = player.get_status();
+                            match status.track {
+                                Some(track) => {
+                                    let position = 0.0; // Start from beginning
+                                    let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
+                                    let port = state.config.port;
+                                    let encoded_path = urlencoding::encode(&track.path).to_string();
+                                    let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
+                                    (Some(track.path), position, url)
+                                }
+                                None => (None, 0.0, String::new())
+                            }
+                        }
+                        None => (None, 0.0, String::new())
+                    }
+                };
+                
+                if track_path.is_some() {
+                    log::info!("🎵 Sending track stream via Handoff: {}", stream_url);
+                    let _ = reply_tx.send(ServerMessage::HandoffPrepare { 
+                        sample: 0,
+                        url: stream_url 
+                    }).await;
+                }
+            }
+
             send_current_status_internal(state, &app_state, &reply_tx).await;
         }
         
@@ -716,6 +858,14 @@ async fn handle_client_message(
         
         ClientMessage::StartMobilePlayback => {
             log::info!("📱 StartMobilePlayback command from mobile ({})", client_id);
+            
+            // Set active output to mobile
+            {
+                let mut output = state.active_output.write().await;
+                *output = "mobile".to_string();
+            }
+            log::info!("🔊 Active output set to: mobile");
+
             // Pause PC playback
             if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
@@ -766,6 +916,14 @@ async fn handle_client_message(
         
         ClientMessage::StopMobilePlayback => {
             log::info!("📱 StopMobilePlayback command from mobile ({})", client_id);
+            
+            // Set active output to desktop
+            {
+                let mut output = state.active_output.write().await;
+                *output = "desktop".to_string();
+            }
+            log::info!("🔊 Active output set to: desktop");
+
             // Resume desktop playback
             if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
@@ -795,6 +953,37 @@ async fn handle_client_message(
                 }
             }
             state.broadcast(ServerEvent::StreamStopped);
+        }
+
+        ClientMessage::GetLibrary => {
+            log::info!("📱 GetLibrary request from mobile ({})", client_id);
+            
+            // Fetch all tracks from DB
+            let tracks = if let Ok(db_guard) = app_state.db.lock() {
+                if let Some(ref db) = *db_guard {
+                    if let Ok(all_tracks) = db.get_all_tracks() {
+                         all_tracks.into_iter().map(|t| super::routes::TrackDetail {
+                            path: t.path.clone(),
+                            title: t.title,
+                            artist: t.artist,
+                            album: t.album,
+                            duration_secs: t.duration_secs,
+                            disc_number: t.disc_number,
+                            track_number: t.track_number,
+                            cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+                        }).collect()
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+            
+            log::info!("📱 Sending library with {} tracks to mobile", tracks.len());
+            let _ = reply_tx.send(ServerMessage::Library { tracks }).await;
         }
         
         ClientMessage::Ping => {
@@ -910,6 +1099,9 @@ async fn send_current_status_internal(
     };
     let _ = reply_tx.send(status_msg).await;
     log::debug!("✅ Sent Status to mobile client");
+
+    // Emit event to Tauri frontend to refresh UI
+    let _ = state.app_handle.emit("refresh-player-state", ());
     
     // Also broadcast to all connected clients
     state.broadcast(ServerEvent::Status {

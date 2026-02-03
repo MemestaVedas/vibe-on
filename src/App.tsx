@@ -104,6 +104,12 @@ function App() {
           useMobileStore.getState().disconnect();
         }),
 
+        // Listen for player state refreshes (e.g. from mobile remote control)
+        listen('refresh-player-state', () => {
+          console.log('[Native] Refreshing player state from backend event');
+          usePlayerStore.getState().refreshStatus();
+        }),
+
         // Listen for output changes (triggered from mobile or PC UI)
         listen('output-changed', (event: any) => {
           console.log('[Output] Output changed:', event.payload);
