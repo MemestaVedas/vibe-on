@@ -514,12 +514,22 @@ async fn handle_client_message(
             };
             
             if let Some(next_track_path) = next_track {
-                // Play the next track
+                // Check if we need to stream to mobile
+                let is_mobile = {
+                    state.active_output.read().await.as_str() == "mobile"
+                };
+
+                // Play or load the next track
                 {
                     if let Ok(mut player_guard) = app_state.player.lock() {
                         if let Some(ref player) = *player_guard {
-                            let _ = player.play_file(&next_track_path);
-                            log::info!("▶️ Playing next track: {}", next_track_path);
+                            if is_mobile {
+                                let _ = player.load_file(&next_track_path);
+                                log::info!("📱 Loading (mobile) next track: {}", next_track_path);
+                            } else {
+                                let _ = player.play_file(&next_track_path);
+                                log::info!("▶️ Playing next track: {}", next_track_path);
+                            }
                         }
                     }
                 }
@@ -529,19 +539,7 @@ async fn handle_client_message(
                     message: "ok:next".to_string(),
                 }).await;
                 
-                // Check if we need to stream to mobile
-                let is_mobile = {
-                    state.active_output.read().await.as_str() == "mobile"
-                };
-
                 if is_mobile {
-                    // Pause PC playback
-                    if let Ok(mut player_guard) = app_state.player.lock() {
-                        if let Some(ref mut player) = *player_guard {
-                            player.pause();
-                        }
-                    }
-                    
                     // Send stream URL to mobile
                     let (track_path, position, stream_url) = {
                         let player_guard = app_state.player.lock().ok();
@@ -633,12 +631,22 @@ async fn handle_client_message(
             };
             
             if let Some(prev_track_path) = prev_track {
-                // Play the previous track
+                // Check if we need to stream to mobile
+                let is_mobile = {
+                    state.active_output.read().await.as_str() == "mobile"
+                };
+
+                // Play or load the previous track
                 {
                     if let Ok(mut player_guard) = app_state.player.lock() {
                         if let Some(ref player) = *player_guard {
-                            let _ = player.play_file(&prev_track_path);
-                            log::info!("⏮️ Playing previous track: {}", prev_track_path);
+                            if is_mobile {
+                                let _ = player.load_file(&prev_track_path);
+                                log::info!("📱 Loading (mobile) previous track: {}", prev_track_path);
+                            } else {
+                                let _ = player.play_file(&prev_track_path);
+                                log::info!("⏮️ Playing previous track: {}", prev_track_path);
+                            }
                         }
                     }
                 }
@@ -648,19 +656,7 @@ async fn handle_client_message(
                     message: "ok:previous".to_string(),
                 }).await;
                 
-                // Check if we need to stream to mobile
-                let is_mobile = {
-                    state.active_output.read().await.as_str() == "mobile"
-                };
-
                 if is_mobile {
-                    // Pause PC playback
-                    if let Ok(mut player_guard) = app_state.player.lock() {
-                        if let Some(ref mut player) = *player_guard {
-                            player.pause();
-                        }
-                    }
-                    
                     // Send stream URL to mobile
                     let (track_path, position, stream_url) = {
                         let player_guard = app_state.player.lock().ok();
@@ -735,10 +731,19 @@ async fn handle_client_message(
         
         ClientMessage::PlayTrack { path } => {
             log::info!("📱 PlayTrack command from mobile ({}): {}", client_id, path);
+            
+            let is_mobile = {
+                state.active_output.read().await.as_str() == "mobile"
+            };
+
             let play_result = {
                 if let Ok(mut player_guard) = app_state.player.lock() {
                     if let Some(ref mut player) = *player_guard {
-                        player.play_file(&path)
+                        if is_mobile {
+                            player.load_file(&path)
+                        } else {
+                            player.play_file(&path)
+                        }
                     } else {
                         Err("No player available".to_string())
                     }
@@ -760,19 +765,7 @@ async fn handle_client_message(
                 message: "ok:playTrack".to_string(),
             }).await;
 
-            // Check if we need to stream to mobile
-            let is_mobile = {
-                state.active_output.read().await.as_str() == "mobile"
-            };
-
             if is_mobile {
-                // Pause PC playback
-                if let Ok(mut player_guard) = app_state.player.lock() {
-                    if let Some(ref mut player) = *player_guard {
-                        player.pause();
-                    }
-                }
-                
                 // Send stream URL to mobile
                 let (track_path, position, stream_url) = {
                     let player_guard = app_state.player.lock().ok();
@@ -866,11 +859,15 @@ async fn handle_client_message(
             }
             log::info!("🔊 Active output set to: mobile");
 
-            // Pause PC playback
+            // Mute PC playback but keep it running for sync
             if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
-                    player.pause();
-                    log::info!("⏸️ PC playback paused for mobile streaming");
+                    let _ = player.set_mute(true);
+                    // Ensure it is playing if it was paused? 
+                    // Ideally we sync state first. For now, assume user pressed play on mobile.
+                    // If mobile says "start playback", we essentially want the PC to "play silently".
+                    let _ = player.resume(); 
+                    log::info!("🔇 PC playback muted and resumed for mobile streaming");
                 }
             }
             
@@ -924,11 +921,11 @@ async fn handle_client_message(
             }
             log::info!("🔊 Active output set to: desktop");
 
-            // Resume desktop playback
+            // Unmute PC playback
             if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
-                    player.resume();
-                    log::info!("▶️ PC playback resumed");
+                    let _ = player.set_mute(false);
+                    log::info!("🔈 PC playback unmuted");
                 }
             }
             state.broadcast(ServerEvent::StreamStopped);
@@ -937,6 +934,73 @@ async fn handle_client_message(
             let _ = state.app_handle.emit("output-changed", serde_json::json!({
                 "output": "desktop"
             }));
+        }
+
+        ClientMessage::GetLyrics => {
+            log::info!("📱 GetLyrics request from mobile ({})", client_id);
+            
+            // Get current track to fetch lyrics for
+            let current_track = {
+                if let Ok(player_guard) = app_state.player.lock() {
+                    if let Some(ref player) = *player_guard {
+                        player.get_status().track
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+
+            if let Some(track) = current_track {
+                let artist = track.artist.clone();
+                let title = track.title.clone();
+                let duration = track.duration_secs as u32;
+                let path = track.path.clone();
+                
+                log::info!("📝 Fetching lyrics for: {} - {}", artist, title);
+                
+                // Fetch in background task to not block
+                let reply_tx = reply_tx.clone();
+                tokio::task::spawn_blocking(move || {
+                    // Try local lrc first
+                    println!("[Lyrics] Checking local file for: {}", path);
+                    if let Some(lrc) = crate::lyrics_fetcher::find_local_lrc(&path) {
+                        println!("[Lyrics] Found local file!");
+                        let _ = reply_tx.blocking_send(ServerMessage::Lyrics {
+                            track_path: path,
+                            has_synced: lrc.synced_lyrics.is_some(),
+                            synced_lyrics: lrc.synced_lyrics,
+                            plain_lyrics: lrc.plain_lyrics,
+                            instrumental: lrc.instrumental.unwrap_or(false),
+                        });
+                        return;
+                    }
+                    
+                    // Fetch from API
+                    match crate::lyrics_fetcher::fetch_lyrics(&artist, &title, duration, |_| {}) {
+                        Ok(lyrics) => {
+                             let _ = reply_tx.blocking_send(ServerMessage::Lyrics {
+                                track_path: path,
+                                has_synced: lyrics.synced_lyrics.is_some(),
+                                synced_lyrics: lyrics.synced_lyrics,
+                                plain_lyrics: lyrics.plain_lyrics,
+                                instrumental: lyrics.instrumental.unwrap_or(false),
+                            });
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to fetch lyrics: {}", e);
+                            let _ = reply_tx.blocking_send(ServerMessage::Error {
+                                message: "Lyrics not found".to_string(),
+                            });
+                        }
+                    }
+                });
+            } else {
+                 let _ = reply_tx.send(ServerMessage::Error {
+                    message: "No track playing".to_string(),
+                }).await;
+            }
         }
         
         ClientMessage::MobilePositionUpdate { position_secs } => {
@@ -1057,6 +1121,8 @@ async fn send_current_status_internal(
         }
     };
     
+    let active_output = state.active_output.read().await.clone();
+    
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -1095,7 +1161,7 @@ async fn send_current_status_internal(
         volume: volume as f64,
         shuffle: false,
         repeat_mode: "off".to_string(),
-        output: "desktop".to_string(),
+        output: active_output.clone(),
     };
     let _ = reply_tx.send(status_msg).await;
     log::debug!("✅ Sent Status to mobile client");
@@ -1108,7 +1174,7 @@ async fn send_current_status_internal(
         volume: volume as f64,
         shuffle: false,
         repeat_mode: "off".to_string(),
-        output: "desktop".to_string(),
+        output: active_output,
     });
 }
 
@@ -1154,6 +1220,8 @@ async fn send_current_status_broadcast_only(
         }
     };
     
+    let active_output = state.active_output.read().await.clone();
+    
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -1175,7 +1243,7 @@ async fn send_current_status_broadcast_only(
         volume: volume as f64,
         shuffle: false,
         repeat_mode: "off".to_string(),
-        output: "desktop".to_string(),
+        output: active_output,
     });
 }
 
