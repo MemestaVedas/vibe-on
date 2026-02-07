@@ -146,6 +146,19 @@ pub struct LyricsResponse {
     pub instrumental: bool,
 }
 
+/// Statistics response
+#[derive(Serialize)]
+pub struct StatsResponse {
+    #[serde(rename = "totalSongs")]
+    pub total_songs: usize,
+    #[serde(rename = "totalAlbums")]
+    pub total_albums: usize,
+    #[serde(rename = "totalArtists")]
+    pub total_artists: usize,
+    #[serde(rename = "totalDurationHours")]
+    pub total_duration_hours: f64,
+}
+
 /// Pagination query params
 #[derive(Debug, Deserialize)]
 pub struct PaginationParams {
@@ -577,6 +590,48 @@ pub async fn get_lyrics(
         synced_lyrics: None,
         plain_lyrics: None,
         instrumental: false,
+    }))
+}
+
+/// Get library statistics
+pub async fn get_stats(
+    State(state): State<Arc<ServerState>>,
+) -> Result<Json<StatsResponse>, StatusCode> {
+    let app_state = state.app_state();
+    let all_tracks = app_state.db.lock()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
+        .get_all_tracks()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // Calculate statistics
+    let total_songs = all_tracks.len();
+    
+    // Calculate total duration in hours
+    let total_duration_hours: f64 = all_tracks.iter()
+        .map(|t| t.duration_secs)
+        .sum::<f64>() / 3600.0;
+    
+    // Get unique albums
+    let mut albums_set = std::collections::HashSet::new();
+    for track in &all_tracks {
+        albums_set.insert((&track.album, &track.artist));
+    }
+    let total_albums = albums_set.len();
+    
+    // Get unique artists
+    let mut artists_set = std::collections::HashSet::new();
+    for track in &all_tracks {
+        artists_set.insert(&track.artist);
+    }
+    let total_artists = artists_set.len();
+    
+    Ok(Json(StatsResponse {
+        total_songs,
+        total_albums,
+        total_artists,
+        total_duration_hours,
     }))
 }
 

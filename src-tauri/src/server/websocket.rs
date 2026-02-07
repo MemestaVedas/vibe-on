@@ -606,6 +606,89 @@ async fn handle_client_message(
             }
         }
 
+        ClientMessage::PlayAlbum { album, artist } => {
+            log::info!("📱 PlayAlbum command from mobile ({}) - Album: {}, Artist: {}", client_id, album, artist);
+            
+            let tracks = {
+                let db_guard = app_state.db.lock().unwrap();
+                if let Some(ref db) = *db_guard {
+                    if let Ok(all_tracks) = db.get_all_tracks() {
+                         let mut filtered: Vec<_> = all_tracks.into_iter()
+                            .filter(|t| t.album == album && (artist.is_empty() || t.artist == artist))
+                            .collect();
+                        // Sort by disc, then track
+                        filtered.sort_by(|a, b| {
+                             a.disc_number.cmp(&b.disc_number)
+                                .then(a.track_number.cmp(&b.track_number))
+                        });
+                        filtered
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            };
+
+            if !tracks.is_empty() {
+                let first_path = tracks[0].path.clone();
+                {
+                    let mut queue = app_state.queue.lock().unwrap();
+                    let mut index = app_state.current_queue_index.lock().unwrap();
+                    *queue = tracks;
+                    *index = 0;
+                }
+                play_track_internal(state, &app_state, first_path.clone(), &reply_tx).await;
+                broadcast_queue_update(state, &app_state).await;
+            } else {
+                 let _ = reply_tx.send(ServerMessage::Error {
+                    message: "Album not found or empty".to_string(),
+                }).await;
+            }
+        }
+
+        ClientMessage::PlayArtist { artist } => {
+            log::info!("📱 PlayArtist command from mobile ({}) - Artist: {}", client_id, artist);
+            
+            let tracks = {
+                let db_guard = app_state.db.lock().unwrap();
+                if let Some(ref db) = *db_guard {
+                    if let Ok(all_tracks) = db.get_all_tracks() {
+                         let mut filtered: Vec<_> = all_tracks.into_iter()
+                            .filter(|t| t.artist == artist)
+                            .collect();
+                        // Sort by album, then disc, then track
+                        filtered.sort_by(|a, b| {
+                             a.album.cmp(&b.album)
+                                .then(a.disc_number.cmp(&b.disc_number))
+                                .then(a.track_number.cmp(&b.track_number))
+                        });
+                        filtered
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            };
+
+            if !tracks.is_empty() {
+                let first_path = tracks[0].path.clone();
+                {
+                    let mut queue = app_state.queue.lock().unwrap();
+                    let mut index = app_state.current_queue_index.lock().unwrap();
+                    *queue = tracks;
+                    *index = 0;
+                }
+                play_track_internal(state, &app_state, first_path.clone(), &reply_tx).await;
+                broadcast_queue_update(state, &app_state).await;
+            } else {
+                 let _ = reply_tx.send(ServerMessage::Error {
+                    message: "Artist not found or empty".to_string(),
+                }).await;
+            }
+        }
+
         ClientMessage::ToggleShuffle => {
             {
                 let mut shuffle = app_state.shuffle.lock().unwrap();

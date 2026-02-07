@@ -300,6 +300,7 @@ pub async fn start_server(
         .route("/api/artists", get(get_artists))
         .route("/api/artists/:name", get(get_artist_detail))
         .route("/api/lyrics/*path", get(get_lyrics))
+        .route("/api/stats", get(get_stats))
         // Cover art
         .route("/cover/*path", get(get_cover))
         // Audio streaming
