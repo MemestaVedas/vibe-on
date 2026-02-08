@@ -9,6 +9,19 @@ use uuid::Uuid;
 use super::schema::init_db;
 use crate::audio::{TrackInfo, UnreleasedTrack};
 
+pub struct DbAlbum {
+    pub name: String,
+    pub artist: String,
+    pub cover_image_path: Option<String>,
+    pub track_count: usize,
+}
+
+pub struct DbArtist {
+    pub name: String,
+    pub album_count: usize,
+    pub track_count: usize,
+}
+
 pub struct DatabaseManager {
     conn: Arc<Mutex<Connection>>,
     covers_dir: PathBuf,
@@ -72,7 +85,6 @@ impl DatabaseManager {
         let album_exists = album_row.is_some();
         let existing_cover = album_row.flatten();
 
-        // If we have cover data and (album doesn't exist OR album has no cover), save it
         if let Some(data) = cover_data {
             if existing_cover.is_none() {
                 let filename = format!("{}.jpg", Uuid::new_v4());
@@ -120,6 +132,211 @@ impl DatabaseManager {
 
         Ok(())
     }
+
+    pub fn update_album_cover(
+        &self,
+        album: &str,
+        artist: &str,
+        cover_filename: &str,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE albums SET cover_image_path = ?1 WHERE name = ?2 AND artist = ?3",
+            params![cover_filename, album, artist],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_tracks_paginated(&self, limit: usize, offset: usize) -> Result<Vec<TrackInfo>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
+             FROM tracks t 
+             LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
+             ORDER BY t.artist, t.album, t.disc_number, t.track_number, t.title
+             LIMIT ?1 OFFSET ?2",
+        )?;
+
+        let track_iter = stmt.query_map(params![limit, offset], |row| {
+            let cover_filename: Option<String> = row.get(5)?;
+            Ok(TrackInfo {
+                path: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_secs: row.get(4)?,
+                cover_image: cover_filename,
+                disc_number: row.get(6).unwrap_or(None),
+                track_number: row.get(7).unwrap_or(None),
+            })
+        })?;
+
+        let mut tracks = Vec::new();
+        for track in track_iter {
+            tracks.push(track?);
+        }
+
+        Ok(tracks)
+    }
+
+    pub fn search_tracks(
+        &self,
+        query: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<TrackInfo>> {
+        let conn = self.conn.lock().unwrap();
+        let search_query = format!("%{}%", query);
+
+        let mut stmt = conn.prepare(
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
+             FROM tracks t 
+             LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
+             WHERE t.title LIKE ?1 OR t.artist LIKE ?1 OR t.album LIKE ?1
+             ORDER BY t.artist, t.album, t.disc_number, t.track_number, t.title
+             LIMIT ?2 OFFSET ?3",
+        )?;
+
+        let track_iter = stmt.query_map(params![search_query, limit, offset], |row| {
+            let cover_filename: Option<String> = row.get(5)?;
+            Ok(TrackInfo {
+                path: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_secs: row.get(4)?,
+                cover_image: cover_filename,
+                disc_number: row.get(6).unwrap_or(None),
+                track_number: row.get(7).unwrap_or(None),
+            })
+        })?;
+
+        let mut tracks = Vec::new();
+        for track in track_iter {
+            tracks.push(track?);
+        }
+
+        Ok(tracks)
+    }
+
+    pub fn get_track(&self, path: &str) -> Result<Option<TrackInfo>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
+             FROM tracks t 
+             LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
+             WHERE t.path = ?1",
+        )?;
+
+        let mut rows = stmt.query_map(params![path], |row| {
+            let cover_filename: Option<String> = row.get(5)?;
+            Ok(TrackInfo {
+                path: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_secs: row.get(4)?,
+                cover_image: cover_filename,
+                disc_number: row.get(6).unwrap_or(None),
+                track_number: row.get(7).unwrap_or(None),
+            })
+        })?;
+
+        if let Some(row) = rows.next() {
+            Ok(Some(row?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_albums_paginated(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<DbAlbum>, usize)> {
+        let conn = self.conn.lock().unwrap();
+
+        // Count total albums (approximate or separate query)
+        // For distinct albums:
+        let total: usize = conn
+            .query_row(
+                "SELECT COUNT(*) FROM (SELECT DISTINCT name, artist FROM albums)",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
+        let mut stmt = conn.prepare(
+            "SELECT a.name, a.artist, a.cover_image_path, COUNT(t.path) as track_count
+             FROM albums a
+             LEFT JOIN tracks t ON t.album = a.name AND t.artist = a.artist
+             GROUP BY a.name, a.artist
+             ORDER BY a.name
+             LIMIT ?1 OFFSET ?2",
+        )?;
+
+        let album_iter = stmt.query_map(params![limit, offset], |row| {
+            let cover_filename: Option<String> = row.get(2)?;
+            Ok(DbAlbum {
+                name: row.get(0)?,
+                artist: row.get(1)?,
+                cover_image_path: cover_filename,
+                track_count: row.get(3)?,
+            })
+        })?;
+
+        let mut albums = Vec::new();
+        for album in album_iter {
+            albums.push(album?);
+        }
+
+        Ok((albums, total))
+    }
+
+    pub fn get_artists_paginated(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<DbArtist>, usize)> {
+        let conn = self.conn.lock().unwrap();
+
+        // Count total artists
+        let total: usize = conn
+            .query_row("SELECT COUNT(DISTINCT artist) FROM tracks", [], |row| {
+                row.get(0)
+            })
+            .unwrap_or(0);
+
+        let mut stmt = conn.prepare(
+            "SELECT artist, COUNT(DISTINCT album) as album_count, COUNT(path) as track_count
+             FROM tracks
+             GROUP BY artist
+             ORDER BY artist
+             LIMIT ?1 OFFSET ?2",
+        )?;
+
+        let artist_iter = stmt.query_map(params![limit, offset], |row| {
+            Ok(DbArtist {
+                name: row.get(0)?,
+                album_count: row.get(1)?,
+                track_count: row.get(2)?,
+            })
+        })?;
+
+        let mut artists = Vec::new();
+        for artist in artist_iter {
+            artists.push(artist?);
+        }
+
+        Ok((artists, total))
+    }
+
+    // Search methods (omitted for brevity in this sprint if complexity is high, but let's try basic)
+    // Actually, `search_library` in routes expects EVERYTHING at once (tracks, albums, artists) mixed.
+    // If we paginated search, it gets complex.
+    // Let's stick to get_albums/artists optimization first.
 
     pub fn get_all_tracks(&self) -> Result<Vec<TrackInfo>> {
         let conn = self.conn.lock().unwrap();

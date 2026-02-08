@@ -241,7 +241,7 @@ impl AudioThread {
             }
         };
         // Increase buffer size to prevent underruns (static/breaking)
-        let reader = BufReader::with_capacity(128 * 1024, file);
+        let reader = BufReader::with_capacity(512 * 1024, file);
         let source = match Decoder::new(reader) {
             Ok(s) => s,
             Err(e) => {
@@ -442,7 +442,7 @@ impl AudioThread {
                 }
             };
 
-            let reader = BufReader::with_capacity(128 * 1024, file);
+            let reader = BufReader::with_capacity(512 * 1024, file);
             let source = match Decoder::new(reader) {
                 Ok(s) => s,
                 Err(e) => {
