@@ -13,15 +13,15 @@ VIBE-ON! is a modern, aesthetically crafted music player designed to elevate you
 ## ✨ Features at a Glance
 
 *   **🎨 Dynamic Immersion**: UI themes adapt continuously to the colors of your current track's album art using Material 3 Expressive logic.
-*   **🎤 Synchronized Lyrics**: Real-time scrolling, time-coded lyrics with manual LRC file support and smart local caching.
+*   **📡 Mobile Sync & Remote Control**: Integrated **WebSocket server** with **mDNS discovery** for seamless interaction with the Vibe-On Android companion app.
+*   **🎤 Enhanced Lyrics Engine**: Real-time scrolling with support for local `.lrc` and `.romaji.lrc` files, smart merging, and LRCLIB integration.
 *   **🌐 YouTube Music Integration**: Seamlessly switch between your local collection and the vast world of YouTube Music.
 *   **🧲 Integrated Torrent Engine**: Search, browse, and download high-quality music directly within the application.
-*   **📺 Casting Support**: Stream your favorite tunes to Chromecast and other compatible external devices.
 *   **📊 Listening Statistics**: Deep insights into your listening habits with beautiful visualizations of top tracks and artists.
 *   **🎧 Immersive Visuals**: Ambient backgrounds, glassmorphism, and smooth organic motion for a premium feel.
-*   **📡 Discord Rich Presence**: Share what you're vibing to with your friends on Discord.
+*   **📶 P2P Synchronization**: Advanced background library syncing powered by **libp2p** and **QUIC**.
 *   **⚡ Native Performance**: Powered by **Rust** and **Tauri** for a lightweight, fast, and secure experience.
-*   **🎹 System Integration**: Native taskbar controls, media keys, and Windows system media integration.
+*   **🎹 System Integration**: Native taskbar controls, Discord Rich Presence, and Windows system media integration.
 
 ---
 
@@ -44,7 +44,8 @@ Vibe-On follows the **Material 3 Expressive** design system, focusing on:
 ## 🛠️ Tech Stack
 
 -   **Frontend**: React 19, TypeScript, Tailwind CSS, Framer Motion
--   **Backend**: Rust, Tauri 2.0
+-   **Backend**: Rust, Tauri 2.0, Axum (WebSocket/REST Server)
+-   **Networking**: libp2p (P2P syncing), mdns-sd (Discovery)
 -   **Database**: SQLite (via `rusqlite`) for fast, local persistent storage
 -   **Metadata**: Lofty (Rust-based high-performance tag processing)
 -   **Color Engine**: `@material/material-color-utilities`
