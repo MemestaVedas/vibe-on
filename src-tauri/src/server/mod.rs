@@ -113,6 +113,8 @@ pub enum ServerEvent {
     /// Queue updated
     QueueUpdate {
         tracks: Vec<TrackSummary>,
+        #[serde(rename = "currentIndex")]
+        current_index: i32,
     },
     /// Lyrics available
     Lyrics {

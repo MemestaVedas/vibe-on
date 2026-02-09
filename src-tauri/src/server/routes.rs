@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::audio::TrackInfo;
 use super::{ServerState, TrackSummary};
 
 /// Health check response
@@ -576,19 +577,85 @@ pub async fn get_artist_detail(
 
 /// Get lyrics for a track
 pub async fn get_lyrics(
-    State(_state): State<Arc<ServerState>>,
+    State(state): State<Arc<ServerState>>,
     Path(path): Path<String>,
 ) -> Result<Json<LyricsResponse>, StatusCode> {
     let track_path = urlencoding::decode(&path).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
     
-    // TODO: Implement lyrics fetching from cache/API
-    Ok(Json(LyricsResponse {
-        track_path,
-        has_synced: false,
-        synced_lyrics: None,
-        plain_lyrics: None,
-        instrumental: false,
-    }))
+    // 1. Get track metadata from DB to search correctly
+    let app_state = state.app_state();
+    let track_info: Option<TrackInfo> = {
+        let db_lock = app_state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if let Some(ref db) = *db_lock {
+            db.get_track(&track_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        } else {
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
+    };
+
+    let track = if let Some(t) = track_info {
+        t
+    } else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+
+    // 2. Try Local LRC first (Instant)
+    if let Some(mut local_lyrics) = crate::lyrics_fetcher::find_local_lrc(&track_path) {
+        // Transliterate if needed
+        if let Some(ref synced) = local_lyrics.synced_lyrics {
+            if crate::lyrics_transliteration::has_japanese(synced) { // Check for JP characters
+                local_lyrics.synced_lyrics = Some(crate::lyrics_transliteration::transliterate_lyrics(synced));
+            }
+        }
+        return Ok(Json(LyricsResponse {
+            track_path: track_path.clone(),
+            has_synced: local_lyrics.synced_lyrics.is_some(),
+            synced_lyrics: local_lyrics.synced_lyrics,
+            plain_lyrics: local_lyrics.plain_lyrics,
+            instrumental: local_lyrics.instrumental.unwrap_or(false),
+        }));
+    }
+
+    // 3. Fetch from API (Blocking)
+    let artist = track.artist.clone();
+    let title = track.title.clone();
+    let duration = track.duration_secs as u32;
+
+    // Use spawn_blocking for network request
+    let api_result = tokio::task::spawn_blocking(move || {
+        // We pass a no-op closure for progress updates since we can't stream them easily over HTTP here
+        let mut lyrics = crate::lyrics_fetcher::fetch_lyrics(&artist, &title, duration, |_| {})
+            .or_else(|_| crate::lyrics_fetcher::fetch_lyrics_fallback(&artist, &title, |_| {}))?;
+        
+        // Transliterate if needed
+        if let Some(ref synced) = lyrics.synced_lyrics {
+            if crate::lyrics_transliteration::has_japanese(synced) {
+                lyrics.synced_lyrics = Some(crate::lyrics_transliteration::transliterate_lyrics(synced));
+            }
+        }
+        
+        Ok::<_, String>(lyrics) // Return a Result from the blocking task
+    }).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match api_result {
+        Ok(lyrics) => Ok(Json(LyricsResponse {
+            track_path: track_path.clone(),
+            has_synced: lyrics.synced_lyrics.is_some(),
+            synced_lyrics: lyrics.synced_lyrics,
+            plain_lyrics: lyrics.plain_lyrics,
+            instrumental: lyrics.instrumental.unwrap_or(false),
+        })),
+        Err(_) => {
+            // Return empty response if not found, rather than error, so UI knows we tried
+             Ok(Json(LyricsResponse {
+                track_path: track_path,
+                has_synced: false,
+                synced_lyrics: None,
+                plain_lyrics: None,
+                instrumental: false,
+            }))
+        }
+    }
 }
 
 /// Get library statistics

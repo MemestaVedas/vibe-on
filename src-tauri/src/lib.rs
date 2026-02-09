@@ -3,6 +3,7 @@ mod cover_fetcher;
 mod database;
 mod discord_rpc;
 mod lyrics_fetcher;
+pub mod lyrics_transliteration;
 mod p2p;
 mod server;
 #[cfg(target_os = "windows")]
@@ -12,7 +13,7 @@ mod youtube_searcher;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State, Listener};
 
 use audio::state::PlayerStatus;
 #[cfg(target_os = "windows")]
@@ -1567,6 +1568,58 @@ pub fn run() {
             
             // Start mobile companion server and P2P in background
             let app_handle = _app.handle().clone();
+            let app_handle_for_queue = app_handle.clone();
+            // Listen for queue updates from frontend
+            _app.listen("queue-updated", move |event: tauri::Event| {
+                if let Ok(payload_val) = serde_json::from_str::<serde_json::Value>(event.payload()) {
+                    if let Some(tracks_val) = payload_val.get("tracks").and_then(|t| t.as_array()) {
+                        let state = app_handle_for_queue.state::<AppState>();
+                        
+                        let tracks: Vec<TrackInfo> = tracks_val.iter().filter_map(|t| {
+                            let path = t.get("path")?.as_str()?.to_string();
+                            let title = t.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+                            let artist = t.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+                            let album = t.get("album").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+                            let duration_secs = t.get("durationSecs").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                            
+                            Some(TrackInfo {
+                                path,
+                                title,
+                                artist,
+                                album,
+                                duration_secs,
+                                cover_image: None,
+                                disc_number: None,
+                                track_number: None,
+                            })
+                        }).collect();
+                        
+                        // Update queue
+                        if let Ok(mut queue_guard) = state.queue.lock() {
+                            *queue_guard = tracks.clone();
+                            println!("[Backend] Queue synchronized from frontend: {} tracks", tracks.len());
+                        }
+
+                        // Update current index if possible
+                        // We need to use a new block or clone state to avoid lifetime issues if any
+                        {
+                            if let Ok(player_guard) = state.player.lock() {
+                                if let Some(ref player) = *player_guard {
+                                    let status = player.get_status();
+                                    if let Some(current_track) = &status.track {
+                                        if let Some(idx) = tracks.iter().position(|t| t.path == current_track.path) {
+                                            if let Ok(mut idx_guard) = state.current_queue_index.lock() {
+                                                *idx_guard = idx;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                    }
+                }
+            });
+
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
                 rt.block_on(async {

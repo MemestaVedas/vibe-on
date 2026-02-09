@@ -100,52 +100,75 @@ pub fn find_local_lrc(audio_path: &str) -> Option<LyricsResponse> {
 
 /// Helper to merge main LRC with translation/romaji LRC
 fn merge_lrc_content(main: &str, romaji: &str) -> String {
-    use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
-    // Parse both into maps: Timestamp -> Text
-    let parse = |s: &str| -> BTreeMap<String, String> {
-        let mut map = BTreeMap::new();
-        for line in s.lines() {
-            if let Some(start) = line.find('[') {
-                if let Some(end) = line.find(']') {
-                    if end > start {
-                        let timestamp = &line[start..=end]; // Keep brackets for simple matching
+    // Helper to parse timestamp [MM:SS.xx] or [MM:SS.xxx] to milliseconds
+    fn parse_timestamp_ms(s: &str) -> Option<u64> {
+        let s = s.trim();
+        if !s.starts_with('[') || !s.ends_with(']') { return None; }
+        let content = &s[1..s.len()-1];
+        let parts: Vec<&str> = content.split(':').collect();
+        if parts.len() != 2 { return None; }
+        
+        let min: u64 = parts[0].parse().ok()?;
+        
+        let sec_parts: Vec<&str> = parts[1].split('.').collect();
+        if sec_parts.len() != 2 { return None; }
+        
+        let sec: u64 = sec_parts[0].parse().ok()?;
+        let frac_str = sec_parts[1];
+        
+        // Handle .xx (centiseconds) vs .xxx (milliseconds)
+        let ms: u64 = if frac_str.len() == 2 {
+            frac_str.parse::<u64>().ok()? * 10
+        } else if frac_str.len() >= 3 {
+            frac_str[..3].parse::<u64>().ok()?
+        } else {
+            frac_str.parse::<u64>().ok()?
+        };
+        
+        Some(min * 60000 + sec * 1000 + ms)
+    }
+
+    // Parse romaji into Map: MS -> Text
+    let mut romaji_map: HashMap<u64, String> = HashMap::new();
+    for line in romaji.lines() {
+        if let Some(start) = line.find('[') {
+            if let Some(end) = line.find(']') {
+                if end > start {
+                    let timestamp_str = &line[start..=end];
+                    if let Some(ms) = parse_timestamp_ms(timestamp_str) {
                         let text = line[end + 1..].trim();
                         if !text.is_empty() {
-                            map.insert(timestamp.to_string(), text.to_string());
+                            romaji_map.insert(ms, text.to_string());
                         }
                     }
                 }
             }
         }
-        map
-    };
-
-    let main_map = parse(main);
-    let romaji_map = parse(romaji);
-
-    // Reconstruct with merger
-    // We iterate over main_map to preserve original timing/order
-    let mut result = String::new();
-
-    // Basic heuristics: if main map is empty, just return romaji? No, return main.
-    if main_map.is_empty() {
-        return main.to_string();
     }
 
-    // Re-read line by line to preserve headers/tags?
-    // Simplified approach: Rebuild from map.
-    // Better approach: Iterate lines of main, check if timestamp exists in romaji_map.
+    let mut result = String::new();
 
+    // Iterate main lines and merge
     for line in main.lines() {
         if let Some(start) = line.find('[') {
             if let Some(end) = line.find(']') {
-                let timestamp = &line[start..=end];
+                let timestamp_str = &line[start..=end];
                 let text = line[end + 1..].trim();
 
-                if let Some(romaji_text) = romaji_map.get(timestamp) {
+                // Try to parse main timestamp to find match
+                let match_found = if let Some(ms) = parse_timestamp_ms(timestamp_str) {
+                    // Try exact match or slight tolerance (e.g. +/- 10ms due to rounding errors)
+                    // For now, let's try strict first, but the "2 digit vs 3 digit" issue is handled by parse_timestamp_ms returning same MS value.
+                    romaji_map.get(&ms)
+                } else {
+                    None
+                };
+
+                if let Some(romaji_text) = match_found {
                     // MERGE!
-                    result.push_str(&format!("{} {} / {}\n", timestamp, text, romaji_text));
+                    result.push_str(&format!("{} {} / {}\n", timestamp_str, text, romaji_text));
                 } else {
                     result.push_str(&format!("{}\n", line));
                 }

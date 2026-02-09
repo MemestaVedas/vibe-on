@@ -13,7 +13,7 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::{ConnectedClient, ServerEvent, ServerState, TrackSummary};
+use super::{ConnectedClient, ServerEvent, ServerState};
 
 /// Client to server messages
 #[derive(Debug, Clone, Deserialize)]
@@ -210,8 +210,8 @@ impl From<ServerEvent> for ServerMessage {
             ServerEvent::Status { volume, shuffle, repeat_mode, output } => {
                 ServerMessage::Status { volume, shuffle, repeat_mode, output }
             }
-            ServerEvent::QueueUpdate { tracks } => {
-                ServerMessage::QueueUpdate { queue: tracks, current_index: 0 }
+            ServerEvent::QueueUpdate { tracks, current_index } => {
+                ServerMessage::QueueUpdate { queue: tracks, current_index }
             }
             ServerEvent::Lyrics { track_path, has_synced, synced_lyrics, plain_lyrics, instrumental } => {
                 ServerMessage::Lyrics { track_path, has_synced, synced_lyrics, plain_lyrics, instrumental }
@@ -466,7 +466,7 @@ async fn handle_client_message(
         ClientMessage::Next => {
             log::info!("📱 Next track command from mobile ({})", client_id);
             
-            let (next_track_path, next_index) = {
+            let (next_track_path, _next_index) = {
                 let queue = app_state.queue.lock().unwrap();
                 let mut index_guard = app_state.current_queue_index.lock().unwrap();
                 let repeat_mode = app_state.repeat_mode.lock().unwrap();
@@ -490,6 +490,10 @@ async fn handle_client_message(
             };
             
             if let Some(path) = next_track_path {
+                // Send acknowledgment
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "ok:next".to_string(),
+                }).await;
                 play_track_internal(state, &app_state, path, &reply_tx).await;
             } else {
                 let _ = reply_tx.send(ServerMessage::Error {
@@ -501,14 +505,14 @@ async fn handle_client_message(
         ClientMessage::Previous => {
             log::info!("📱 Previous track command from mobile ({})", client_id);
             
-            let (prev_track_path, prev_index) = {
+            let (prev_track_path, _prev_index) = {
                 let queue = app_state.queue.lock().unwrap();
                 let mut index_guard = app_state.current_queue_index.lock().unwrap();
                 
                 if queue.is_empty() {
                     (None, 0)
                 } else {
-                    let mut prev_idx = if *index_guard == 0 {
+                    let prev_idx = if *index_guard == 0 {
                         queue.len() - 1
                     } else {
                         *index_guard - 1
@@ -519,6 +523,10 @@ async fn handle_client_message(
             };
             
             if let Some(path) = prev_track_path {
+                // Send acknowledgment
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "ok:previous".to_string(),
+                }).await;
                 play_track_internal(state, &app_state, path, &reply_tx).await;
             }
         }
@@ -1107,6 +1115,7 @@ async fn send_current_status_internal(
 }
 
 /// Helper for starting playback of a track (desktop or mobile)
+/// Helper for starting playback of a track (desktop or mobile)
 async fn play_track_internal(
     state: &Arc<ServerState>,
     app_state: &tauri::State<'_, crate::AppState>,
@@ -1125,6 +1134,38 @@ async fn play_track_internal(
                 let _ = player.play_file(&path);
             }
         }
+    }
+    
+    // Ensure queue is consistent (if empty, populate; if exists, update index)
+    let should_broadcast = {
+        // Get track info from DB
+        let track_info = {
+            let db_guard = app_state.db.lock().unwrap();
+            if let Some(ref db) = *db_guard {
+                if let Ok(Some(t)) = db.get_track(&path) {
+                    Some(t)
+                } else { None }
+            } else { None }
+        };
+
+        let mut needs_broadcast = false;
+        if let Some(track) = track_info {
+            let mut queue = app_state.queue.lock().unwrap();
+            let mut index = app_state.current_queue_index.lock().unwrap();
+            
+            if queue.is_empty() {
+                *queue = vec![track.clone()];
+                *index = 0;
+                needs_broadcast = true;
+            } else if let Some(i) = queue.iter().position(|t| t.path == path) {
+                *index = i;
+            }
+        }
+        needs_broadcast
+    };
+
+    if should_broadcast {
+        broadcast_queue_update(state, app_state).await;
     }
 
     if is_mobile {
@@ -1160,7 +1201,7 @@ async fn broadcast_queue_update(state: &Arc<ServerState>, app_state: &tauri::Sta
         )
     };
     
-    state.broadcast(ServerEvent::QueueUpdate { tracks });
+    state.broadcast(ServerEvent::QueueUpdate { tracks, current_index: index as i32 });
     // Note: ServerEvent::QueueUpdate should probably include current_index too, but ServerEvent enum needs update
 }
 
