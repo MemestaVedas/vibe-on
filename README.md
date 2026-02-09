@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/vibe-on-fked.png" width="160" alt="Vibe-On Logo" />
+  <img src="public/VIBE-ON.png" width="160" alt="Vibe-On Logo" />
 </p>
 
 # VIBE-ON! 🎵
