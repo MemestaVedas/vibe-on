@@ -326,7 +326,7 @@ VIBE-ON! leverages bleeding-edge technology to deliver desktop-class performance
 
 <div align="center">
 
-**👉 [Download the Latest Release](https://github.com/yourusername/vibe-on/releases) 👈**
+**👉 [Download the Latest Release](https://github.com/MemestaVedas/vibe-on/releases) 👈**
 
 Available for **Windows**, **macOS**, and **Linux**
 
@@ -365,7 +365,7 @@ Before you begin, ensure you have:
 
 **1️⃣ Clone the Repository**
 ```bash
-git clone https://github.com/yourusername/vibe-on.git
+git clone https://github.com/MemestaVedas/vibe-on.git
 cd vibe-on
 ```
 
