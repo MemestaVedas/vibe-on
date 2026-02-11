@@ -55,7 +55,7 @@
 <tr>
 <td align="center" width="33%">
 
-### 📱 [**Mobile App**](https://github.com/rishabpuranika/Android-PLAYON)
+### 📱 [**Mobile App**](https://github.com/MemestaVedas/vibe-on-android/)
 **Built by [MemestaVedas](https://github.com/MemestaVedas)** - The ultimate mobile companion for your music.
 
 </td>
@@ -137,7 +137,7 @@ Experience VIBE-ON! on your Android device with our dedicated companion app deve
 - 🔗 **Unified Experience** — Seamlessly switches between desktop and mobile
 - ⚡ **Lightweight & Fast** — Optimized for the mobile experience
 
-👉 **[Check out the Mobile Repository](https://github.com/rishabpuranika/Android-PLAYON)**
+👉 **[Check out the Mobile Repository](https://github.com/MemestaVedas/vibe-on-android/)**
 
 <br />
 
