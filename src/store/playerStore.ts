@@ -185,7 +185,7 @@ export const usePlayerStore = create<PlayerStore>()(
                         lastPlayedTrack: null,
                     });
                     console.log('[PlayerStore] Store state reset');
-                    
+
                     // 4. Reload the app to ensure clean state
                     if (typeof window !== 'undefined') {
                         console.log('[PlayerStore] Reloading application...');
@@ -359,7 +359,7 @@ export const usePlayerStore = create<PlayerStore>()(
                     set({ queue: tracks });
                     // Broadcast updated queue to mobile clients
                     broadcastQueueUpdate(tracks);
-                    
+
                     await get().playFile(trackToPlay.path);
 
                 } catch (e) {
@@ -437,7 +437,6 @@ export const usePlayerStore = create<PlayerStore>()(
                 try {
                     await invoke('set_volume', { value });
                     set({ savedVolume: value });
-                    await get().refreshStatus();
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -450,7 +449,6 @@ export const usePlayerStore = create<PlayerStore>()(
                         await invoke('yt_control', { action: 'seek', value });
                     } else {
                         await invoke('seek', { value });
-                        await get().refreshStatus();
                     }
                 } catch (e) {
                     set({ error: String(e) });
@@ -678,14 +676,11 @@ export const usePlayerStore = create<PlayerStore>()(
         {
             name: 'vibe-player-storage',
             partialize: (state) => ({
-                history: state.history,
+                history: state.history.slice(0, 20), // Cap persisted history
                 playCounts: state.playCounts,
                 favorites: Array.from(state.favorites),
                 folders: state.folders,
-                // Persist Queue? Yes
-                // Persist Queue? Yes
-                queue: state.queue,
-                originalQueue: state.originalQueue,
+                // Queue is NOT persisted — reconstructed from library on startup
                 isShuffled: state.isShuffled,
                 savedVolume: state.savedVolume,
                 lastPlayedTrack: state.lastPlayedTrack
@@ -695,8 +690,9 @@ export const usePlayerStore = create<PlayerStore>()(
                 ...persistedState,
                 favorites: new Set(persistedState?.favorites || []),
                 folders: persistedState?.folders || [],
-                queue: persistedState?.queue || [],
-                originalQueue: persistedState?.originalQueue || [],
+                // Queue is NOT restored — will be rebuilt from library on loadLibrary()
+                queue: [],
+                originalQueue: [],
                 isShuffled: persistedState?.isShuffled || false,
                 savedVolume: persistedState?.savedVolume ?? 1.0,
                 lastPlayedTrack: persistedState?.lastPlayedTrack || null

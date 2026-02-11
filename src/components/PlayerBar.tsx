@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../store/playerStore';
-import { useLyricsStore } from '../store/lyricsStore';
 import { useCoverArt } from '../hooks/useCoverArt';
+import { useCurrentCover } from '../hooks/useCurrentCover';
 import { useSettingsStore } from '../store/settingsStore';
 import { SquigglySlider } from './SquigglySlider';
 import { MarqueeText } from './MarqueeText';
@@ -13,30 +13,9 @@ import {
     IconNext,
     IconVolume,
     IconMusicNote,
-    IconShuffle,
-    IconQueue
+    IconShuffle
 } from './Icons';
 
-// Icon for speakers/audio output
-function IconSpeaker({ size = 24 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-            <circle cx="12" cy="14" r="4" />
-            <line x1="12" y1="6" x2="12" y2="6.01" />
-        </svg>
-    );
-}
-
-// Icon for mobile/phone
-function IconMobile({ size = 24 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-            <line x1="12" y1="18" x2="12.01" y2="18" />
-        </svg>
-    );
-}
 
 // --- Animation Constants ---
 const SMOOTH_SPRING = { type: "spring", stiffness: 300, damping: 40, mass: 1 } as const;
@@ -97,7 +76,7 @@ const ExpressiveControlButton = ({ onClick, icon, disabled, direction = 'left' }
             {/* Rotating Background Shape */}
             <motion.svg
                 viewBox="0 0 340 340"
-                className="absolute inset-0 w-full h-full text-surface-container drop-shadow-md group-hover:drop-shadow-lg group-hover:text-surface-container-high transition-colors duration-300"
+                className="absolute inset-0 w-full h-full text-secondary-container drop-shadow-md group-hover:drop-shadow-lg group-hover:text-secondary-container-high transition-colors duration-300"
                 animate={{ rotate: rotation }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
             >
@@ -105,7 +84,7 @@ const ExpressiveControlButton = ({ onClick, icon, disabled, direction = 'left' }
             </motion.svg>
 
             {/* Icon */}
-            <div className="relative z-10 text-on-surface-variant group-hover:text-on-surface transition-colors">
+            <div className="relative z-10 text-on-secondary-container group-hover:text-on-secondary-container-high transition-colors">
                 {icon}
             </div>
         </motion.button>
@@ -127,19 +106,38 @@ const OrganicControlButton = ({ onClick, disabled, children, className = '', act
 );
 
 export function PlayerBar() {
-    const {
-        status, pause, resume, setVolume, refreshStatus, nextTrack, prevTrack,
-        getCurrentTrackIndex, library, playFile, seek, repeatMode, cycleRepeatMode,
-        error, setError, isShuffled, toggleShuffle, audioOutput, setAudioOutput
-    } = usePlayerStore();
+    // Granular selectors — only re-render when the SPECIFIC slice changes
+    // This is the #1 optimization: polling updates position_secs every 500ms,
+    // but track/state/volume change rarely. Splitting prevents cascading re-renders.
+    const state = usePlayerStore(s => s.status.state);
+    const track = usePlayerStore(s => s.status.track);
+    const position_secs = usePlayerStore(s => s.status.position_secs);
+    const volume = usePlayerStore(s => s.status.volume);
+    const pause = usePlayerStore(s => s.pause);
+    const resume = usePlayerStore(s => s.resume);
+    const setVolume = usePlayerStore(s => s.setVolume);
+    const refreshStatus = usePlayerStore(s => s.refreshStatus);
+    const nextTrack = usePlayerStore(s => s.nextTrack);
+    const prevTrack = usePlayerStore(s => s.prevTrack);
+    const queue = usePlayerStore(s => s.queue);
+    const playFile = usePlayerStore(s => s.playFile);
+    const seek = usePlayerStore(s => s.seek);
+    const repeatMode = usePlayerStore(s => s.repeatMode);
+    const cycleRepeatMode = usePlayerStore(s => s.cycleRepeatMode);
+    const error = usePlayerStore(s => s.error);
+    const setError = usePlayerStore(s => s.setError);
+    const isShuffled = usePlayerStore(s => s.isShuffled);
+    const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
-    const { state, track, position_secs, volume } = status;
     const lastStateRef = useRef(state);
 
-    // Poll for status updates while playing
+    // Derive isFavorite from favorites set — no getState() during render
+    const isFav = usePlayerStore(s => track?.path ? s.favorites.has(track.path) : false);
+
+    // Poll for status updates while playing (500ms = smooth enough for progress bar)
     useEffect(() => {
         if (state === 'Playing') {
-            const interval = setInterval(refreshStatus, 200);
+            const interval = setInterval(refreshStatus, 500);
             return () => clearInterval(interval);
         }
     }, [state, refreshStatus]);
@@ -155,12 +153,10 @@ export function PlayerBar() {
     // Auto-play next track when current track ends
     useEffect(() => {
         if (lastStateRef.current === 'Playing' && state === 'Stopped' && track) {
-            // Threshold increased to 2.0s to account for polling latency
             const isFinished = position_secs >= track.duration_secs - 2.0;
 
             if (isFinished) {
                 if (repeatMode === 'one') {
-                    // Replay current track
                     playFile(track.path);
                 } else {
                     nextTrack();
@@ -180,26 +176,30 @@ export function PlayerBar() {
         }
     };
 
-    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setVolume(parseFloat(e.target.value));
-    };
+    // Debounce volume to avoid IPC flooding during slider drag
+    const volumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseFloat(e.target.value);
+        if (volumeTimerRef.current) clearTimeout(volumeTimerRef.current);
+        volumeTimerRef.current = setTimeout(() => setVolume(val), 50);
+    }, [setVolume]);
 
-    const handleSeek = (newValue: number) => {
+    const handleSeek = useCallback((newValue: number) => {
         seek(newValue);
-    };
+    }, [seek]);
 
-    const currentIndex = getCurrentTrackIndex();
-    const { queue } = usePlayerStore();
+    // Memoize queue index with normalized matching for Windows support
+    const currentIndex = useMemo(() => {
+        if (!track) return -1;
+        const nt = track.path.replace(/\\/g, '/').toLowerCase();
+        return queue.findIndex(t => t.path.replace(/\\/g, '/').toLowerCase() === nt);
+    }, [queue, track]);
     const hasPrev = currentIndex > 0;
     const hasNext = currentIndex >= 0 && currentIndex < queue.length - 1;
 
-    // Find the current track in the library to get authoritative metadata
-    const libIndex = library.findIndex(t => t.path === track?.path);
-    const currentLibraryTrack = libIndex >= 0 ? library[libIndex] : null;
-
-    // Determine Cover URL - Desktop uses local files
-    const coverImageToLoad = currentLibraryTrack?.cover_image || track?.cover_image;
-    const activeCoverUrl = useCoverArt(coverImageToLoad);
+    // Determine Cover URL — robust lookup with fallback
+    const currentCover = useCurrentCover();
+    const activeCoverUrl = useCoverArt(currentCover || track?.cover_image || track?.cover_url);
 
     const [isHovered, setIsHovered] = useState(false);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,12 +263,13 @@ export function PlayerBar() {
                         maxWidth: isHovered ? '56rem' : '20rem',
                         backgroundColor: isHovered
                             ? 'rgba(0,0,0,0.6)'
-                            : 'var(--md-sys-color-surface-container)',
-                        borderColor: isHovered ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                            : 'rgba(22, 22, 26, 0.7)', // Semi-transparent to show edge-to-edge content
+                        borderColor: isHovered ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.08)',
                         boxShadow: isHovered
-                            ? '0 25px 50px -12px rgba(0,0,0,0.5)'
-                            : '0 10px 30px -10px rgba(0,0,0,0.4)',
-                        borderRadius: '9999px'
+                            ? '0 25px 50px -12px rgba(0,0,0,0.6)'
+                            : '0 20px 40px -8px rgba(0,0,0,0.6)',
+                        borderRadius: '9999px',
+                        scale: isHovered ? 1.02 : 1.01
                     }}
                     transition={SMOOTH_SPRING}
                     className={`
@@ -436,7 +437,7 @@ export function PlayerBar() {
                                         <OrganicControlButton
                                             onClick={prevTrack}
                                             disabled={!hasPrev}
-                                            className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest p-2"
+                                            className="bg-secondary-container text-on-secondary-container hover:bg-secondary-container-high p-2"
                                             initial={{ x: 40, opacity: 0, scale: 0.5 }}
                                             animate={{ x: 0, opacity: 1, scale: 1 }}
                                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
@@ -460,7 +461,7 @@ export function PlayerBar() {
                                         <OrganicControlButton
                                             onClick={nextTrack}
                                             disabled={!hasNext}
-                                            className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest p-2"
+                                            className="bg-secondary-container text-on-secondary-container hover:bg-secondary-container-high p-2"
                                             initial={{ x: -40, opacity: 0, scale: 0.5 }}
                                             animate={{ x: 0, opacity: 1, scale: 1 }}
                                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
@@ -496,12 +497,12 @@ export function PlayerBar() {
                                     {track && (
                                         <OrganicControlButton
                                             onClick={() => usePlayerStore.getState().toggleFavorite(track.path)}
-                                            className={`p-2 ${usePlayerStore.getState().isFavorite(track.path) ? 'text-error' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}`}
+                                            className={`p-2 ${isFav ? 'text-error' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}`}
                                             initial={{ x: -20, opacity: 0 }}
                                             animate={{ x: 0, opacity: 1 }}
                                             transition={{ delay: 0.05 }}
                                         >
-                                            <IconHeart size={22} filled={usePlayerStore.getState().isFavorite(track.path)} />
+                                            <IconHeart size={22} filled={isFav} />
                                         </OrganicControlButton>
                                     )}
 
@@ -525,27 +526,6 @@ export function PlayerBar() {
                                         <IconRepeat size={22} mode={repeatMode} />
                                     </OrganicControlButton>
 
-                                    <OrganicControlButton
-                                        onClick={() => useLyricsStore.getState().toggleLyrics()}
-                                        className={`p-2 ${!useLyricsStore.getState().showLyrics ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'}`}
-                                        initial={{ x: -20, opacity: 0 }}
-                                        animate={{ x: 0, opacity: 1 }}
-                                        transition={{ delay: 0.2 }}
-                                    >
-                                        <IconQueue size={22} />
-                                    </OrganicControlButton>
-
-                                    {/* Audio Output Selector */}
-                                    <OrganicControlButton
-                                        onClick={() => setAudioOutput(audioOutput === 'desktop' ? 'mobile' : 'desktop')}
-                                        className={`p-2 ${audioOutput === 'mobile' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'}`}
-                                        initial={{ x: -20, opacity: 0 }}
-                                        animate={{ x: 0, opacity: 1 }}
-                                        transition={{ delay: 0.25 }}
-                                        title={audioOutput === 'desktop' ? 'Playing on Desktop' : 'Playing on Mobile'}
-                                    >
-                                        {audioOutput === 'desktop' ? <IconSpeaker size={22} /> : <IconMobile size={22} />}
-                                    </OrganicControlButton>
 
                                     <div className="flex items-center gap-2 ml-2">
                                         <IconVolume size={20} className="text-on-surface-variant" />

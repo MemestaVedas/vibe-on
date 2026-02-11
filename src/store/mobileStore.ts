@@ -27,6 +27,7 @@ export interface ConnectedDevice {
     name: string;
     ip: string;
     port: number;
+    platform: string;
     connectedAt: number;
 }
 
@@ -185,7 +186,15 @@ export const useMobileStore = create<MobileStore>()(
             // Network & Discovery
             fetchLocalIP: async () => {
                 try {
-                    // Fetch server info which includes local IP
+                    // 1. Try to get local IP directly from Rust backend (most reliable)
+                    const rustIp = await invoke<string | null>('get_local_ip').catch(() => null);
+                    if (rustIp) {
+                        console.log('[Mobile] Got local IP from Rust:', rustIp);
+                        set({ localIP: rustIp });
+                        return;
+                    }
+
+                    // 2. Fallback: Fetch server info from the running API
                     const port = get().serverPort;
                     const response = await fetch(`http://localhost:${port}/api/info`).catch(() => null);
                     if (response?.ok) {
@@ -196,11 +205,11 @@ export const useMobileStore = create<MobileStore>()(
                             return;
                         }
                     }
-                    // Fallback: just use localhost indicator
+                    // 3. Last resort fallback
                     set({ localIP: 'localhost' });
                 } catch (e) {
                     console.error('Failed to fetch local IP:', e);
-                    set({ localIP: null });
+                    set({ localIP: 'localhost' });
                 }
             },
 

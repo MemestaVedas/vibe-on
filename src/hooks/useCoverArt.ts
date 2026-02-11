@@ -1,53 +1,41 @@
-import { useState, useEffect } from 'react';
-import { readFile } from '@tauri-apps/plugin-fs';
+import { useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
+import { readFile } from '@tauri-apps/plugin-fs';
 
-// LRU Cache configuration
-const MAX_CACHE_SIZE = 200;
-
-// Global cache for cover art blob URLs - persists across component lifecycles
 const coverArtCache = new Map<string, string>();
-// Track access order for LRU eviction
-const accessOrder: string[] = [];
-// Track pending loads to prevent duplicate requests
-const pendingLoads = new Map<string, Promise<string | null>>();
+const MAX_CACHE_SIZE = 50;
 
-// LRU cache helper - moves key to end (most recently used)
 function touchCache(key: string) {
-    const index = accessOrder.indexOf(key);
-    if (index > -1) {
-        accessOrder.splice(index, 1);
+    const value = coverArtCache.get(key);
+    if (value) {
+        coverArtCache.delete(key);
+        coverArtCache.set(key, value);
     }
-    accessOrder.push(key);
 }
 
-// Evict oldest entries if cache is too large
 function evictIfNeeded() {
-    while (coverArtCache.size > MAX_CACHE_SIZE && accessOrder.length > 0) {
-        const oldest = accessOrder.shift();
-        if (oldest) {
-            const url = coverArtCache.get(oldest);
-            if (url) {
+    if (coverArtCache.size > MAX_CACHE_SIZE) {
+        const firstKey = coverArtCache.keys().next().value;
+        if (firstKey) {
+            const url = coverArtCache.get(firstKey);
+            if (url && url.startsWith('blob:')) {
                 URL.revokeObjectURL(url);
             }
-            coverArtCache.delete(oldest);
+            coverArtCache.delete(firstKey);
         }
     }
 }
 
-export function useCoverArt(coverPath: string | null | undefined) {
-    const { coversDir } = usePlayerStore();
-    const [imageUrl, setImageUrl] = useState<string | null>(() => {
-        // Initialize from cache if available
-        if (coverPath && coversDir) {
-            const cached = coverArtCache.get(coverPath);
-            if (cached) {
-                touchCache(coverPath);
-                return cached;
-            }
-        }
-        return null;
-    });
+/**
+ * Loads cover art from disk and manages a micro-cache.
+ */
+export function useCoverArt(coverPathRaw: string | null | undefined) {
+    const coversDir = usePlayerStore(s => s.coversDir);
+
+    // Normalize path to forward slashes for consistent cache keys
+    const coverPath = useMemo(() => coverPathRaw?.replace(/\\/g, '/'), [coverPathRaw]);
+
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     useEffect(() => {
         if (!coverPath || !coversDir) {
@@ -55,7 +43,11 @@ export function useCoverArt(coverPath: string | null | undefined) {
             return;
         }
 
-        // Check cache first
+        if (coverPath.startsWith('http')) {
+            setImageUrl(coverPath);
+            return;
+        }
+
         const cached = coverArtCache.get(coverPath);
         if (cached) {
             touchCache(coverPath);
@@ -63,59 +55,27 @@ export function useCoverArt(coverPath: string | null | undefined) {
             return;
         }
 
-        let active = true;
-
         const loadCover = async () => {
-            // Check if already loading
-            let loadPromise = pendingLoads.get(coverPath);
+            try {
+                // Handle absolute vs relative paths
+                const isAbsolute = coverPath.includes(':') || coverPath.startsWith('/');
+                const path = (isAbsolute ? coverPath : `${coversDir}/${coverPath}`).replace(/\\/g, '/');
 
-            if (!loadPromise) {
-                // Start new load
-                loadPromise = (async () => {
-                    try {
-                        const path = `${coversDir}/${coverPath}`.replace(/\\/g, '/');
-                        const data = await readFile(path);
-                        const blob = new Blob([data]);
-                        const objectUrl = URL.createObjectURL(blob);
+                const data = await readFile(path);
+                const blob = new Blob([data], { type: 'image/jpeg' });
+                const url = URL.createObjectURL(blob);
 
-                        // Evict old entries if needed
-                        evictIfNeeded();
-
-                        // Cache it with LRU tracking
-                        coverArtCache.set(coverPath, objectUrl);
-                        touchCache(coverPath);
-
-                        return objectUrl;
-                    } catch (error) {
-                        console.error('Failed to load cover:', coverPath, error);
-                        return null;
-                    } finally {
-                        pendingLoads.delete(coverPath);
-                    }
-                })();
-
-                pendingLoads.set(coverPath, loadPromise);
-            }
-
-            const url = await loadPromise;
-            if (active && url) {
+                evictIfNeeded();
+                coverArtCache.set(coverPath, url);
                 setImageUrl(url);
+            } catch (e) {
+                console.error('Failed to load cover:', coverPath, e);
+                setImageUrl(null);
             }
         };
 
         loadCover();
-
-        return () => {
-            active = false;
-            // Don't revoke URL - keep it cached (LRU will handle eviction)
-        };
     }, [coverPath, coversDir]);
 
     return imageUrl;
-}
-
-// Optional: Call this to clear cache if needed (e.g., when library changes)
-export function clearCoverArtCache() {
-    coverArtCache.forEach(url => URL.revokeObjectURL(url));
-    coverArtCache.clear();
 }

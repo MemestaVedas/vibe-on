@@ -140,7 +140,8 @@ export function ArtistList() {
             overscan={200}
             components={{
                 List: GridList,
-                Item: GridItem
+                Item: GridItem,
+                Footer: () => <div className="h-32"></div>
             }}
             itemContent={(_, artist) => (
                 <ArtistCard

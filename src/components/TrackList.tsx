@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo, useCallback } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
@@ -25,7 +25,7 @@ function Equalizer() {
     );
 }
 
-function TrackRow({ track, index, isActive, isPlaying, onClick, onContextMenu }: {
+const TrackRow = memo(function TrackRow({ track, index, isActive, isPlaying, onClick, onContextMenu }: {
     track: TrackDisplay,
     index: number,
     isActive: boolean,
@@ -108,7 +108,7 @@ function TrackRow({ track, index, isActive, isPlaying, onClick, onContextMenu }:
             </div>
         </div>
     );
-}
+});
 
 // Helper component for Sortable Headers
 function SortHeader({ label, sortKey, align = 'left' }: { label: string, sortKey: keyof TrackDisplay, align?: 'left' | 'right' }) {
@@ -146,10 +146,10 @@ export function TrackList() {
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
 
-    const handleContextMenu = (e: React.MouseEvent, track: TrackDisplay) => {
+    const handleContextMenu = useCallback((e: React.MouseEvent, track: TrackDisplay) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY, track });
-    };
+    }, []);
 
     // Filter library based on search query
     const filteredLibrary = useMemo(() => {
@@ -225,7 +225,7 @@ export function TrackList() {
                         );
                     }}
                     components={{
-                        Footer: () => <div className="h-24"></div>
+                        Footer: () => <div className="h-32"></div>
                     }}
                 />
             </div>

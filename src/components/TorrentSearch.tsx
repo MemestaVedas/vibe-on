@@ -125,7 +125,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
             )}
 
             {/* Results List */}
-            <div className="flex-1 overflow-y-auto pr-2 space-y-2 scrollbar-thin scrollbar-thumb-outline/20">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-2 no-scrollbar">
                 {results.length === 0 && !isSearching && !error && (
                     <div className="flex flex-col items-center justify-center h-48 opacity-50 text-on-surface-variant">
                         <svg className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

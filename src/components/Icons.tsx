@@ -34,6 +34,15 @@ export function IconMicrophone({ size = 24, className, ...props }: IconProps) {
     );
 }
 
+export function IconClock({ size = 24, className, ...props }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+        </svg>
+    );
+}
+
 export function IconSettings({ size = 24, className, ...props }: IconProps) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
@@ -178,6 +187,14 @@ export function IconClose({ size = 24, className, ...props }: IconProps) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+        </svg>
+    );
+}
+
+export function IconClover({ size = 24, className, ...props }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 280 280" fill="currentColor" className={className} {...props}>
+            <path d="M178.73 6.2068C238.87 -19.9132 299.91 41.1269 273.79 101.267L269.47 111.207C261.5 129.577 261.5 150.417 269.47 168.787L273.79 178.727C299.91 238.867 238.87 299.907 178.73 273.787L168.79 269.467C150.42 261.497 129.58 261.497 111.21 269.467L101.27 273.787C41.1281 299.907 -19.9139 238.867 6.20706 178.727L10.5261 168.787C18.5011 150.417 18.5011 129.577 10.5261 111.207L6.20706 101.267C-19.9139 41.1269 41.1281 -19.9132 101.27 6.2068L111.21 10.5269C129.58 18.4969 150.42 18.4969 168.79 10.5269L178.73 6.2068Z" />
         </svg>
     );
 }

@@ -42,38 +42,38 @@ interface ThemeStore {
     setColors: (colors: ThemeColors) => void;
 }
 
-// Default Fallback (Approximate Indigo/Violet Theme)
+// Default Fallback (Signal Orange / Technical Brutalist)
 const DEFAULT_THEME: ThemeColors = {
-    primary: '#bfc2ff',
-    onPrimary: '#1f225e',
-    primaryContainer: '#353975',
-    onPrimaryContainer: '#e0e0ff',
+    primary: '#ff5c00', // Signal Orange
+    onPrimary: '#000000',
+    primaryContainer: '#cc4a00',
+    onPrimaryContainer: '#ffffff',
 
-    secondary: '#c6bfff',
-    onSecondary: '#29215c',
-    secondaryContainer: '#403974',
-    onSecondaryContainer: '#e4dfff',
+    secondary: '#00ff41', // Signal Green
+    onSecondary: '#000000',
+    secondaryContainer: '#008f11',
+    onSecondaryContainer: '#ffffff',
 
-    tertiary: '#ffb0cd',
-    onTertiary: '#5e1135',
-    tertiaryContainer: '#7b294e',
-    onTertiaryContainer: '#ffd8e4',
+    tertiary: '#ffff00', // High-Vis Yellow
+    onTertiary: '#000000',
+    tertiaryContainer: '#cccc00',
+    onTertiaryContainer: '#000000',
 
-    surface: '#121216',
-    onSurface: '#e4e1e6',
-    surfaceVariant: '#46464f',
-    onSurfaceVariant: '#c7c5d0',
+    surface: '#0a0a0c',
+    onSurface: '#fdfdfd',
+    surfaceVariant: '#24242b',
+    onSurfaceVariant: '#555555',
 
-    surfaceContainerLowest: '#0d0d11',
-    surfaceContainerLow: '#1a1a1f',
-    surfaceContainer: '#1e1e24',
-    surfaceContainerHigh: '#282830',
-    surfaceContainerHighest: '#33333f',
+    surfaceContainerLowest: '#030303',
+    surfaceContainerLow: '#111114',
+    surfaceContainer: '#16161a',
+    surfaceContainerHigh: '#1c1c21',
+    surfaceContainerHighest: '#24242b',
 
-    outline: '#918f9a',
-    outlineVariant: '#46464f',
+    outline: '#555555',
+    outlineVariant: '#222222',
 
-    sourceColor: '#6366f1'
+    sourceColor: '#ff5c00'
 };
 
 export const useThemeStore = create<ThemeStore>((set) => ({

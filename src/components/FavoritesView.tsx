@@ -134,7 +134,7 @@ export function FavoritesView() {
             </div>
 
             {/* Track List */}
-            <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <div className="flex-1 overflow-y-auto px-6 pb-32 no-scrollbar">
                 {favoriteTracks.length > 0 ? (
                     <div className="flex flex-col gap-1">
                         {favoriteTracks.map((track) => (

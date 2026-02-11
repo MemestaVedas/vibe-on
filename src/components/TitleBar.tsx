@@ -10,11 +10,11 @@ export function TitleBar() {
     const [isMaximized, setIsMaximized] = useState(false);
     const [closeHovered, setCloseHovered] = useState(false);
     const [isMacOS, setIsMacOS] = useState(false);
-    
+
     // Mobile pairing state
     const { status, togglePopup, checkServerStatus } = useMobileStore();
     const mobileButtonRef = useRef<HTMLButtonElement>(null);
-    
+
     // Check server status on mount
     useEffect(() => {
         checkServerStatus();
@@ -26,7 +26,7 @@ export function TitleBar() {
         const userAgent = navigator.userAgent.toLowerCase();
         setIsMacOS(platform.includes('mac') || userAgent.includes('mac'));
     }, []);
-    
+
     // Get mobile icon style based on status
     const getMobileIconStyle = () => {
         switch (status) {
@@ -46,14 +46,14 @@ export function TitleBar() {
                 };
         }
     };
-    
+
     const getMobileIconClass = () => {
         if (status === 'searching' || status === 'connecting') {
             return 'animate-pulse';
         }
         return '';
     };
-    
+
     // Mobile pairing button component
     const mobileButton = (
         <button
@@ -70,7 +70,7 @@ export function TitleBar() {
     const nameSection = (
         <div data-tauri-drag-region className="flex items-center gap-3">
             <div data-tauri-drag-region className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
-                <span className="text-primary text-xl">♪</span> VIBE-ON!
+                <img src="/VIBE-ON-mobile1.png" alt="Logo" className="w-5 h-5 object-contain" /> VIBE-ON!
             </div>
         </div>
     );
@@ -78,7 +78,7 @@ export function TitleBar() {
     return (
         <div
             data-tauri-drag-region
-            className="h-10 flex items-center justify-between px-4 bg-surface text-on-surface select-none z-50 fixed top-0 right-0 left-0 border-b border-white/5 transition-colors duration-300"
+            className="h-10 flex items-center justify-between px-4 bg-[#080808] text-on-surface select-none z-50 fixed top-0 right-0 left-0 transition-colors duration-300"
         >
             {/* macOS: Controls on Left, then App Name | Windows: App Name on Left */}
             {isMacOS ? (
@@ -136,7 +136,7 @@ export function TitleBar() {
                     <div className="flex items-center gap-3 pr-2">
                         {/* Mobile Pairing Button */}
                         {mobileButton}
-                        
+
                         {/* Windows Order: Minimize, Maximize, Close */}
                         <button
                             onClick={() => appWindow.minimize()}
@@ -174,7 +174,7 @@ export function TitleBar() {
                     </div>
                 </>
             )}
-            
+
             {/* Mobile Pairing Popup */}
             <MobilePairingPopup anchorRef={mobileButtonRef as React.RefObject<HTMLButtonElement>} />
         </div>

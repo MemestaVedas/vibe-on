@@ -55,7 +55,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
             </div>
 
             {/* Navigation - Centered in collapsed mode */}
-            <nav className={`flex-1 px-4 py-2 flex flex-col gap-1 overflow-y-auto scrollbar-thin scrollbar-thumb-outline/20 ${isCollapsed ? 'items-center' : ''}`}>
+            <nav className={`flex-1 px-4 py-2 flex flex-col gap-1 overflow-y-auto no-scrollbar ${isCollapsed ? 'items-center' : ''}`}>
 
                 {/* Library Section */}
                 <div className={`flex flex-col gap-1 ${isCollapsed ? 'items-center w-full' : ''}`}>

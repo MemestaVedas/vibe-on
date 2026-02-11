@@ -3,10 +3,11 @@ import { PlayerBar } from './components/PlayerBar';
 // import './App.css'; // Removed styling
 
 import { useMediaSession } from './hooks/useMediaSession';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, lazy, Suspense } from 'react';
 import { usePlayerStore } from './store/playerStore';
 import { useMobileStore } from './store/mobileStore';
 import { useSettingsStore } from './store/settingsStore';
+import { useLyricsStore } from './store/lyricsStore';
 
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
@@ -14,16 +15,19 @@ import { Header } from './components/Header';
 import { RightPanel } from './components/RightPanel';
 import { AlbumGrid } from './components/AlbumGrid';
 import { ArtistList } from './components/ArtistList';
-import { SettingsPage } from './components/SettingsPage';
-import { AmbientBackground } from './components/AmbientBackground';
 import { LyricsPanel } from './components/LyricsPanel';
 import { ThemeManager } from './components/ThemeManager';
-import { YouTubeMusic } from './components/YouTubeMusic';
-import { TorrentManager } from './components/TorrentManager';
 import { FavoritesView } from './components/FavoritesView';
-import { StatisticsPage } from './components/StatisticsPage';
-import { ImmersiveView } from './components/ImmersiveView';
+import { AmbientBackground } from './components/AmbientBackground';
 import { AnimatePresence } from 'motion/react';
+
+// Lazy-loaded views — defers ~130KB JS parsing until first visit
+const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const YouTubeMusic = lazy(() => import('./components/YouTubeMusic').then(m => ({ default: m.YouTubeMusic })));
+const TorrentManager = lazy(() => import('./components/TorrentManager').then(m => ({ default: m.TorrentManager })));
+const StatisticsPage = lazy(() => import('./components/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
+import { ImmersiveView } from './components/ImmersiveView';
+
 
 import { useNavigationStore } from './store/navigationStore';
 
@@ -35,6 +39,21 @@ function App() {
   useEffect(() => {
     loadLibrary();
   }, [loadLibrary]);
+
+  const { fetchLyrics } = useLyricsStore();
+
+  // Global Lyrics Fetcher — Ensure lyrics start loading as soon as track changes, regardless of current view
+  useEffect(() => {
+    if (status.track?.path) {
+      console.log('[Lyrics] Global trigger for:', status.track.title);
+      fetchLyrics(
+        status.track.artist || '',
+        status.track.title || '',
+        status.track.duration_secs || 0,
+        status.track.path
+      );
+    }
+  }, [status.track?.path, status.track?.title, status.track?.artist, fetchLyrics]);
 
   // Restore Volume
   useEffect(() => {
@@ -115,7 +134,7 @@ function App() {
           console.log('[Output] Output changed:', event.payload);
           const { output } = event.payload;
           const playerStore = usePlayerStore.getState();
-          
+
           if (output === 'mobile') {
             // Mobile playback starting - pause PC
             console.log('[Output] Switching to mobile playback');
@@ -236,15 +255,17 @@ function App() {
             </div>
 
             {/* Scrollable Content Container */}
-            <div className="flex-1 overflow-hidden relative pb-24"> {/* Added padding for PlayerBar */}
+            <div className="flex-1 overflow-hidden relative"> {/* Edge-to-edge: content flows behind pill */}
               {view === 'tracks' && <TrackList />}
               {view === 'albums' && <AlbumGrid />}
               {view === 'artists' && <ArtistList />}
               {view === 'favorites' && <FavoritesView />}
-              {view === 'statistics' && <StatisticsPage />}
-              {view === 'settings' && <SettingsPage />}
-              {view === 'ytmusic' && <YouTubeMusic />}
-              {view === 'torrents' && <TorrentManager />}
+              <Suspense fallback={<div className="flex-1 flex items-center justify-center text-on-surface-variant/50"><div className="animate-pulse">Loading...</div></div>}>
+                {view === 'statistics' && <StatisticsPage />}
+                {view === 'settings' && <SettingsPage />}
+                {view === 'ytmusic' && <YouTubeMusic />}
+                {view === 'torrents' && <TorrentManager />}
+              </Suspense>
             </div>
 
           </main>
@@ -266,7 +287,9 @@ function App() {
       <LyricsPanel />
 
       <AnimatePresence>
-        {immersiveMode && <ImmersiveView />}
+        {immersiveMode && (
+          <ImmersiveView />
+        )}
       </AnimatePresence>
     </div>
   );

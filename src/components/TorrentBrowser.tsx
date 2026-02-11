@@ -349,7 +349,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto rounded-[2rem] bg-surface-container-low p-3 scrollbar-thin scrollbar-thumb-outline/20">
+                            <div className="flex-1 overflow-y-auto rounded-[2rem] bg-surface-container-low p-3 no-scrollbar">
                                 {files.map((file) => {
                                     const isSelected = selectedIndices.includes(file.index);
                                     return (

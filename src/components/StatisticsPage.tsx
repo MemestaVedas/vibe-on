@@ -1,47 +1,18 @@
+import { useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { motion } from 'framer-motion';
-import { useMemo } from 'react';
-
-// ============================================================================
-// Icons
-// ============================================================================
-
-function IconStats({ size = 24 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="20" x2="18" y2="10" />
-            <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-        </svg>
-    );
-}
-
-function IconMusicNote({ size = 24 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-        </svg>
-    );
-}
-
-function IconClock({ size = 24 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-        </svg>
-    );
-}
-
-function IconArtist({ size = 24 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-        </svg>
-    );
-}
+import { useNavigationStore } from '../store/navigationStore';
+import { useCoverArt } from '../hooks/useCoverArt';
+import {
+    IconMusicNote,
+    IconStats,
+    IconClock,
+    IconMicrophone,
+    IconHeart,
+    IconAlbum,
+    IconExternalLink
+} from './Icons';
 
 // ============================================================================
 // Assets
@@ -102,6 +73,37 @@ function StatCard({ icon, label, value, startColor, endColor }: StatCardProps) {
     );
 }
 
+function TopAlbumCard({ album, index }: { album: any, index: number }) {
+    const coverUrl = useCoverArt(album.coverPath);
+
+    return (
+        <div className="flex items-center gap-4 bg-surface-container-low p-3 rounded-2xl relative overflow-hidden group">
+            {/* Blurred Background Art */}
+            {coverUrl && (
+                <div
+                    className="absolute inset-0 z-0 opacity-20 blur-sm scale-105"
+                    style={{
+                        backgroundImage: `url(${coverUrl})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                    }}
+                />
+            )}
+
+            <span className="w-8 h-8 rounded-full bg-tertiary/20 text-tertiary text-title-small font-bold flex items-center justify-center shrink-0 z-10">
+                {index + 1}
+            </span>
+            <div className="flex-1 min-w-0 z-10">
+                <p className="text-body-medium font-bold text-on-surface truncate">{album.title}</p>
+                <p className="text-body-small text-on-surface-variant truncate">{album.artist}</p>
+                <p className="text-label-small text-primary mt-1 font-bold">
+                    {album.playCount} {album.playCount === 1 ? 'PLAY' : 'PLAYS'}
+                </p>
+            </div>
+        </div>
+    );
+}
+
 interface TopTrack {
     path: string;
     title: string;
@@ -110,12 +112,14 @@ interface TopTrack {
 }
 
 export function StatisticsPage() {
-    const { library, history, favorites, playCounts } = usePlayerStore();
+    const { library, favorites, playCounts } = usePlayerStore();
     const { colors } = useThemeStore();
+    const { setView } = useNavigationStore();
 
     // Calculate statistics from playCounts (persistent) rather than history (recent only)
     const stats = useMemo(() => {
         const artistPlayCounts = new Map<string, number>();
+        const albumPlayCounts = new Map<string, { title: string; artist: string; playCount: number; coverPath?: string | null }>();
         let totalPlayTime = 0;
         let totalPlays = 0;
 
@@ -130,6 +134,18 @@ export function StatisticsPage() {
 
                 // Track artist plays
                 artistPlayCounts.set(track.artist, (artistPlayCounts.get(track.artist) || 0) + count);
+
+                // Track album plays
+                if (track.album) {
+                    const albumKey = `${track.album}-${track.artist}`;
+                    const currentAlbum = albumPlayCounts.get(albumKey) || { title: track.album, artist: track.artist, playCount: 0, coverPath: track.cover_image };
+                    currentAlbum.playCount += count;
+                    // Update coverPath if it was null/undefined
+                    if (!currentAlbum.coverPath && track.cover_image) {
+                        currentAlbum.coverPath = track.cover_image;
+                    }
+                    albumPlayCounts.set(albumKey, currentAlbum);
+                }
 
                 topTracks.push({
                     path: track.path,
@@ -150,6 +166,9 @@ export function StatisticsPage() {
         });
         topArtists.sort((a, b) => b.playCount - a.playCount);
 
+        // Sort Top Albums
+        const topAlbums = Array.from(albumPlayCounts.values()).sort((a, b) => b.playCount - a.playCount);
+
         return {
             totalTracks: library.length,
             totalPlays,
@@ -157,9 +176,10 @@ export function StatisticsPage() {
             favoriteCount: favorites.size,
             uniqueArtists: new Set(library.map(t => t.artist)).size,
             topTracks: topTracks.slice(0, 5),
-            topArtists: topArtists.slice(0, 5)
+            topArtists: topArtists.slice(0, 5),
+            topAlbums: topAlbums.slice(0, 5)
         };
-    }, [library, history, favorites, playCounts]);
+    }, [library, favorites, playCounts]);
 
     const formatDuration = (secs: number) => {
         const hours = Math.floor(secs / 3600);
@@ -169,7 +189,7 @@ export function StatisticsPage() {
     };
 
     return (
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto no-scrollbar pb-32">
             <div className="p-8 max-w-5xl mx-auto">
                 {/* Header */}
                 <motion.div
@@ -179,7 +199,7 @@ export function StatisticsPage() {
                 >
                     <h1 className="text-display-small font-bold text-on-surface mb-2">Your Statistics</h1>
                     <p className="text-body-large text-on-surface-variant">
-                        See how you've been vibing ✨
+                        See how you've been vibing
                     </p>
                 </motion.div>
 
@@ -207,7 +227,7 @@ export function StatisticsPage() {
                         endColor={colors.tertiaryContainer}
                     />
                     <StatCard
-                        icon={<IconArtist size={28} />}
+                        icon={<IconMicrophone size={28} />}
                         label="Artists"
                         value={stats.uniqueArtists.toString()}
                         startColor={colors.primary}
@@ -216,14 +236,17 @@ export function StatisticsPage() {
                 </div>
 
                 {/* Top Tracks & Artists */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                     {/* Top Tracks */}
                     <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         className="rounded-3xl bg-surface-container p-6"
                     >
-                        <h2 className="text-title-large font-bold text-on-surface mb-4">🎵 Top Tracks</h2>
+                        <h2 className="text-title-large font-bold text-on-surface mb-4 flex items-center gap-2">
+                            <IconMusicNote className="text-primary" />
+                            Top Tracks
+                        </h2>
                         {stats.topTracks.length > 0 ? (
                             <div className="flex flex-col gap-3">
                                 {stats.topTracks.map((track, index) => (
@@ -254,7 +277,10 @@ export function StatisticsPage() {
                         animate={{ opacity: 1, x: 0 }}
                         className="rounded-3xl bg-surface-container p-6"
                     >
-                        <h2 className="text-title-large font-bold text-on-surface mb-4">🎤 Top Artists</h2>
+                        <h2 className="text-title-large font-bold text-on-surface mb-4 flex items-center gap-2">
+                            <IconMicrophone className="text-secondary" />
+                            Top Artists
+                        </h2>
                         {stats.topArtists.length > 0 ? (
                             <div className="flex flex-col gap-3">
                                 {stats.topArtists.map((artist, index) => (
@@ -277,17 +303,48 @@ export function StatisticsPage() {
                     </motion.div>
                 </div>
 
+                {/* Top Albums */}
+                {stats.topAlbums.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-3xl bg-surface-container p-6 mb-8"
+                    >
+                        <h2 className="text-title-large font-bold text-on-surface mb-4 flex items-center gap-2">
+                            <IconAlbum className="text-tertiary" />
+                            Top Albums
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {stats.topAlbums.map((album, index) => (
+                                <TopAlbumCard key={`${album.title}-${album.artist}`} album={album} index={index} />
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+
                 {/* Favorites Summary */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="mt-6 rounded-3xl bg-gradient-to-br from-error/10 to-error/5 border border-error/20 p-6"
+                    className="mt-6 rounded-3xl bg-gradient-to-br from-error/10 to-error/5 border border-error/20 p-6 flex items-center justify-between"
                 >
-                    <h2 className="text-title-large font-bold text-on-surface mb-2">❤️ Favorites</h2>
-                    <p className="text-body-large text-on-surface-variant">
-                        You have <span className="font-bold text-error">{stats.favoriteCount}</span> favorite {stats.favoriteCount === 1 ? 'song' : 'songs'}
-                    </p>
+                    <div>
+                        <h2 className="text-title-large font-bold text-on-surface mb-2 flex items-center gap-2">
+                            <IconHeart className="text-error" filled />
+                            Favorites
+                        </h2>
+                        <p className="text-body-large text-on-surface-variant">
+                            You have <span className="font-bold text-error">{stats.favoriteCount}</span> favorite {stats.favoriteCount === 1 ? 'song' : 'songs'}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setView('favorites')}
+                        className="p-4 rounded-2xl bg-error/10 text-error hover:bg-error/20 transition-colors group"
+                        title="View all favorites"
+                    >
+                        <IconExternalLink className="group-hover:scale-110 transition-transform" />
+                    </button>
                 </motion.div>
             </div>
         </div>

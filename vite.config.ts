@@ -56,4 +56,17 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    target: 'esnext',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-motion': ['motion/react', 'framer-motion'],
+          'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-fs'],
+        },
+      },
+    },
+  },
 }));

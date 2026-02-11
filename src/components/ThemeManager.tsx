@@ -1,31 +1,26 @@
 import { useEffect } from 'react';
 import { usePlayerStore } from '../store/playerStore';
+import { useCurrentCover } from '../hooks/useCurrentCover';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useImageColors } from '../hooks/useImageColors';
 import { useThemeStore } from '../store/themeStore';
 
 export function ThemeManager() {
-    const track = usePlayerStore(state => state.status.track);
-    const library = usePlayerStore(state => state.library);
-    const setColors = useThemeStore(state => state.setColors);
+    // Only subscribe to the current track's cover — NOT the entire library
+    const coverImage = useCurrentCover();
+    const setColors = useThemeStore(s => s.setColors);
 
-    // Get cover URL
-    const currentIndex = library.findIndex(t => t.path === track?.path);
-    const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
-    // Desktop uses local files
-    const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
+    // Get cover URL from the tiny thumbnail cache
+    const coverUrl = useCoverArt(coverImage);
 
-    // Extract colors using new M3 Logic
+    // Extract colors using M3 Logic (results are cached by imageUrl)
     const colors = useImageColors(coverUrl);
 
     // Update global theme store & CSS Variables
     useEffect(() => {
         setColors(colors);
 
-        // Update CSS Variables for Tailwind M3 Tokens
         const root = document.documentElement;
-
-        // --- Core Colors ---
 
         // Primary
         root.style.setProperty('--md-sys-color-primary', colors.primary);
@@ -51,12 +46,12 @@ export function ThemeManager() {
         root.style.setProperty('--md-sys-color-surface-variant', colors.surfaceVariant);
         root.style.setProperty('--md-sys-color-on-surface-variant', colors.onSurfaceVariant);
 
-        // Surface Containers (New M3 System)
-        root.style.setProperty('--md-sys-color-surface-container-lowest', colors.surfaceContainerLowest); // T4
-        root.style.setProperty('--md-sys-color-surface-container-low', colors.surfaceContainerLow);       // T10
-        root.style.setProperty('--md-sys-color-surface-container', colors.surfaceContainer);             // T12
-        root.style.setProperty('--md-sys-color-surface-container-high', colors.surfaceContainerHigh);     // T17
-        root.style.setProperty('--md-sys-color-surface-container-highest', colors.surfaceContainerHighest);// T22
+        // Surface Containers
+        root.style.setProperty('--md-sys-color-surface-container-lowest', colors.surfaceContainerLowest);
+        root.style.setProperty('--md-sys-color-surface-container-low', colors.surfaceContainerLow);
+        root.style.setProperty('--md-sys-color-surface-container', colors.surfaceContainer);
+        root.style.setProperty('--md-sys-color-surface-container-high', colors.surfaceContainerHigh);
+        root.style.setProperty('--md-sys-color-surface-container-highest', colors.surfaceContainerHighest);
 
         // Outline
         root.style.setProperty('--md-sys-color-outline', colors.outline);
@@ -64,6 +59,5 @@ export function ThemeManager() {
 
     }, [colors, setColors]);
 
-    return null; // This component renders nothing
+    return null;
 }
-

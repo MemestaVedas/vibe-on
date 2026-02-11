@@ -68,7 +68,7 @@ export function SettingsPage() {
     };
 
     return (
-        <div className="h-full w-full overflow-y-auto p-8 pt-20">
+        <div className="h-full overflow-y-auto no-scrollbar pb-32 pt-20 pl-8 pr-14">
             <h1 className="text-3xl font-bold text-white mb-8">Settings</h1>
 
             <div className="max-w-2xl flex flex-col gap-8">

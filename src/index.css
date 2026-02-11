@@ -9,108 +9,117 @@
         /* Font Family */
         --font-outfit: 'Outfit', sans-serif;
 
-        /* M3 Dynamic Colors (Solid Expressive) */
-        /* Surface - Deep Solid Dark */
-        --md-sys-color-surface: #0f0f13;
-        --md-sys-color-on-surface: #f4f4f6;
+        /* M3 Dynamic Colors (Solid Technical Redirect) */
+        /* Surface - Deep Solid Dark (Onyx) */
+        --md-sys-color-surface: #0a0a0c;
+        --md-sys-color-on-surface: #fdfdfd;
 
         /* Surface Containers */
-        --md-sys-color-surface-container-low: #18181e;
-        --md-sys-color-surface-container: #1f1f26;
-        --md-sys-color-surface-container-high: #2b2b35;
-        --md-sys-color-surface-container-highest: #353541;
+        --md-sys-color-surface-container-low: #111114;
+        --md-sys-color-surface-container: #16161a;
+        --md-sys-color-surface-container-high: #1c1c21;
+        --md-sys-color-surface-container-highest: #24242b;
 
-        /* Primary - Solid Vibrant Indigo/Purple */
-        --md-sys-color-primary: #7c4dff;
-        /* Deep Purple A200 approx */
-        --md-sys-color-on-primary: #ffffff;
-        --md-sys-color-primary-container: #5f2eea;
+        /* Primary - Signal Orange (Industrial/Technical) */
+        --md-sys-color-primary: #ff5c00;
+        --md-sys-color-on-primary: #000000;
+        --md-sys-color-primary-container: #cc4a00;
         --md-sys-color-on-primary-container: #ffffff;
 
-        /* Secondary - Solid Accent */
-        --md-sys-color-secondary: #00e5ff;
-        /* Cyan Accent */
+        /* Secondary - Signal Green (Radar/Tech) */
+        --md-sys-color-secondary: #00ff41;
         --md-sys-color-on-secondary: #000000;
-        --md-sys-color-secondary-container: #00b0c4;
-        --md-sys-color-on-secondary-container: #000000;
+        --md-sys-color-secondary-container: #008f11;
+        --md-sys-color-on-secondary-container: #ffffff;
 
-        /* Tertiary - Solid Pink/Rose */
-        --md-sys-color-tertiary: #ff4081;
-        /* Pink Accent */
-        --md-sys-color-on-tertiary: #ffffff;
-        --md-sys-color-tertiary-container: #c51162;
-        --md-sys-color-on-tertiary-container: #ffffff;
+        /* Tertiary - High-Vis Yellow */
+        --md-sys-color-tertiary: #ffff00;
+        --md-sys-color-on-tertiary: #000000;
+        --md-sys-color-tertiary-container: #cccc00;
+        --md-sys-color-on-tertiary-container: #000000;
 
         /* Error */
-        --md-sys-color-error: #ff5252;
+        --md-sys-color-error: #ff0000;
         --md-sys-color-on-error: #ffffff;
 
-        /* Otuline */
-        --md-sys-color-outline: #938f99;
-        --md-sys-color-outline-variant: #484649;
+        /* Outline - Sharp Technical */
+        --md-sys-color-outline: #555555;
+        --md-sys-color-outline-variant: #222222;
 
-        /* Shape */
-        --radius-large: 2rem;
-        /* 32px */
+        /* Shape - Extreme Rounding (Soft Hardware/Retro-Futuristic) */
+        --radius-large: 2.5rem;
+        --radius-medium: 1.5rem;
+        --radius-small: 0.75rem;
 
         /* State Layers */
-        --state-hover-opacity: 0.08;
-        --state-focus-opacity: 0.12;
-        --state-press-opacity: 0.12;
+        --state-hover-opacity: 0.12;
+        --state-focus-opacity: 0.15;
+        --state-press-opacity: 0.2;
     }
 
     body {
-        background-color: #0a0a0f;
+        background-color: #030303;
         @apply bg-surface text-on-surface font-outfit antialiased overflow-hidden;
-        transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
     }
 
     * {
-        scrollbar-width: thin;
-        scrollbar-color: var(--md-sys-color-outline-variant) transparent;
-        /* Smoothly animate color changes */
-        transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    /* Apply transitions only where meaningful to preserve performance */
+    .glass-panel,
+    .group,
+    button,
+    a,
+    .md-sys-color-transition {
+        transition: border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+            background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+            color 0.1s linear;
+    }
+
+    *::-webkit-scrollbar {
+        display: none;
     }
 }
 
 @layer utilities {
-    .animate-spin-slow {
-        animation: spin 8s linear infinite;
+    .bg-noise {
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3%3Ffilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
     }
 
-    /* Hide Scrollbar Utility */
-    .no-scrollbar {
-        -ms-overflow-style: none;
-        /* IE and Edge */
-        scrollbar-width: none !important;
-        /* Firefox */
+    .bg-blueprint {
+        background-image:
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
     }
 
-    .no-scrollbar::-webkit-scrollbar {
-        display: none !important;
+    .brutalist-shadow {
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
     }
 
-    .fade-mask-y {
-        mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    .brutalist-border {
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    /* Equalizer Animation */
-    @keyframes equalize {
+    .glass-panel {
+        @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    }
+
+    .animate-scanline {
+        background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.5) 50%);
+        background-size: 100% 4px;
+        animation: scanline 10s linear infinite;
+    }
+
+    @keyframes scanline {
         0% {
-            height: 10%;
-        }
-
-        50% {
-            height: 100%;
+            background-position: 0 0;
         }
 
         100% {
-            height: 10%;
+            background-position: 0 100%;
         }
-    }
-
-    .animate-equalize {
-        animation: equalize 1s infinite;
     }
 }

@@ -43,7 +43,7 @@ export function TorrentManager() {
                 // Use app data directory to avoid permission issues
                 const { appDataDir } = await import('@tauri-apps/api/path');
                 let baseDir: string;
-                
+
                 try {
                     baseDir = await appDataDir();
                     console.log('[Torrent] Using app data directory:', baseDir);
@@ -62,7 +62,7 @@ export function TorrentManager() {
                         }
                     }
                 }
-                
+
                 const path = `${baseDir}torrents`;
                 console.log('[Torrent] Initializing with path:', path);
                 await invoke('init_torrent_backend', { downloadDir: path });
@@ -221,7 +221,7 @@ export function TorrentManager() {
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
-                            className="h-full p-6 pt-2 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-outline/20"
+                            className="h-full p-6 pt-2 overflow-y-auto space-y-4 no-scrollbar"
                         >
                             {torrents.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-on-surface-variant opacity-60">

@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useEffect } from 'react';
+import { useRef, useMemo, useState, useEffect, memo } from 'react';
 import { motion } from 'motion/react';
 
 interface SquigglySliderProps {
@@ -10,7 +10,7 @@ interface SquigglySliderProps {
     accentColor?: string;
 }
 
-export function SquigglySlider({ value, max, onChange, isPlaying = false, className = '', accentColor }: SquigglySliderProps) {
+export const SquigglySlider = memo(function SquigglySlider({ value, max, onChange, isPlaying = false, className = '', accentColor }: SquigglySliderProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(400);
     const [localValue, setLocalValue] = useState<number | null>(null);
@@ -88,8 +88,15 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
         setLocalValue(null);
     };
 
+    const [isHovered, setIsHovered] = useState(false);
+
     return (
-        <div className={`relative h-6 group ${className}`} ref={containerRef}>
+        <div
+            className={`relative h-6 ${className}`}
+            ref={containerRef}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             {/* SVG Background Layer (Inactive Track) */}
             <svg
                 className="absolute inset-0 w-full h-full overflow-visible"
@@ -132,16 +139,24 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
                 </svg>
             </div>
 
-            {/* Thumb (Glowy Dot) */}
-            <div
-                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none transform -translate-x-1/2"
-                style={{ left: `${percent}%` }}
-            >
-                <div
-                    className="absolute inset-0 rounded-full blur-[2px] opacity-50"
-                    style={{ backgroundColor: accentColor || '#6366f1' }}
-                />
-            </div>
+            {/* Thumb (Premium Signal Dot) */}
+            <motion.div
+                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full z-20 pointer-events-none transform -translate-x-1/2"
+                style={{
+                    left: `${percent}%`,
+                    backgroundColor: accentColor || 'white',
+                    boxShadow: `0 0 15px ${accentColor || 'rgba(255,255,255,0.5)'}`
+                }}
+                initial={{ opacity: 0 }}
+                animate={{
+                    scale: isDragging ? 1.5 : 1,
+                    opacity: isHovered || isDragging ? 1 : 0,
+                }}
+                transition={{
+                    opacity: { duration: 0.2 },
+                    scale: { type: 'spring', stiffness: 300, damping: 20 }
+                }}
+            />
 
             {/* Invisible Range Input for Interaction */}
             <input
@@ -157,4 +172,4 @@ export function SquigglySlider({ value, max, onChange, isPlaying = false, classN
             />
         </div>
     );
-}
+});

@@ -108,7 +108,6 @@ async fn play_file(
     state: State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    println!("[Backend] play_file called with path: '{}'", path);
     get_or_init_player(&state)?;
 
     // CRITICAL: Start audio playback IMMEDIATELY for responsiveness
@@ -116,7 +115,6 @@ async fn play_file(
         let player_guard = state.player.lock().unwrap();
         if let Some(ref player) = *player_guard {
             player.play_file(&path)?;
-            println!("[Backend] Audio playback started immediately");
         } else {
             return Err("Player not initialized".to_string());
         }
@@ -719,16 +717,7 @@ pub struct CachedLyricsResponse {
 /// Returns immediately with whatever is in the cache (may still be fetching)
 #[tauri::command]
 fn get_cached_lyrics(track_path: String, state: State<AppState>) -> CachedLyricsResponse {
-    println!("[Lyrics] get_cached_lyrics called for: {}", track_path);
-
     if let Ok(guard) = state.lyrics_cache.lock() {
-        println!("[Lyrics] Cache state - track_path: {}, is_fetching: {}, has_synced: {}, has_plain: {}, error: {:?}",
-            guard.track_path,
-            guard.is_fetching,
-            guard.synced_lyrics.is_some(),
-            guard.plain_lyrics.is_some(),
-            guard.error
-        );
 
         // Only return if the cached lyrics are for the requested track
         if guard.track_path == track_path {
@@ -741,10 +730,7 @@ fn get_cached_lyrics(track_path: String, state: State<AppState>) -> CachedLyrics
                 track_path: guard.track_path.clone(),
             };
         } else {
-            println!(
-                "[Lyrics] Cache track mismatch: cached='{}', requested='{}'",
-                guard.track_path, track_path
-            );
+            // Cache track mismatch - return default below
         }
     }
 
@@ -1399,6 +1385,19 @@ async fn search_torrents(
 // ============================================================================
 
 #[tauri::command]
+fn get_local_ip() -> Option<String> {
+    use std::net::UdpSocket;
+    
+    // Create a UDP socket and "connect" to a public IP (doesn't actually send data)
+    // This lets us determine which local interface would be used
+    let socket = UdpSocket::bind("0.0.0.0:0").ok().and_then(|s| {
+        s.connect("8.8.8.8:80").ok().map(|_| s)
+    })?;
+    
+    socket.local_addr().ok().map(|addr| addr.ip().to_string())
+}
+
+#[tauri::command]
 async fn start_mobile_server(
     state: State<'_, AppState>,
     _app_handle: AppHandle,
@@ -1490,6 +1489,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             play_file,
@@ -1533,6 +1533,7 @@ pub fn run() {
             stop_mobile_server,
             get_server_status,
             get_p2p_peers,
+            get_local_ip,
         ])
         .setup(|_app| {
             // Initialize Windows Media Controls with the main window handle

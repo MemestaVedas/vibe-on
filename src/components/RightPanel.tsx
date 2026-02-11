@@ -1,18 +1,30 @@
 import { SideLyrics } from './SideLyrics';
 import { useLyricsStore } from '../store/lyricsStore';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo, useCallback } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
+import { useCurrentCover } from '../hooks/useCurrentCover';
 import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen } from './Icons';
 import { MarqueeText } from './MarqueeText';
 import { SquigglySlider } from './SquigglySlider';
+import { Virtuoso } from 'react-virtuoso';
 
 export function RightPanel() {
-    const { status, queue, playFile, toggleImmersiveMode } = usePlayerStore();
+    // Granular selectors — only re-render for specific slice
+    const trackPath = usePlayerStore(s => s.status.track?.path ?? null);
+    const trackTitle = usePlayerStore(s => s.status.track?.title ?? null);
+    const trackArtist = usePlayerStore(s => s.status.track?.artist ?? null);
+    const trackAlbum = usePlayerStore(s => s.status.track?.album ?? null);
+    const trackDuration = usePlayerStore(s => s.status.track?.duration_secs ?? 0);
+    const trackCoverRaw = usePlayerStore(s => s.status.track?.cover_image ?? null);
+    const positionSecs = usePlayerStore(s => s.status.position_secs);
+    const playerState = usePlayerStore(s => s.status.state);
+    const queue = usePlayerStore(s => s.queue);
+    const playFile = usePlayerStore(s => s.playFile);
+    const toggleImmersiveMode = usePlayerStore(s => s.toggleImmersiveMode);
     const { lines, plainLyrics, isInstrumental, isLoading, fetchLyrics, error, lyricsMode } = useLyricsStore();
-    const { track } = status;
     const { navigateToAlbum } = useNavigationStore();
 
     // Clover Shape from TitleBar
@@ -29,43 +41,14 @@ export function RightPanel() {
         </div>
     );
 
-    // Fetch lyrics automatically when track changes
-    useEffect(() => {
-        if (track?.path) {
-            console.log('[RightPanel] Track changed:', track.title);
-            console.log('[RightPanel] Triggering fetchLyrics for:', track.path);
-            // We use fetchLyrics (not loadCachedLyrics) to ensure we actually trigger a fetch if not cached
-            fetchLyrics(
-                track.artist,
-                track.title,
-                track.duration_secs,
-                track.path
-            );
-        }
-    }, [track?.path, track?.title, track?.artist, track?.duration_secs, fetchLyrics]);
 
-    // Debug logging for state changes
-    useEffect(() => {
-        console.log('[RightPanel] Lyrics updated:', {
-            hasLines: !!lines,
-            hasPlain: !!plainLyrics,
-            instrumental: isInstrumental,
-            loading: isLoading,
-            error: error
-        });
-    }, [lines, plainLyrics, isInstrumental, isLoading, error]);
 
-    // Get cover from library
-    const { library } = usePlayerStore();
-    const currentIndex = library.findIndex(t => t.path === track?.path);
-    const currentLibraryTrack = currentIndex >= 0 ? library[currentIndex] : null;
-    // Desktop uses local files
-    const coverUrl = useCoverArt(currentLibraryTrack?.cover_image);
+    // Cover art — robust matching for 3rd column
+    const trackCover = useCurrentCover();
+    const coverUrl = useCoverArt(trackCover || trackCoverRaw);
 
     // Determine what to show in the bottom section
     const hasContent = (lines && lines.length > 0) || (plainLyrics && plainLyrics.trim().length > 0);
-
-    // Ideal state: Show if loading OR (valid content AND not instrumental AND no error)
     const shouldShowLyricsIdeally = isLoading || (hasContent && !isInstrumental && !error);
 
     const [showLyrics, setShowLyrics] = useState<boolean>(!!shouldShowLyricsIdeally);
@@ -74,7 +57,6 @@ export function RightPanel() {
         if (shouldShowLyricsIdeally) {
             setShowLyrics(true);
         } else {
-            // Keep showing if we have a specific error message to let user read it
             if (error && error.includes("recents view")) {
                 const timer = setTimeout(() => setShowLyrics(false), 3000);
                 return () => clearTimeout(timer);
@@ -85,10 +67,28 @@ export function RightPanel() {
     }, [shouldShowLyricsIdeally, error]);
 
     const handleArtClick = () => {
-        if (track?.album && track?.artist) {
-            navigateToAlbum(track.album, track.artist);
+        if (trackAlbum && trackArtist) {
+            navigateToAlbum(trackAlbum, trackArtist);
         }
     };
+
+    const handleSeek = useCallback((val: number) => {
+        usePlayerStore.getState().seek(val);
+    }, []);
+
+    // Memoize queue item renderer for Virtuoso
+    const renderQueueItem = useCallback((index: number) => {
+        const t = queue[index];
+        if (!t) return null;
+        return (
+            <QueueItem
+                key={`${t.path}-${index}`}
+                track={t}
+                isActive={!!(trackPath && t.path === trackPath)}
+                onClick={() => playFile(t.path)}
+            />
+        );
+    }, [queue, trackPath, playFile]);
 
     return (
         <aside className="h-full flex flex-col p-6 gap-6 overflow-hidden">
@@ -104,18 +104,17 @@ export function RightPanel() {
                 </button>
             </div>
 
-            {/* Main Art & Info - UPDATED: Larger Art, No Album Text, Clickable */}
+            {/* Main Art & Info */}
             <div className="flex flex-col items-center gap-6 shrink-0 transition-all duration-300">
-                {/* Large Art (Increased size to w-72 h-72 approx / allow scaling) */}
                 <div
                     onClick={handleArtClick}
                     className="w-72 h-72 rounded-[2rem] bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.02] active:scale-95 transition-transform duration-200"
-                    title={track?.album ? `Go to album: ${track.album}` : "Album Art"}
+                    title={trackAlbum ? `Go to album: ${trackAlbum}` : "Album Art"}
                 >
                     {coverUrl ? (
                         <img
                             src={coverUrl}
-                            alt={track?.album || "Album Art"}
+                            alt={trackAlbum || "Album Art"}
                             className="w-full h-full object-cover"
                         />
                     ) : (
@@ -123,34 +122,30 @@ export function RightPanel() {
                             <IconMusicNote size={64} />
                         </div>
                     )}
-
-                    {/* Hover Hint */}
-                    {track?.album && (
+                    {trackAlbum && (
                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <IconAlbum size={32} className="text-white drop-shadow-lg" />
                         </div>
                     )}
                 </div>
 
-                {/* Info */}
                 <div className="flex flex-col items-center text-center gap-1 w-full px-2">
                     <div className="w-full text-headline-medium font-bold text-on-surface truncate">
-                        <MarqueeText text={track?.title || "Not Playing"} />
+                        <MarqueeText text={trackTitle || "Not Playing"} />
                     </div>
                     <div className="text-title-large text-on-surface-variant truncate w-full font-medium">
-                        {track?.artist || "Pick a song"}
+                        {trackArtist || "Pick a song"}
                     </div>
-                    {/* Album text removed as requested */}
                 </div>
             </div>
 
-            {/* Interactive Separator / Seeker */}
+            {/* Seeker */}
             <div className="px-8 py-2 w-full">
                 <SquigglySlider
-                    value={status.position_secs}
-                    max={status.track?.duration_secs || 100}
-                    onChange={(val) => usePlayerStore.getState().seek(val)}
-                    isPlaying={status.state === 'Playing'}
+                    value={positionSecs}
+                    max={trackDuration || 100}
+                    onChange={handleSeek}
+                    isPlaying={playerState === 'Playing'}
                     className="h-6 w-full cursor-pointer text-primary hover:text-primary-container transition-colors"
                     accentColor="currentColor"
                 />
@@ -174,7 +169,6 @@ export function RightPanel() {
                                     <h3 className="text-title-small font-semibold text-on-surface">Lyrics</h3>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {/* Translation Indicator */}
                                     {useLyricsStore.getState().isTranslating && (
                                         <div className="w-4 h-4 border-2 border-primary/50 border-t-primary rounded-full animate-spin mr-1" title="Translating..." />
                                     )}
@@ -223,7 +217,6 @@ export function RightPanel() {
                                 </div>
                             </div>
 
-                            {/* Window-like container */}
                             <div className="flex-1 rounded-2xl bg-surface-container-low overflow-hidden relative flex flex-col group">
                                 <SideLyrics />
                             </div>
@@ -259,21 +252,19 @@ export function RightPanel() {
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-surface-container-high gap-2 flex flex-col pb-4">
-                                {queue.length === 0 && (
+                            <div className="flex-1 min-h-0">
+                                {queue.length === 0 ? (
                                     <div className="p-4 rounded-xl bg-surface-container-high/50 text-center">
                                         <p className="text-body-small text-on-surface-variant">Queue is empty</p>
                                     </div>
-                                )}
-
-                                {queue.map((t, i) => (
-                                    <QueueItem
-                                        key={`${t.path}-${i}`} // Use index in key to handle duplicate tracks in queue if we support that later
-                                        track={t}
-                                        isActive={!!(track && t.path === track.path)}
-                                        onClick={() => playFile(t.path)}
+                                ) : (
+                                    <Virtuoso
+                                        totalCount={queue.length}
+                                        itemContent={renderQueueItem}
+                                        className="h-full no-scrollbar"
+                                        overscan={5}
                                     />
-                                ))}
+                                )}
                             </div>
                         </motion.div>
                     )}
@@ -283,7 +274,7 @@ export function RightPanel() {
     );
 }
 
-export function QueueItem({ track, isActive, onClick }: {
+export const QueueItem = memo(function QueueItem({ track, isActive, onClick }: {
     track: { title: string; artist: string; cover_image?: string | null };
     isActive: boolean;
     onClick?: () => void;
@@ -294,7 +285,7 @@ export function QueueItem({ track, isActive, onClick }: {
         <button
             onClick={onClick}
             className={`
-                group flex items-center gap-3 p-2 rounded-xl text-left transition-all duration-200
+                group flex items-center gap-3 p-2 rounded-xl text-left transition-all duration-200 w-full
                 ${isActive
                     ? 'bg-secondary-container text-on-secondary-container'
                     : 'hover:bg-surface-container-high text-on-surface'
@@ -335,4 +326,4 @@ export function QueueItem({ track, isActive, onClick }: {
             )}
         </button>
     );
-}
+});
