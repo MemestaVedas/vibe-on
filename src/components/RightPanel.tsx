@@ -24,7 +24,7 @@ export function RightPanel() {
     const queue = usePlayerStore(s => s.queue);
     const playFile = usePlayerStore(s => s.playFile);
     const toggleImmersiveMode = usePlayerStore(s => s.toggleImmersiveMode);
-    const { lines, plainLyrics, isInstrumental, isLoading, fetchLyrics, error, lyricsMode } = useLyricsStore();
+    const { lines, plainLyrics, isInstrumental, isLoading, error, lyricsMode } = useLyricsStore();
     const { navigateToAlbum } = useNavigationStore();
 
     // Clover Shape from TitleBar

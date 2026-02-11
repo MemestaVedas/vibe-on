@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { usePlayerStore } from '../store/playerStore';
+
 import { useCurrentCover } from '../hooks/useCurrentCover';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useImageColors } from '../hooks/useImageColors';
