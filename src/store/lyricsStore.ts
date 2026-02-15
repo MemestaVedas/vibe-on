@@ -234,9 +234,12 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
     },
 
     fetchLyrics: async (artist: string, track: string, duration: number, trackPath: string) => {
-        // Don't refetch for same track
-        if (get().currentTrackId === trackPath && (get().lines || get().plainLyrics)) {
-            return;
+        // Don't refetch for same track if we already have data or are loading it
+        const currentHook = get();
+        if (currentHook.currentTrackId === trackPath) {
+            if (currentHook.lines || currentHook.plainLyrics || currentHook.isInstrumental || currentHook.isLoading || (currentHook.error && currentHook.error !== 'Lyrics fetch timed out')) {
+                return;
+            }
         }
 
         set({ isLoading: true, loadingStatus: 'Starting search...', error: null, lines: null, plainLyrics: null, isInstrumental: false, isTranslating: false });

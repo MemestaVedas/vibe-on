@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
+import { useNavigationStore } from '../store/navigationStore';
 import { motion } from 'framer-motion';
 import { WavySeparator } from './WavySeparator';
 
@@ -8,7 +8,6 @@ import {
     IconAlbum,
     IconMicrophone,
     IconSettings,
-    IconYoutube,
     IconDownload,
     IconHeart,
     IconStats,
@@ -28,7 +27,8 @@ const sidebarSpring = {
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
     const { library } = usePlayerStore();
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const { isLeftSidebarCollapsed, toggleLeftSidebar } = useNavigationStore();
+    const isCollapsed = isLeftSidebarCollapsed; // Alias for cleaner code below
 
     return (
         <motion.aside
@@ -44,7 +44,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
             {/* Toggle Button - Minimal header */}
             <div data-tauri-drag-region className={`h-14 flex items-center px-4 shrink-0 ${isCollapsed ? 'justify-center' : 'justify-end'}`}>
                 <button
-                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    onClick={toggleLeftSidebar}
                     className="p-2.5 rounded-full hover:bg-surface-container-high text-on-surface-variant transition-colors"
                     title={isCollapsed ? "Expand" : "Collapse"}
                 >
@@ -99,24 +99,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                 )}
                 {isCollapsed && <div className="my-3 w-8 h-px bg-outline-variant/30" />}
 
-                {/* Online Music Section */}
-                <div className={`flex flex-col gap-1 ${isCollapsed ? 'items-center w-full' : ''}`}>
-                    <NavItem
-                        icon={<IconYoutube size={28} />}
-                        label="YouTube Music"
-                        active={view === 'ytmusic'}
-                        onClick={() => onViewChange('ytmusic')}
-                        collapsed={isCollapsed}
-                    />
-                </div>
 
-                {/* Wavy Separator */}
-                {!isCollapsed && (
-                    <div className="px-2">
-                        <WavySeparator label="" color="var(--md-sys-color-outline-variant)" />
-                    </div>
-                )}
-                {isCollapsed && <div className="my-3 w-8 h-px bg-outline-variant/30" />}
 
                 {/* Settings Section */}
                 <div className={`flex flex-col gap-1 ${isCollapsed ? 'items-center w-full' : ''}`}>

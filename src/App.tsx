@@ -34,15 +34,36 @@ import { useNavigationStore } from './store/navigationStore';
 function App() {
   useMediaSession(); // Initialize System Media Controls
   const { loadLibrary, status, pause, resume, playFile, immersiveMode } = usePlayerStore();
-  const { view, setView, isRightPanelOpen, setRightPanelOpen } = useNavigationStore();
+  const { view, setView, isRightPanelOpen, setRightPanelOpen, setLeftSidebarCollapsed } = useNavigationStore();
 
   useEffect(() => {
-    // Initialize Right Panel visibility based on screen width
-    if (window.innerWidth >= 1536) {
-      setRightPanelOpen(true);
-    }
+    const handleResize = () => {
+      const width = window.innerWidth;
+
+      // Responsive Breakpoints
+      // < 1280px (xl): Collapse Left Sidebar to save space
+      if (width < 1280) {
+        setLeftSidebarCollapsed(true);
+      } else {
+        setLeftSidebarCollapsed(false);
+      }
+
+      // < 1536px (2xl): Hide Right Panel (it becomes an overlay below this)
+      // >= 1536px: Show Right Panel (it becomes relative/fixed-column)
+      if (width >= 1536) {
+        setRightPanelOpen(true);
+      } else {
+        setRightPanelOpen(false);
+      }
+    };
+
+    // Initial check
+    handleResize();
     loadLibrary();
-  }, [loadLibrary, setRightPanelOpen]);
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [loadLibrary, setRightPanelOpen, setLeftSidebarCollapsed]);
 
   const { fetchLyrics } = useLyricsStore();
 

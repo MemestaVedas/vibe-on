@@ -221,6 +221,7 @@ type DisplayItem =
 function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }) {
     const { playQueue } = usePlayerStore();
     const coverUrl = useCoverArt(album.cover);
+    const [showStickyHeader, setShowStickyHeader] = useState(false);
 
     // Prepare sorted tracks and inject headers
     const displayItems = useMemo<DisplayItem[]>(() => {
@@ -244,9 +245,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                 type: 'track',
                 track,
                 index: i + 1,
-                originalIndex: album.tracks.indexOf(track) // We need index in original album.tracks for playQueue? 
-                // Wait, playQueue takes array of tracks. 
-                // Ideally we should play the sorted list.
+                originalIndex: album.tracks.indexOf(track)
             }));
         }
 
@@ -262,8 +261,8 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
             items.push({
                 type: 'track',
                 track,
-                index: track.track_number || (i + 1), // Use track number if available, else somewhat fallback
-                originalIndex: -1 // see below
+                index: track.track_number || (i + 1),
+                originalIndex: -1
             });
         });
 
@@ -282,63 +281,96 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
 
 
     return (
-        <div className="flex flex-col h-full bg-surface">
-            {/* Header */}
-            <div className="p-8 pb-10 flex gap-10 items-end bg-surface-container-low shrink-0 rounded-b-[3rem] shadow-elevation-1 z-10">
-                <div className="w-64 h-64 shrink-0 shadow-elevation-3">
-                    <M3RoundedSquareImage
-                        src={coverUrl}
-                        fallback={<IconMusicNote size={80} />}
-                    />
+        <div className="h-full relative isolate bg-surface">
+            {/* Sticky Header Overlay */}
+            <div
+                className={`absolute top-0 left-0 right-0 h-20 bg-surface-container/95 backdrop-blur-md z-50 flex items-center px-6 gap-4 border-b border-surface-container-highest transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            >
+                <button
+                    onClick={onBack}
+                    className="p-2 -ml-2 rounded-full hover:bg-on-surface/5 transition-colors"
+                >
+                    <svg viewBox="0 0 24 24" width={24} height={24} fill="currentColor">
+                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+                    </svg>
+                </button>
+                <div className="flex flex-col min-w-0">
+                    <span className="font-bold text-title-large text-on-surface truncate">{album.name}</span>
+                    <span className="text-body-small text-on-surface-variant truncate">{album.artist}</span>
                 </div>
-
-                <div className="flex flex-col gap-4 mb-2 min-w-0 flex-1">
-                    <div>
-                        <div className="text-label-large font-medium text-on-surface-variant uppercase tracking-wider mb-2">Album</div>
-                        <h1 className="text-display-medium font-bold text-on-surface tracking-tight truncate leading-tight">{album.name}</h1>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-headline-small">
-                        <span className="font-semibold text-primary">{album.artist}</span>
-                        <span className="text-on-surface-variant">• {album.tracks.length} tracks</span>
-                    </div>
-
-                    <div className="flex gap-4 mt-4">
-                        <button
-                            onClick={() => playQueue(sortedTracks, 0)}
-                            className="h-12 px-8 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-elevation-2 transition-transform active:scale-95 text-title-medium"
-                        >
-                            <IconPlay size={24} fill="currentColor" /> Play
-                        </button>
-                        <button
-                            onClick={onBack}
-                            className="h-12 px-8 border border-outline rounded-full text-on-surface font-medium hover:bg-surface-container-high transition-colors text-title-medium"
-                        >
-                            Back
-                        </button>
-                    </div>
-                </div>
+                <div className="flex-1" />
+                <button
+                    onClick={() => playQueue(sortedTracks, 0)}
+                    className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-sm scale-90"
+                >
+                    <IconPlay size={18} fill="currentColor" /> Play
+                </button>
             </div>
 
-            {/* Tracklist */}
-            <div className="flex-1 p-6">
-                <Virtuoso
-                    style={{ height: '100%' }}
-                    data={displayItems}
-                    overscan={100}
-                    itemContent={(i, item) => {
-                        if (item.type === 'header') {
-                            return (
-                                <div className="flex items-center gap-4 py-4 mt-2">
-                                    <IconAlbum size={20} className="text-primary" />
-                                    <span className="text-title-medium font-bold text-primary">Disc {item.disc}</span>
-                                    <div className="h-px flex-1 bg-surface-container-highest"></div>
-                                </div>
-                            );
-                        }
+            <Virtuoso
+                style={{ height: '100%' }}
+                data={displayItems}
+                overscan={100}
+                onScroll={(e) => {
+                    const target = e.currentTarget as HTMLElement;
+                    setShowStickyHeader(target.scrollTop > 300);
+                }}
+                components={{
+                    Header: () => (
+                        <div className="p-8 pb-4 flex gap-8 items-end bg-surface-container-low shrink-0 mb-2">
+                            <div className="w-48 h-48 shrink-0 shadow-elevation-2">
+                                <M3RoundedSquareImage
+                                    src={coverUrl}
+                                    fallback={<IconMusicNote size={64} />}
+                                />
+                            </div>
 
-                        // Track Item
+                            <div className="flex flex-col gap-3 mb-1 min-w-0 flex-1">
+                                <div>
+                                    <div className="text-label-medium font-medium text-on-surface-variant uppercase tracking-wider mb-1">Album</div>
+                                    <h1 className="text-display-small font-bold text-on-surface tracking-tight text-wrap leading-tight">{album.name}</h1>
+                                </div>
+
+                                <div className="flex items-center gap-3 text-title-medium">
+                                    <span className="font-semibold text-primary">{album.artist}</span>
+                                    <span className="text-on-surface-variant">• {album.tracks.length} tracks</span>
+                                </div>
+
+                                <div className="flex gap-3 mt-1">
+                                    <button
+                                        onClick={() => playQueue(sortedTracks, 0)}
+                                        className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-elevation-1 transition-transform active:scale-95 text-body-large"
+                                    >
+                                        <IconPlay size={20} fill="currentColor" /> Play
+                                    </button>
+                                    <button
+                                        onClick={onBack}
+                                        className="h-10 px-6 border border-outline rounded-full text-on-surface font-medium hover:bg-surface-container-high transition-colors text-body-large"
+                                    >
+                                        Back
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ),
+                    Footer: () => <div className="h-32"></div>
+                }}
+                itemContent={(i, item) => {
+                    if (item.type === 'header') {
                         return (
+                            <div className="flex items-center gap-4 py-4 px-6 mt-2">
+                                <IconAlbum size={20} className="text-primary" />
+                                <span className="text-title-medium font-bold text-primary">Disc {item.disc}</span>
+                                <div className="h-px flex-1 bg-surface-container-highest"></div>
+                            </div>
+                        );
+                    }
+
+                    // Track Item
+                    return (
+                        <div
+                            className="px-6 py-1"
+                        >
                             <div
                                 key={item.track.id}
                                 onClick={() => {
@@ -346,22 +378,19 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                                     const index = sortedTracks.indexOf(item.track);
                                     playQueue(sortedTracks, index);
                                 }}
-                                className="group flex items-center gap-6 p-4 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
+                                className="group flex items-center gap-6 p-3 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
                             >
-                                <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">{item.track.track_number || (i + 1)}</span>
+                                <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">{item.track.track_number || (item.index)}</span>
                                 <span className="flex-1 font-medium text-body-large truncate">{item.track.title}</span>
                                 <span className="text-label-large font-medium opacity-60 tabular-nums">
                                     {Math.floor(item.track.duration_secs / 60)}:
                                     {Math.floor(item.track.duration_secs % 60).toString().padStart(2, '0')}
                                 </span>
                             </div>
-                        );
-                    }}
-                    components={{
-                        Footer: () => <div className="h-32"></div>
-                    }}
-                />
-            </div>
+                        </div>
+                    );
+                }}
+            />
         </div>
     );
 }

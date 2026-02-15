@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { SearchBar } from './SearchBar';
 import { MobilePairingPopup } from './MobilePairingPopup';
 import { useMobileStore } from '../store/mobileStore';
-import { IconMobileDevice } from './Icons';
+import { useNavigationStore } from '../store/navigationStore';
+import { IconMobileDevice, IconYoutube } from './Icons';
 
 export function TitleBar() {
     const appWindow = getCurrentWindow();
@@ -13,6 +14,7 @@ export function TitleBar() {
 
     // Mobile pairing state
     const { status, togglePopup, checkServerStatus } = useMobileStore();
+    const { view, setView } = useNavigationStore();
     const mobileButtonRef = useRef<HTMLButtonElement>(null);
 
     // Check server status on mount
@@ -72,6 +74,17 @@ export function TitleBar() {
             <div data-tauri-drag-region className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
                 <img src="/VIBE-ON-mobile1.png" alt="Logo" className="w-5 h-5 object-contain" /> VIBE-ON!
             </div>
+
+            <button
+                onClick={() => setView('ytmusic')}
+                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${view === 'ytmusic'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                    }`}
+                title="YouTube Music"
+            >
+                <IconYoutube size={20} />
+            </button>
         </div>
     );
 

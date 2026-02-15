@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { LyricsLine } from '../types';
 
 export function LyricsPanel() {
-    const { lines, plainLyrics, showLyrics, closeLyrics, isLoading, error, isInstrumental, fetchLyrics, lyricsMode, setLyricsMode, isTranslating, translationError } = useLyricsStore();
+    const { lines, plainLyrics, showLyrics, closeLyrics, clearLyrics, isLoading, error, isInstrumental, fetchLyrics, lyricsMode, setLyricsMode, isTranslating, translationError } = useLyricsStore();
     const { status, seek } = usePlayerStore();
     const { colors } = useThemeStore();
     const { primary, surface } = colors; // Destructure needed colors
@@ -89,6 +89,7 @@ export function LyricsPanel() {
                 // Refresh lyrics
                 // Assuming fetchLyrics accepts info overrides or just re-fetches with current info
                 if (status.track) {
+                    clearLyrics();
                     fetchLyrics(status.track.artist, status.track.title, status.track.duration_secs, status.track.path);
                 }
             }

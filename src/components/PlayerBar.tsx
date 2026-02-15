@@ -322,7 +322,7 @@ export function PlayerBar() {
                             >
                                 <div className="flex-1 bg-current" />
                                 {/* Vertical Wave Edge */}
-                                <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-1">
+                                <div className="w-[12px] h-full shrink-0 overflow-hidden relative -ml-[1px]">
                                     <motion.div
                                         className="w-full absolute top-0 left-0"
                                         style={{ height: 'calc(100% + 40px)', top: '-40px' }}
@@ -332,7 +332,7 @@ export function PlayerBar() {
                                         <svg className="h-full w-full" preserveAspectRatio="none">
                                             <defs>
                                                 <pattern id="pill-progress-wave" x="0" y="0" width="12" height="40" patternUnits="userSpaceOnUse">
-                                                    <path d="M 0 0 L 6 0 Q 1 10 6 20 T 6 40 L 0 40 Z" fill="currentColor" />
+                                                    <path d="M 0 0 L 6 0 Q -4 10 6 20 T 6 40 L 0 40 Z" fill="currentColor" />
                                                 </pattern>
                                             </defs>
                                             <rect x="0" y="0" width="100%" height="100%" fill="url(#pill-progress-wave)" />

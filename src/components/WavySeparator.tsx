@@ -1,4 +1,4 @@
-
+import { useMemo } from 'react';
 
 interface WavySeparatorProps {
     label: string;
@@ -39,12 +39,14 @@ export function WavySeparator({ label, color = "currentColor" }: WavySeparatorPr
 }
 
 function WavePattern({ color }: { color: string }) {
+    const patternId = useMemo(() => `wave-pattern-${Math.random().toString(36).substr(2, 9)}`, []);
+
     return (
         <svg width="100%" height="100%" preserveAspectRatio="none">
             <defs>
-                <pattern id="wave-pattern" x="0" y="0" width="40" height="12" patternUnits="userSpaceOnUse">
+                <pattern id={patternId} x="0" y="0" width="40" height="12" patternUnits="userSpaceOnUse">
                     {/* Sine wave: Start mid (6), go up, then down. Width 40. */}
-                    {/* M 0 6 Q 10 0 20 6 T 40 6 */}
+                    {/* M 0 6 Q 10 1 20 6 T 40 6 */}
                     <path
                         d="M 0 6 Q 10 1 20 6 T 40 6"
                         fill="none"
@@ -54,7 +56,7 @@ function WavePattern({ color }: { color: string }) {
                     />
                 </pattern>
             </defs>
-            <rect x="0" y="0" width="100%" height="100%" fill="url(#wave-pattern)" />
+            <rect x="0" y="0" width="100%" height="100%" fill={`url(#${patternId})`} />
         </svg>
     );
 }

@@ -76,6 +76,9 @@ export default {
             },
             transitionTimingFunction: {
                 'emphasized': 'cubic-bezier(0.2, 0.0, 0.0, 1.0)', // M3 Emphasized easing
+            },
+            animation: {
+                'spin-slow': 'spin 3s linear infinite',
             }
         },
     },

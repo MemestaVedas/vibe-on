@@ -13,12 +13,17 @@ interface NavigationState {
 
     toggleRightPanel: () => void;
     setRightPanelOpen: (isOpen: boolean) => void;
+
+    isLeftSidebarCollapsed: boolean;
+    toggleLeftSidebar: () => void;
+    setLeftSidebarCollapsed: (isCollapsed: boolean) => void;
 }
 
 export const useNavigationStore = create<NavigationState>((set) => ({
     view: 'tracks',
     selectedAlbumKey: null,
     isRightPanelOpen: false,
+    isLeftSidebarCollapsed: false,
 
     setView: (view) => set({ view, selectedAlbumKey: null }),
     navigateToAlbum: (albumName, artistName) => set({
@@ -28,5 +33,8 @@ export const useNavigationStore = create<NavigationState>((set) => ({
     clearSelectedAlbum: () => set({ selectedAlbumKey: null }),
 
     toggleRightPanel: () => set((state) => ({ isRightPanelOpen: !state.isRightPanelOpen })),
-    setRightPanelOpen: (isOpen) => set({ isRightPanelOpen: isOpen })
+    setRightPanelOpen: (isOpen) => set({ isRightPanelOpen: isOpen }),
+
+    toggleLeftSidebar: () => set((state) => ({ isLeftSidebarCollapsed: !state.isLeftSidebarCollapsed })),
+    setLeftSidebarCollapsed: (isCollapsed) => set({ isLeftSidebarCollapsed: isCollapsed })
 }));

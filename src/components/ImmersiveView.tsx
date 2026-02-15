@@ -38,7 +38,7 @@ export function ImmersiveView() {
     const playFile = usePlayerStore(s => s.playFile);
     const setError = usePlayerStore(s => s.setError);
 
-    const { lines, lyricsMode, setLyricsMode, fetchLyrics, clearLyrics } = useLyricsStore();
+    const { lines, lyricsMode, setLyricsMode, fetchLyrics } = useLyricsStore();
 
     const isPlaying = activeState === 'Playing';
     const colors = useThemeStore(state => state.colors);
@@ -53,7 +53,6 @@ export function ImmersiveView() {
     useEffect(() => {
         if (activeTrack?.path) {
             console.log('[ImmersiveView] Auto-fetching lyrics for:', activeTrack.title);
-            clearLyrics(); // Clean slate to avoid showing old lyrics
             fetchLyrics(
                 activeTrack.artist || '',
                 activeTrack.title || '',
@@ -61,7 +60,7 @@ export function ImmersiveView() {
                 activeTrack.path
             );
         }
-    }, [activeTrack?.path, activeTrack?.title, activeTrack?.artist, fetchLyrics, clearLyrics]);
+    }, [activeTrack?.path, activeTrack?.title, activeTrack?.artist, fetchLyrics]);
 
     // Keyboard Shortcuts
     useEffect(() => {
