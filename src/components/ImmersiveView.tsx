@@ -151,30 +151,30 @@ export function ImmersiveView() {
                         x: showQueue ? 0 : -20
                     }}
                     transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-                    className="h-full flex flex-col items-center justify-center px-24 relative z-20"
+                    className="h-full flex flex-col items-center justify-center px-6 md:px-12 lg:px-24 relative z-20 min-w-0"
                 >
-                    <div className="flex flex-col items-start w-full max-w-[460px] relative px-12">
+                    <div className="flex flex-col items-start w-full max-w-[460px] relative">
                         <AlbumArt coverUrl={coverUrl} />
 
-                        <div className="mt-12 w-full text-left relative">
+                        <div className="mt-8 lg:mt-12 w-full text-left relative">
                             <motion.div
                                 initial={{ x: -50, opacity: 0 }}
                                 animate={{ x: 0, opacity: 1 }}
-                                className="inline-block relative"
+                                className="inline-block relative max-w-full"
                             >
                                 <motion.h1
                                     layoutId="track-title"
-                                    className="text-6xl lg:text-7xl font-bold tracking-[-0.05em] leading-[0.85] uppercase mb-4 break-words max-w-full"
+                                    className="text-4xl md:text-5xl lg:text-7xl font-bold tracking-[-0.05em] leading-[0.85] uppercase mb-4 break-words max-w-full line-clamp-2"
                                     style={{ color: colors.onSurface }}
                                 >
                                     {activeTrack?.title || "SYSTEM IDLE"}
                                 </motion.h1>
-                                <div className="h-1 w-24 bg-primary mt-4" style={{ backgroundColor: colors.primary }} />
+                                <div className="h-1 w-16 lg:w-24 bg-primary mt-2 lg:mt-4" style={{ backgroundColor: colors.primary }} />
                             </motion.div>
 
                             <motion.p
                                 layoutId="track-artist"
-                                className="text-xl lg:text-2xl font-semibold mt-4 tracking-[-0.02em] opacity-40 uppercase"
+                                className="text-lg md:text-xl lg:text-2xl font-semibold mt-2 lg:mt-4 tracking-[-0.02em] opacity-40 uppercase truncate max-w-full"
                                 style={{ color: colors.onSurfaceVariant }}
                             >
                                 {activeTrack?.artist || "NULL_ARTIST"}
@@ -182,7 +182,7 @@ export function ImmersiveView() {
                         </div>
 
                         {/* Progress Technical */}
-                        <div className="mt-12 w-full">
+                        <div className="mt-8 lg:mt-12 w-full">
                             <div className="flex justify-between mb-3 text-[10px] font-bold tabular-nums tracking-[0.2em] uppercase opacity-30" style={{ color: colors.onSurface }}>
                                 <span>{formatTime(usePlayerStore.getState().status.position_secs)}</span>
                                 <span>{formatTime(activeTrack?.duration_secs || 0)}</span>
@@ -198,14 +198,14 @@ export function ImmersiveView() {
                         </div>
 
                         {/* Controls DOCK */}
-                        <div className="mt-12 flex items-center gap-6">
+                        <div className="mt-8 lg:mt-12 flex items-center justify-center gap-4 lg:gap-6 w-full">
                             <CloverButton
                                 onClick={prevTrack}
                                 icon={<IconPrevious size={24} />}
                                 colors={colors}
                             />
 
-                            <div className="flex items-center gap-2 p-3 rounded-full glass-panel transition-transform hover:scale-[1.02]">
+                            <div className="flex items-center gap-2 p-2 lg:p-3 rounded-full glass-panel transition-transform hover:scale-[1.02]">
                                 <ControlButton
                                     onClick={() => setShowQueue(!showQueue)}
                                     icon={<IconQueue size={18} />}

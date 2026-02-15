@@ -34,11 +34,15 @@ import { useNavigationStore } from './store/navigationStore';
 function App() {
   useMediaSession(); // Initialize System Media Controls
   const { loadLibrary, status, pause, resume, playFile, immersiveMode } = usePlayerStore();
-  const { view, setView } = useNavigationStore();
+  const { view, setView, isRightPanelOpen, setRightPanelOpen } = useNavigationStore();
 
   useEffect(() => {
+    // Initialize Right Panel visibility based on screen width
+    if (window.innerWidth >= 1536) {
+      setRightPanelOpen(true);
+    }
     loadLibrary();
-  }, [loadLibrary]);
+  }, [loadLibrary, setRightPanelOpen]);
 
   const { fetchLyrics } = useLyricsStore();
 
@@ -276,7 +280,22 @@ function App() {
         </div>
 
         {/* Right Panel (Floating Card) */}
-        <aside className="w-[25rem] bg-surface-container z-20 hidden xl:block overflow-hidden transition-all duration-300 rounded-[2rem]">
+        {/* Responsive Logic:
+            - xl+: Relative (pushes content), toggles width/opacity
+            - <xl: Fixed/Absolute overlay, toggles translate/opacity
+        */}
+        <aside
+          className={`
+            bg-surface-container z-30 overflow-hidden transition-all duration-300 rounded-[2rem]
+            fixed right-3 top-[3.25rem] bottom-28 shadow-2xl
+            2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
+
+            ${isRightPanelOpen
+              ? 'translate-x-0 opacity-100 w-[25rem]'
+              : 'translate-x-[110%] opacity-0 pointer-events-none 2xl:w-0 2xl:translate-x-0'
+            }
+          `}
+        >
           <RightPanel />
         </aside>
       </div >

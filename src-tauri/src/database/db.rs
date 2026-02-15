@@ -352,14 +352,6 @@ impl DatabaseManager {
         let track_iter = stmt.query_map([], |row| {
             let cover_filename: Option<String> = row.get(5)?;
 
-            // Convert filename to full asset URL?
-            // Actually, usually we send just the filename or a special protocol URL.
-            // If we send just filename, frontend needs to know where to find it.
-            // Or we can construct `https://asset.localhost/covers/filename` here.
-            // But `asset.localhost` depends on Tauri config.
-            // Let's return just the filename for now, and handle URL in frontend or helper.
-            // Wait, `TrackInfo` expects `Option<String>`.
-
             Ok(TrackInfo {
                 path: row.get(0)?,
                 title: row.get(1)?,
@@ -378,6 +370,22 @@ impl DatabaseManager {
         }
 
         Ok(tracks)
+    }
+
+    pub fn get_all_track_paths(&self) -> Result<std::collections::HashSet<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT path FROM tracks")?;
+        
+        let path_iter = stmt.query_map([], |row| {
+            row.get::<_, String>(0)
+        })?;
+
+        let mut paths = std::collections::HashSet::new();
+        for path in path_iter {
+            paths.insert(path?);
+        }
+
+        Ok(paths)
     }
 
     pub fn get_covers_dir(&self) -> PathBuf {

@@ -84,6 +84,7 @@ const GridItem = ({ children, ...props }: React.ComponentPropsWithoutRef<'div'>)
 export function AlbumGrid() {
     const library = usePlayerStore(state => state.library);
     const playQueue = usePlayerStore(state => state.playQueue);
+    const searchQuery = usePlayerStore(state => state.searchQuery);
     const { selectedAlbumKey, navigateToAlbum, clearSelectedAlbum } = useNavigationStore();
 
     const albums = useMemo(() => {
@@ -109,8 +110,36 @@ export function AlbumGrid() {
         });
 
         // Use array sort (stable or not) - sorting by name
-        return Array.from(albumMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [library]);
+        const sortedAlbums = Array.from(albumMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+        if (!searchQuery.trim()) return sortedAlbums;
+
+        const query = searchQuery.toLowerCase();
+
+        if (query.startsWith('artist:')) {
+            const term = query.replace('artist:', '').trim();
+            if (!term) return sortedAlbums;
+            return sortedAlbums.filter(a => a.artist.toLowerCase().includes(term));
+        }
+
+        if (query.startsWith('album:')) {
+            const term = query.replace('album:', '').trim();
+            if (!term) return sortedAlbums;
+            return sortedAlbums.filter(a => a.name.toLowerCase().includes(term));
+        }
+
+        if (query.startsWith('title:')) {
+            // For albums, title search might not make sense, or we search tracks? 
+            // Let's just search album name for now.
+            return [];
+        }
+
+        return sortedAlbums.filter(a =>
+            a.name.toLowerCase().includes(query) ||
+            a.artist.toLowerCase().includes(query)
+        );
+
+    }, [library, searchQuery]);
 
     const handlePlayAlbum = (album: Album) => {
         if (album.tracks.length > 0) {

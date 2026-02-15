@@ -82,6 +82,7 @@ const GridItem = ({ children, ...props }: React.ComponentPropsWithoutRef<'div'>)
 export function ArtistList() {
     const library = usePlayerStore(state => state.library);
     const playQueue = usePlayerStore(state => state.playQueue);
+    const searchQuery = usePlayerStore(state => state.searchQuery);
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
 
     const artists = useMemo(() => {
@@ -109,8 +110,35 @@ export function ArtistList() {
             artist.albumCount = albums.size;
         }
 
-        return Array.from(artistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [library]);
+        // Use array sort (stable or not) - sorting by name
+        const sortedArtists = Array.from(artistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+        if (!searchQuery.trim()) return sortedArtists;
+
+        const query = searchQuery.toLowerCase();
+
+        if (query.startsWith('artist:')) {
+            const term = query.replace('artist:', '').trim();
+            if (!term) return sortedArtists;
+            return sortedArtists.filter(a => a.name.toLowerCase().includes(term));
+        }
+
+        if (query.startsWith('album:')) {
+            // Filter artists who have albums matching the term? 
+            // Or just return empty if searching strictly for albums?
+            // Let's filter artists that contain tracks from that album.
+            const term = query.replace('album:', '').trim();
+            if (!term) return sortedArtists;
+            return sortedArtists.filter(a => a.tracks.some(t => t.album.toLowerCase().includes(term)));
+        }
+
+        if (query.startsWith('title:')) {
+            return [];
+        }
+
+        return sortedArtists.filter(a => a.name.toLowerCase().includes(query));
+
+    }, [library, searchQuery]);
 
     const handlePlayArtist = (artist: Artist) => {
         if (artist.tracks.length > 0) {
@@ -127,7 +155,6 @@ export function ArtistList() {
                 <ArtistDetailView
                     artist={artist}
                     onBack={() => setSelectedArtist(null)}
-                    onPlay={() => handlePlayArtist(artist)}
                 />
             </div>
         );
@@ -185,9 +212,68 @@ function ArtistCard({ artist, onClick, onPlay }: { artist: Artist, onClick: () =
     );
 }
 
-function ArtistDetailView({ artist, onBack, onPlay }: { artist: Artist, onBack: () => void, onPlay: () => void }) {
+import { WavySeparator } from './WavySeparator';
+import { VerticalWavySeparator } from './VerticalWavySeparator';
+
+// Helper Type for Display Items
+type DisplayItem =
+    | { type: 'header', album: string }
+    | { type: 'track', track: TrackDisplay, index: number };
+
+function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => void }) {
     const { playQueue } = usePlayerStore();
     const coverUrl = useCoverArt(artist.cover);
+    const virtuosoRef = useRef<any>(null);
+
+    // Group tracks by Album
+    const displayItems = useMemo<DisplayItem[]>(() => {
+        // Sort tracks by album, then disk, then track number
+        const sorted = [...artist.tracks].sort((a, b) => {
+            if (a.album !== b.album) return a.album.localeCompare(b.album);
+            if ((a.disc_number || 1) !== (b.disc_number || 1)) return (a.disc_number || 1) - (b.disc_number || 1);
+            return (a.track_number || 0) - (b.track_number || 0);
+        });
+
+        const items: DisplayItem[] = [];
+        let currentAlbum = '';
+
+        sorted.forEach((track, i) => {
+            if (track.album !== currentAlbum) {
+                items.push({ type: 'header', album: track.album });
+                currentAlbum = track.album;
+            }
+            items.push({ type: 'track', track, index: i });
+        });
+
+        return items;
+    }, [artist.tracks]);
+
+    // Also need a sorted track list for playback context
+    const sortedTracks = useMemo(() => {
+        return [...artist.tracks].sort((a, b) => {
+            if (a.album !== b.album) return a.album.localeCompare(b.album);
+            if ((a.disc_number || 1) !== (b.disc_number || 1)) return (a.disc_number || 1) - (b.disc_number || 1);
+            return (a.track_number || 0) - (b.track_number || 0);
+        });
+    }, [artist.tracks]);
+
+    // Extract unique albums for sidebar
+    const albums = useMemo(() => {
+        const uniqueAlbums = new Map<string, string | null>(); // Name -> Cover
+        artist.tracks.forEach(t => {
+            if (!uniqueAlbums.has(t.album)) {
+                uniqueAlbums.set(t.album, t.cover_image || null);
+            }
+        });
+        return Array.from(uniqueAlbums.entries()).map(([name, cover]) => ({ name, cover })).sort((a, b) => a.name.localeCompare(b.name));
+    }, [artist.tracks]);
+
+    const scrollToAlbum = (albumName: string) => {
+        const index = displayItems.findIndex(item => item.type === 'header' && item.album === albumName);
+        if (index !== -1 && virtuosoRef.current) {
+            virtuosoRef.current.scrollToIndex({ index, align: 'start', offset: -20 });
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-surface">
@@ -212,7 +298,7 @@ function ArtistDetailView({ artist, onBack, onPlay }: { artist: Artist, onBack: 
 
                     <div className="flex gap-3 mt-2">
                         <button
-                            onClick={onPlay}
+                            onClick={() => playQueue(sortedTracks, 0)}
                             className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-elevation-1 transition-transform active:scale-95"
                         >
                             <IconPlay size={20} fill="currentColor" /> Play Artist
@@ -227,32 +313,96 @@ function ArtistDetailView({ artist, onBack, onPlay }: { artist: Artist, onBack: 
                 </div>
             </div>
 
-            {/* Tracklist */}
-            <div className="flex-1 p-6">
-                <Virtuoso
-                    style={{ height: '100%' }}
-                    data={artist.tracks}
-                    overscan={100}
-                    itemContent={(i, track) => (
-                        <div
-                            key={track.id}
-                            onClick={() => playQueue(artist.tracks, i)}
-                            className="group flex items-center gap-4 p-3 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
-                        >
-                            <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">{i + 1}</span>
-                            <span className="flex-1 font-medium text-body-large truncate">{track.title}</span>
-                            <span className="flex-1 text-body-medium text-on-surface-variant/80 truncate">{track.album}</span>
-                            <span className="text-label-medium font-medium opacity-60 tabular-nums">
-                                {Math.floor(track.duration_secs / 60)}:
-                                {Math.floor(track.duration_secs % 60).toString().padStart(2, '0')}
-                            </span>
-                        </div>
-                    )}
-                    components={{
-                        Footer: () => <div className="h-24"></div>
-                    }}
-                />
+            {/* Split View: Sidebar + Tracklist */}
+            <div className="flex items-stretch flex-1 min-h-0 overflow-hidden">
+
+                {/* Album Sidebar */}
+                <div className="w-64 shrink-0 overflow-y-auto p-4 hidden md:block">
+                    <div className="flex flex-col gap-2">
+                        <h3 className="text-title-small font-bold text-on-surface-variant mb-2 px-2">Albums</h3>
+                        {albums.map(album => (
+                            <AlbumSidebarItem
+                                key={album.name}
+                                name={album.name}
+                                cover={album.cover}
+                                onClick={() => scrollToAlbum(album.name)}
+                            />
+                        ))}
+                    </div>
+                </div>
+
+                {/* Vertical Wavy Separator */}
+                <VerticalWavySeparator />
+
+                {/* Tracklist */}
+                <div className="flex-1 p-6 min-w-0">
+                    <Virtuoso
+                        ref={virtuosoRef}
+                        style={{ height: '100%' }}
+                        data={displayItems}
+                        overscan={100}
+                        itemContent={(i, item) => {
+                            if (item.type === 'header') {
+                                return (
+                                    <div className="py-4 mt-4 first:mt-0 sticky top-0 bg-surface z-10">
+                                        <WavySeparator label={item.album} />
+                                    </div>
+                                );
+                            }
+
+                            // Track Item
+                            return (
+                                <div
+                                    key={item.track.id}
+                                    onClick={() => {
+                                        // Find index in sortedTracks
+                                        const index = sortedTracks.findIndex(t => t.id === item.track.id);
+                                        playQueue(sortedTracks, index);
+                                    }}
+                                    className="group flex items-center gap-4 p-3 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
+                                >
+                                    <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">
+                                        {item.track.track_number || (i + 1)}
+                                    </span>
+                                    <span className="flex-1 font-medium text-body-large truncate">{item.track.title}</span>
+                                    {/* Removed Album column since we have headers now */}
+                                    <span className="text-label-medium font-medium opacity-60 tabular-nums">
+                                        {Math.floor(item.track.duration_secs / 60)}:
+                                        {Math.floor(item.track.duration_secs % 60).toString().padStart(2, '0')}
+                                    </span>
+                                </div>
+                            );
+                        }}
+                        components={{
+                            Footer: () => <div className="h-24"></div>
+                        }}
+                    />
+                </div>
             </div>
+        </div>
+    );
+}
+
+function AlbumSidebarItem({ name, cover, onClick }: { name: string, cover: string | null, onClick: () => void }) {
+    const coverUrl = useCoverArt(cover);
+
+    return (
+        <div
+            onClick={onClick}
+            className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-high cursor-pointer transition-colors group"
+        >
+            <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden bg-surface-container-highest shadow-sm">
+                {coverUrl ? (
+                    <img src={coverUrl} alt={name} className="w-full h-full object-cover" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-on-surface-variant/50">
+                        <IconMicrophone size={20} />
+                    </div>
+                )}
+            </div>
+            <span className="text-body-medium font-medium text-on-surface-variant group-hover:text-on-surface truncate">
+                {name}
+            </span>
         </div>
     );
 }

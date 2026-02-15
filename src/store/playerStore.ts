@@ -356,9 +356,34 @@ export const usePlayerStore = create<PlayerStore>()(
 
                     console.log("[PlayerStore] Setting queue and playing:", trackToPlay.title);
 
-                    set({ queue: tracks });
+                    const { isShuffled } = get();
+                    let newQueue = [...tracks];
+
+                    if (isShuffled) {
+                        // Inherit shuffle mode: Shuffle the new context immediately
+                        let currentIndex = newQueue.length;
+                        while (currentIndex != 0) {
+                            let randomIndex = Math.floor(Math.random() * currentIndex);
+                            currentIndex--;
+                            [newQueue[currentIndex], newQueue[randomIndex]] = [
+                                newQueue[randomIndex], newQueue[currentIndex]];
+                        }
+
+                        // Ensure the selected track is played first
+                        const trackIndex = newQueue.findIndex(t => t.path === trackToPlay.path);
+                        if (trackIndex > -1) {
+                            const [track] = newQueue.splice(trackIndex, 1);
+                            newQueue.unshift(track);
+                        }
+                    }
+
+                    set({
+                        queue: newQueue,
+                        originalQueue: tracks // Update originalQueue to this new context (Album/Artist)
+                    });
+
                     // Broadcast updated queue to mobile clients
-                    broadcastQueueUpdate(tracks);
+                    broadcastQueueUpdate(newQueue);
 
                     await get().playFile(trackToPlay.path);
 
@@ -534,14 +559,25 @@ export const usePlayerStore = create<PlayerStore>()(
                     }
                     const tracksWithId = tracks.map(t => ({ ...t, id: t.path }));
 
-                    set(state => ({
-                        library: tracksWithId,
-                        coversDir,
-                        isLoading: false,
-                        // If queue is empty (fresh start), populate it
-                        queue: state.queue.length === 0 ? tracksWithId : state.queue,
-                        originalQueue: state.originalQueue.length === 0 ? tracksWithId : state.originalQueue
-                    }));
+                    set(state => {
+                        // Filter existing queue to remove tracks that are no longer in the library
+                        const validQueue = state.queue.filter(qTrack =>
+                            tracksWithId.some(lTrack => lTrack.path === qTrack.path)
+                        );
+
+                        const validOriginalQueue = state.originalQueue.filter(qTrack =>
+                            tracksWithId.some(lTrack => lTrack.path === qTrack.path)
+                        );
+
+                        return {
+                            library: tracksWithId,
+                            coversDir,
+                            isLoading: false,
+                            // If queue is empty (fresh start), populate it. Otherwise use the filtered queue.
+                            queue: state.queue.length === 0 ? tracksWithId : validQueue,
+                            originalQueue: state.originalQueue.length === 0 ? tracksWithId : validOriginalQueue
+                        };
+                    });
                 } catch (e) {
                     console.error('Failed to load library:', e);
                     set({ isLoading: false });

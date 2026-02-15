@@ -154,7 +154,28 @@ export function TrackList() {
     // Filter library based on search query
     const filteredLibrary = useMemo(() => {
         if (!searchQuery.trim()) return library;
+        
         const query = searchQuery.toLowerCase();
+        
+        // Check for prefixes
+        if (query.startsWith('artist:')) {
+            const term = query.replace('artist:', '').trim();
+            if (!term) return library;
+            return library.filter(track => track.artist.toLowerCase().includes(term));
+        }
+        
+        if (query.startsWith('album:')) {
+            const term = query.replace('album:', '').trim();
+            if (!term) return library;
+            return library.filter(track => track.album.toLowerCase().includes(term));
+        }
+
+        if (query.startsWith('title:')) {
+            const term = query.replace('title:', '').trim();
+            if (!term) return library;
+            return library.filter(track => track.title.toLowerCase().includes(term));
+        }
+
         return library.filter(track =>
             track.title.toLowerCase().includes(query) ||
             track.artist.toLowerCase().includes(query) ||

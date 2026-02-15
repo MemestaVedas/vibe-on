@@ -430,8 +430,24 @@ async fn init_library(
     }
 
     println!("[Library] Scanning folder: {:?}", path_obj);
-    let files = scan_music_folder_helper(path_obj);
+    let mut files = scan_music_folder_helper(path_obj);
     println!("[Library] Found {} files. Processing in parallel...", files.len());
+
+    // Optimization: Skip existing files
+    {
+        let db_lock = state.db.lock().unwrap();
+        if let Some(ref db) = *db_lock {
+            if let Ok(existing_paths) = db.get_all_track_paths() {
+                let initial_count = files.len();
+                println!("[Library] Checking against {} existing tracks in DB...", existing_paths.len());
+                files.retain(|f| !existing_paths.contains(f));
+                let skipped = initial_count - files.len();
+                if skipped > 0 {
+                    println!("[Library] Optimized Scan: Skipped {} existing files. Processing {} new files.", skipped, files.len());
+                }
+            }
+        }
+    }
 
     let processed = AtomicUsize::new(0);
     let total = files.len();
@@ -636,6 +652,7 @@ fn get_track_metadata_helper_fast(path_str: &str) -> Result<TrackInfo, String> {
     use lofty::probe::Probe;
 
     let path = Path::new(path_str);
+    // 1. Probe the file for metadata
     let tagged_file_res = Probe::open(path)
         .and_then(|probe| probe.read());
 
@@ -675,13 +692,35 @@ fn get_track_metadata_helper_fast(path_str: &str) -> Result<TrackInfo, String> {
             )
         };
 
+    // 2. Check for cover image (External only for speed in "fast" mode)
+    // We do NOT extract embedded art here to keep it fast, BUT we can check for folder.jpg
+    // because that's just a filesystem check, not parsing the music file.
+    
+    // Actually, we can just return None for cover_image here, 
+    // AND then rely on the frontend or a secondary process to associate the folder image.
+    // BUT, the issue is that "newly added songs don't show album art". 
+    // If the frontend uses `cover_image` from TrackInfo, and it's None, it falls back to `useCoverArt` hook.
+    // The `useCoverArt` hook checks `coverArtCache` or `coversDir`.
+    
+    // If we want "Instant" support for local `cover.jpg`, we should check for it here and return the PATH.
+    // TrackInfo.cover_image is Option<String>. It can be a file path.
+
+    let mut cover_image_path: Option<String> = None;
+    
+    if let Some(parent) = path.parent() {
+        if let Some(cover_path) = find_external_cover(parent) {
+             // Store the absolute path to the cover image
+             cover_image_path = Some(cover_path.to_string_lossy().to_string());
+        }
+    }
+
     Ok(TrackInfo {
         path: path.to_string_lossy().to_string(),
         title,
         artist,
         album,
         duration_secs,
-        cover_image: None,
+        cover_image: cover_image_path, // Now populated if external cover exists
         disc_number,
         track_number,
     })

@@ -13,8 +13,10 @@ import {
     IconNext,
     IconVolume,
     IconMusicNote,
-    IconShuffle
+    IconShuffle,
+    IconQueue
 } from './Icons';
+import { useNavigationStore } from '../store/navigationStore';
 
 
 // --- Animation Constants ---
@@ -129,6 +131,7 @@ export function PlayerBar() {
     const isShuffled = usePlayerStore(s => s.isShuffled);
     const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
+    const { isRightPanelOpen, toggleRightPanel } = useNavigationStore();
     const lastStateRef = useRef(state);
 
     // Derive isFavorite from favorites set — no getState() during render
@@ -319,7 +322,7 @@ export function PlayerBar() {
                             >
                                 <div className="flex-1 bg-current" />
                                 {/* Vertical Wave Edge */}
-                                <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-[1px]">
+                                <div className="w-[12px] h-full shrink-0 overflow-hidden relative -mr-1">
                                     <motion.div
                                         className="w-full absolute top-0 left-0"
                                         style={{ height: 'calc(100% + 40px)', top: '-40px' }}
@@ -526,6 +529,16 @@ export function PlayerBar() {
                                         <IconRepeat size={22} mode={repeatMode} />
                                     </OrganicControlButton>
 
+                                    {/* Queue Toggle */}
+                                    <OrganicControlButton
+                                        onClick={toggleRightPanel}
+                                        className={`p-2 ${isRightPanelOpen ? 'text-primary bg-primary-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}`}
+                                        initial={{ x: -20, opacity: 0 }}
+                                        animate={{ x: 0, opacity: 1 }}
+                                        transition={{ delay: 0.2 }}
+                                    >
+                                        <IconQueue size={22} />
+                                    </OrganicControlButton>
 
                                     <div className="flex items-center gap-2 ml-2">
                                         <IconVolume size={20} className="text-on-surface-variant" />
