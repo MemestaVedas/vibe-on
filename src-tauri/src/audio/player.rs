@@ -290,12 +290,30 @@ impl AudioThread {
                     audio.handle_set_speed(value);
                 }
                 Ok(AudioCommand::SetEq(band, gain)) => {
-                    println!("[AudioThread] EQ changed: band {} -> {} dB", band, gain);
+                    if let Ok(mut gains) = audio.eq_gains.lock() {
+                        if band < gains.len() {
+                            gains[band] = gain;
+                            println!("[AudioThread] EQ updated: band {} -> {} dB", band, gain);
+                        }
+                    }
                 }
                 Ok(AudioCommand::SetEqAll(gains)) => {
-                    println!("[AudioThread] Bulk EQ update: {} bands", gains.len());
+                    if let Ok(mut cached_gains) = audio.eq_gains.lock() {
+                        for (i, &g) in gains.iter().enumerate() {
+                            if i < cached_gains.len() {
+                                cached_gains[i] = g;
+                            }
+                        }
+                        println!("[AudioThread] Bulk EQ updated: {} bands", gains.len());
+                    }
                 }
                 Ok(AudioCommand::SetReverb(mix, decay)) => {
+                    if let Ok(mut gains) = audio.eq_gains.lock() {
+                        if gains.len() >= 15 {
+                            gains[13] = mix.clamp(0.0, 1.0);
+                            gains[14] = decay.clamp(0.0, 1.0);
+                        }
+                    }
                     println!("[AudioThread] Reverb set: mix={}, decay={}", mix, decay);
                 }
                 Ok(AudioCommand::GetVisualizerData(tx)) => {

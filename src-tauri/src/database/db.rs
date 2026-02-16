@@ -48,7 +48,7 @@ impl DatabaseManager {
         // Migration: Add new columns if missing
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN disc_number INTEGER", []);
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN track_number INTEGER", []);
-        
+
         // Migration: Add Romaji and English columns
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN title_romaji TEXT", []);
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN title_en TEXT", []);
@@ -70,19 +70,19 @@ impl DatabaseManager {
         let title_romaji = if crate::lyrics_transliteration::has_japanese(&track.title) {
             Some(crate::lyrics_transliteration::to_romaji(&track.title))
         } else {
-            None
+            Some("".to_string())
         };
 
         let artist_romaji = if crate::lyrics_transliteration::has_japanese(&track.artist) {
             Some(crate::lyrics_transliteration::to_romaji(&track.artist))
         } else {
-            None
+            Some("".to_string())
         };
 
         let album_romaji = if crate::lyrics_transliteration::has_japanese(&track.album) {
             Some(crate::lyrics_transliteration::to_romaji(&track.album))
         } else {
-            None
+            Some("".to_string())
         };
 
         // Insert into tracks
@@ -92,7 +92,7 @@ impl DatabaseManager {
                 title_romaji, artist_romaji, album_romaji
             ) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-             params![
+            params![
                 track.path,
                 track.title,
                 track.artist,
@@ -405,11 +405,11 @@ impl DatabaseManager {
              WHERE title LIKE ?1 OR artist LIKE ?1 OR album LIKE ?1
                 OR title_romaji LIKE ?1 OR artist_romaji LIKE ?1 OR album_romaji LIKE ?1
                 OR title_en LIKE ?1 OR artist_en LIKE ?1 OR album_en LIKE ?1
-             ORDER BY artist, album, track_number"
+             ORDER BY artist, album, track_number",
         )?;
 
         let track_iter = stmt.query_map(params![search_query], |row| {
-             Ok(TrackInfo {
+            Ok(TrackInfo {
                 path: row.get(0)?,
                 title: row.get(1)?,
                 artist: row.get(2)?,
@@ -418,12 +418,12 @@ impl DatabaseManager {
                 cover_image: None, // Loaded on demand
                 disc_number: row.get(5)?,
                 track_number: row.get(6)?,
-                title_romaji: None,
-                title_en: None,
-                artist_romaji: None,
-                artist_en: None,
-                album_romaji: None,
-                album_en: None,
+                title_romaji: row.get(7).unwrap_or(None),
+                title_en: row.get(8).unwrap_or(None),
+                artist_romaji: row.get(9).unwrap_or(None),
+                artist_en: row.get(10).unwrap_or(None),
+                album_romaji: row.get(11).unwrap_or(None),
+                album_en: row.get(12).unwrap_or(None),
             })
         })?;
 
@@ -440,7 +440,8 @@ impl DatabaseManager {
 
         // Join tracks with albums to get the cover image path
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+             t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
              ORDER BY t.artist, t.album, t.disc_number, t.track_number, t.title",
@@ -458,12 +459,12 @@ impl DatabaseManager {
                 cover_image: cover_filename,
                 disc_number: row.get(6).unwrap_or(None),
                 track_number: row.get(7).unwrap_or(None),
-                title_romaji: None,
-                title_en: None,
-                artist_romaji: None,
-                artist_en: None,
-                album_romaji: None,
-                album_en: None,
+                title_romaji: row.get(8).unwrap_or(None),
+                title_en: row.get(9).unwrap_or(None),
+                artist_romaji: row.get(10).unwrap_or(None),
+                artist_en: row.get(11).unwrap_or(None),
+                album_romaji: row.get(12).unwrap_or(None),
+                album_en: row.get(13).unwrap_or(None),
             })
         })?;
 
@@ -478,10 +479,8 @@ impl DatabaseManager {
     pub fn get_all_track_paths(&self) -> Result<std::collections::HashSet<String>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT path FROM tracks")?;
-        
-        let path_iter = stmt.query_map([], |row| {
-            row.get::<_, String>(0)
-        })?;
+
+        let path_iter = stmt.query_map([], |row| row.get::<_, String>(0))?;
 
         let mut paths = std::collections::HashSet::new();
         for path in path_iter {
@@ -627,9 +626,7 @@ impl DatabaseManager {
     pub fn get_tracks_missing_metadata(&self) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
         // Check all tracks where romaji is NULL.
-        let mut stmt = conn.prepare(
-            "SELECT path FROM tracks WHERE title_romaji IS NULL"
-        )?;
+        let mut stmt = conn.prepare("SELECT path FROM tracks WHERE title_romaji IS NULL")?;
 
         let paths_iter = stmt.query_map([], |row| row.get(0))?;
 

@@ -9,6 +9,8 @@ import { IconPlay, IconPause, IconNext, IconPrevious, IconMusicNote, IconShuffle
 import { formatTime } from '../utils/formatTime';
 import { SquigglySlider } from './SquigglySlider';
 import { Virtuoso } from 'react-virtuoso';
+import { getDisplayText } from '../utils/textUtils';
+import { TrackDisplay } from '../types';
 
 /**
  * IMMERSIVE VIEW — 3-Column Redesign
@@ -26,6 +28,8 @@ export function ImmersiveView() {
     const activeState = usePlayerStore(s => s.status.state);
     const isShuffled = usePlayerStore(s => s.isShuffled);
     const queue = usePlayerStore(s => s.queue);
+    const library = usePlayerStore(s => s.library);
+    const displayLanguage = usePlayerStore(s => s.displayLanguage);
     const error = usePlayerStore(s => s.error);
     const isLoading = usePlayerStore(s => s.isLoading);
 
@@ -48,6 +52,15 @@ export function ImmersiveView() {
     // Use memoized library lookup with fallback for Immersive View
     const currentCover = useCurrentCover();
     const coverUrl = useCoverArt(currentCover || activeTrack?.cover_image || activeTrack?.cover_url);
+
+    // Find full track info from library for Romaji
+    const displayTrack = useMemo(() => {
+        if (!activeTrack?.path) return null;
+        return library.find(t => t.path === activeTrack.path) || activeTrack;
+    }, [activeTrack?.path, library, activeTrack]);
+
+    const displayTitle = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'title', displayLanguage) : "SYSTEM IDLE";
+    const displayArtist = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'artist', displayLanguage) : "NULL_ARTIST";
 
     // Sync Lyrics when track changes inside ImmersiveView
     useEffect(() => {
@@ -140,6 +153,7 @@ export function ImmersiveView() {
                         onPlay={playFile}
                         colors={colors}
                         onClose={() => setShowQueue(false)}
+                        displayLanguage={displayLanguage}
                     />
                 </motion.div>
 
@@ -166,7 +180,7 @@ export function ImmersiveView() {
                                     className="text-4xl md:text-5xl lg:text-7xl font-bold tracking-[-0.05em] leading-[0.85] uppercase mb-4 break-words max-w-full line-clamp-2"
                                     style={{ color: colors.onSurface }}
                                 >
-                                    {activeTrack?.title || "SYSTEM IDLE"}
+                                    {displayTitle}
                                 </motion.h1>
                                 <div className="h-1 w-16 lg:w-24 bg-primary mt-2 lg:mt-4" style={{ backgroundColor: colors.primary }} />
                             </motion.div>
@@ -176,7 +190,7 @@ export function ImmersiveView() {
                                 className="text-lg md:text-xl lg:text-2xl font-semibold mt-2 lg:mt-4 tracking-[-0.02em] opacity-40 uppercase truncate max-w-full"
                                 style={{ color: colors.onSurfaceVariant }}
                             >
-                                {activeTrack?.artist || "NULL_ARTIST"}
+                                {displayArtist}
                             </motion.p>
                         </div>
 
@@ -279,7 +293,7 @@ export function ImmersiveView() {
 //  SUB-COMPONENTS (SHARP 2D)
 // ─────────────────────────────────────────────────────────
 
-function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose }: any) {
+function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose, displayLanguage }: any) {
     const virtuosoRef = useRef<any>(null);
 
     // Auto-scroll to active track when it changes or when queue opens
@@ -336,6 +350,9 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose 
                         const isActive = activePath === currentPath;
                         const indexStr = (i + 1).toString().padStart(2, '0');
 
+                        const displayTitle = getDisplayText(track as TrackDisplay, 'title', displayLanguage);
+                        const displayArtist = getDisplayText(track as TrackDisplay, 'artist', displayLanguage);
+
                         return (
                             <div className="pb-4 px-4 overflow-visible">
                                 <motion.div
@@ -364,10 +381,10 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose 
 
                                     <div className="flex-1 min-w-0 px-3">
                                         <p className={`text-lg font-bold uppercase tracking-tight truncate`}>
-                                            {track.title}
+                                            {displayTitle}
                                         </p>
                                         <p className={`text-base font-semibold uppercase tracking-widest opacity-40 truncate`}>
-                                            {track.artist || "Unknown"}
+                                            {displayArtist}
                                         </p>
                                     </div>
 

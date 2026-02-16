@@ -101,6 +101,8 @@ interface PlayerStore {
     savedVolume: number;
     lastPlayedTrack: { path: string; position: number } | null;
 
+    setSort: (key: keyof TrackDisplay) => void;
+
     // Actions
     playFile: (path: string) => Promise<void>;
     pause: () => Promise<void>;

@@ -129,10 +129,20 @@ export function AlbumGrid() {
             // But existing code seems to take raw library. Be careful.
 
             // Let's rely on component logic:
-            albumList = albumList.filter(album =>
-                album.name.toLowerCase().includes(query) ||
-                album.artist.toLowerCase().includes(query)
-            );
+            albumList = albumList.filter(album => {
+                if (album.name.toLowerCase().includes(query)) return true;
+                if (album.artist.toLowerCase().includes(query)) return true;
+
+                // Check metadata from first track
+                const firstTrack = album.tracks[0];
+                if (firstTrack) {
+                    if (firstTrack.album_romaji && firstTrack.album_romaji.toLowerCase().includes(query)) return true;
+                    if (firstTrack.album_en && firstTrack.album_en.toLowerCase().includes(query)) return true;
+                    if (firstTrack.artist_romaji && firstTrack.artist_romaji.toLowerCase().includes(query)) return true;
+                    if (firstTrack.artist_en && firstTrack.artist_en.toLowerCase().includes(query)) return true;
+                }
+                return false;
+            });
         }
 
         return albumList.sort((a, b) => a.name.localeCompare(b.name));
@@ -173,41 +183,61 @@ export function AlbumGrid() {
                 Item: GridItem,
                 Footer: () => <div className="h-32"></div>
             }}
-            itemContent={(_, album) => {
-                const firstTrack = album.tracks[0];
-                const displayAlbumName = getDisplayText(firstTrack, 'album', displayLanguage);
-                const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
-
-                return (
-                    <div
-                        key={`${album.name}-${album.artist}`}
-                        onClick={() => navigateToAlbum(album.name, album.artist)}
-                        className="group flex flex-col gap-4 p-4 rounded-[2rem] hover:bg-surface-container-high transition-colors cursor-pointer"
-                    >
-                        <div className="aspect-square w-full relative">
-                            <div className="w-full h-full">
-                                <M3RoundedSquareImage
-                                    src={useCoverArt(album.cover)}
-                                    fallback={<IconMusicNote size={64} />}
-                                />
-                            </div>
-                            <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayAlbum(album); }} />
-                        </div>
-
-                        <div className="px-1 flex flex-col gap-0.5">
-                            <div className="text-title-large font-semibold text-on-surface truncate" title={displayAlbumName}>
-                                {displayAlbumName}
-                            </div>
-                            <div className="text-body-large text-on-surface-variant truncate" title={displayArtistName}>
-                                {displayArtistName}
-                            </div>
-                        </div>
-                    </div>
-                );
-            }}
+            itemContent={(_, album) => (
+                <AlbumItem
+                    album={album}
+                    displayLanguage={displayLanguage}
+                    navigateToAlbum={navigateToAlbum}
+                    handlePlayAlbum={handlePlayAlbum}
+                />
+            )}
         />
     );
 }
+
+// Extracted component to safely use hooks
+const AlbumItem = ({
+    album,
+    displayLanguage,
+    navigateToAlbum,
+    handlePlayAlbum
+}: {
+    album: Album,
+    displayLanguage: any,
+    navigateToAlbum: (name: string, artist: string) => void,
+    handlePlayAlbum: (album: Album) => void
+}) => {
+    const firstTrack = album.tracks[0];
+    const displayAlbumName = getDisplayText(firstTrack, 'album', displayLanguage);
+    const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
+    const coverUrl = useCoverArt(album.cover);
+
+    return (
+        <div
+            onClick={() => navigateToAlbum(album.name, album.artist)}
+            className="group flex flex-col gap-4 p-4 rounded-[2rem] hover:bg-surface-container-high transition-colors cursor-pointer"
+        >
+            <div className="aspect-square w-full relative">
+                <div className="w-full h-full">
+                    <M3RoundedSquareImage
+                        src={coverUrl}
+                        fallback={<IconMusicNote size={64} />}
+                    />
+                </div>
+                <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayAlbum(album); }} />
+            </div>
+
+            <div className="px-1 flex flex-col gap-0.5">
+                <div className="text-title-large font-semibold text-on-surface truncate" title={displayAlbumName}>
+                    {displayAlbumName}
+                </div>
+                <div className="text-body-large text-on-surface-variant truncate" title={displayArtistName}>
+                    {displayArtistName}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 
 

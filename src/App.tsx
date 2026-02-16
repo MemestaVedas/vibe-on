@@ -24,11 +24,12 @@ import { Equalizer } from './components/Equalizer';
 import { FullscreenVisualizer } from './components/AudioVisualizer';
 import { useVisualizerStore } from './store/visualizerStore';
 
+import { SettingsPage } from './components/SettingsPage';
+import { StatisticsPage } from './components/StatisticsPage';
+
 // Lazy-loaded views — defers ~130KB JS parsing until first visit
-const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const YouTubeMusic = lazy(() => import('./components/YouTubeMusic').then(m => ({ default: m.YouTubeMusic })));
 const TorrentManager = lazy(() => import('./components/TorrentManager').then(m => ({ default: m.TorrentManager })));
-const StatisticsPage = lazy(() => import('./components/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
 import { ImmersiveView } from './components/ImmersiveView';
 
 

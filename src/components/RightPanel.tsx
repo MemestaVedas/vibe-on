@@ -1,7 +1,7 @@
 import { SideLyrics } from './SideLyrics';
 import { useLyricsStore } from '../store/lyricsStore';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState, memo, useCallback } from 'react';
+import { useEffect, useState, memo, useCallback, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
@@ -10,18 +10,18 @@ import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscre
 import { MarqueeText } from './MarqueeText';
 import { SquigglySlider } from './SquigglySlider';
 import { Virtuoso } from 'react-virtuoso';
+import { getDisplayText } from '../utils/textUtils';
+import { TrackDisplay } from '../types';
 
 export function RightPanel() {
     // Granular selectors — only re-render for specific slice
     const trackPath = usePlayerStore(s => s.status.track?.path ?? null);
-    const trackTitle = usePlayerStore(s => s.status.track?.title ?? null);
-    const trackArtist = usePlayerStore(s => s.status.track?.artist ?? null);
-    const trackAlbum = usePlayerStore(s => s.status.track?.album ?? null);
-    const trackDuration = usePlayerStore(s => s.status.track?.duration_secs ?? 0);
     const trackCoverRaw = usePlayerStore(s => s.status.track?.cover_image ?? null);
     const positionSecs = usePlayerStore(s => s.status.position_secs);
     const playerState = usePlayerStore(s => s.status.state);
     const queue = usePlayerStore(s => s.queue);
+    const library = usePlayerStore(s => s.library);
+    const displayLanguage = usePlayerStore(s => s.displayLanguage);
     const playFile = usePlayerStore(s => s.playFile);
     const toggleImmersiveMode = usePlayerStore(s => s.toggleImmersiveMode);
     const favorites = usePlayerStore(s => s.favorites);
@@ -30,6 +30,17 @@ export function RightPanel() {
     const { navigateToAlbum } = useNavigationStore();
     const { isRightPanelCollapsed } = useNavigationStore();
     const isCollapsed = isRightPanelCollapsed;
+
+    // Find full track info from library for Romaji
+    const displayTrack = useMemo(() => {
+        if (!trackPath) return null;
+        return library.find(t => t.path === trackPath) || usePlayerStore.getState().status.track;
+    }, [trackPath, library]);
+
+    const displayTitle = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'title', displayLanguage) : "Not Playing";
+    const displayArtist = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'artist', displayLanguage) : "Pick a song";
+    const displayAlbum = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'album', displayLanguage) : null;
+    const trackDuration = displayTrack?.duration_secs ?? 0;
 
     // Clover Shape from TitleBar
     const CloverIcon = ({ children, active, color }: { children: React.ReactNode, active: boolean, color: string }) => (
@@ -44,8 +55,6 @@ export function RightPanel() {
             </div>
         </div>
     );
-
-
 
     // Cover art — robust matching for 3rd column
     const trackCover = useCurrentCover();
@@ -71,8 +80,15 @@ export function RightPanel() {
     }, [shouldShowLyricsIdeally, error]);
 
     const handleArtClick = () => {
-        if (trackAlbum && trackArtist) {
-            navigateToAlbum(trackAlbum, trackArtist);
+        if (displayAlbum && displayArtist) {
+            // Note: navigation might need original names, but let's try with what we have
+            // Usually navigation relies on exact matches, so passing original names might be safer if `navigateToAlbum` expects them
+            // However, `displayTrack` has the full object, so we can access original fields if needed for logic
+            // But `displayAlbum` is localized string.
+            // Let's check `navigateToAlbum` implementation or use the `displayTrack` original fields if available
+            const originalAlbum = (displayTrack as any)?.album || displayAlbum;
+            const originalArtist = (displayTrack as any)?.artist || displayArtist;
+            navigateToAlbum(originalAlbum, originalArtist);
         }
     };
 
@@ -88,11 +104,12 @@ export function RightPanel() {
             <QueueItem
                 key={`${t.path}-${index}`}
                 track={t}
+                displayLanguage={displayLanguage}
                 isActive={!!(trackPath && t.path === trackPath)}
                 onClick={() => playFile(t.path)}
             />
         );
-    }, [queue, trackPath, playFile]);
+    }, [queue, trackPath, playFile, displayLanguage]);
 
     return (
         <div className="h-full flex flex-col overflow-hidden bg-surface-container rounded-[2rem] relative z-20">
@@ -145,7 +162,7 @@ export function RightPanel() {
                     <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden my-4">
                         <div className="rotate-180" style={{ writingMode: 'vertical-rl' }}>
                             <MarqueeText
-                                text={trackTitle || "Not Playing"}
+                                text={displayTitle}
                                 className="text-title-medium font-bold text-on-surface-variant tracking-wider pointer-events-none"
                             />
                         </div>
@@ -194,13 +211,13 @@ export function RightPanel() {
                     <div className="flex flex-col items-center gap-6 shrink-0 transition-all duration-300">
                         <div
                             className="w-72 h-72 rounded-[2rem] bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.02] active:scale-95 transition-transform duration-200"
-                            title={trackAlbum ? `Go to album: ${trackAlbum}` : "Album Art"}
+                            title={displayAlbum ? `Go to album: ${displayAlbum}` : "Album Art"}
                         >
                             <div className="w-full h-full" onClick={handleArtClick}>
                                 {coverUrl ? (
                                     <img
                                         src={coverUrl}
-                                        alt={trackAlbum || "Album Art"}
+                                        alt={displayAlbum || "Album Art"}
                                         className="w-full h-full object-cover"
                                     />
                                 ) : (
@@ -214,7 +231,7 @@ export function RightPanel() {
                             {(trackPath || coverUrl) && (
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 z-20 pointer-events-none">
                                     {/* Go To Album Button */}
-                                    {trackAlbum && (
+                                    {displayAlbum && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleArtClick(); }}
                                             className="p-3 bg-white/20 hover:bg-white/30 rounded-full text-white backdrop-blur-md transition-all scale-90 hover:scale-100 pointer-events-auto"
@@ -270,10 +287,10 @@ export function RightPanel() {
 
                         <div className="flex flex-col items-center text-center gap-1 w-full px-2">
                             <div className="w-full text-headline-medium font-bold text-on-surface truncate">
-                                <MarqueeText text={trackTitle || "Not Playing"} />
+                                <MarqueeText text={displayTitle} />
                             </div>
                             <div className="text-title-large text-on-surface-variant truncate w-full font-medium">
-                                {trackArtist || "Pick a song"}
+                                {displayArtist}
                             </div>
                         </div>
                     </div>
@@ -415,12 +432,15 @@ export function RightPanel() {
     );
 }
 
-export const QueueItem = memo(function QueueItem({ track, isActive, onClick }: {
-    track: { title: string; artist: string; cover_image?: string | null };
+export const QueueItem = memo(function QueueItem({ track, isActive, onClick, displayLanguage }: {
+    track: TrackDisplay;
     isActive: boolean;
     onClick?: () => void;
+    displayLanguage: any;
 }) {
     const coverUrl = useCoverArt(track.cover_image);
+    const displayTitle = getDisplayText(track, 'title', displayLanguage);
+    const displayArtist = getDisplayText(track, 'artist', displayLanguage);
 
     return (
         <button
@@ -454,10 +474,10 @@ export const QueueItem = memo(function QueueItem({ track, isActive, onClick }: {
 
             <div className="flex flex-col min-w-0 flex-1">
                 <span className={`text-label-large font-medium truncate ${isActive ? '' : 'text-on-surface'}`}>
-                    {track.title}
+                    {displayTitle}
                 </span>
                 <span className={`text-label-small truncate ${isActive ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>
-                    {track.artist}
+                    {displayArtist}
                 </span>
             </div>
 

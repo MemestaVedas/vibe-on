@@ -162,7 +162,15 @@ export function PlayerBar() {
     // but track/state/volume change rarely. Splitting prevents cascading re-renders.
     const state = usePlayerStore(s => s.status.state);
     const track = usePlayerStore(s => s.status.track);
+    const library = usePlayerStore(s => s.library);
     const position_secs = usePlayerStore(s => s.status.position_secs);
+
+    // Hydrate track with library data (Romaji/En fields) if available
+    const displayTrack = useMemo(() => {
+        if (!track) return null;
+        return library.find(t => t.path === track.path) || track;
+    }, [track, library]);
+
     const volume = usePlayerStore(s => s.status.volume);
     const pause = usePlayerStore(s => s.pause);
     const resume = usePlayerStore(s => s.resume);
@@ -454,13 +462,13 @@ export function PlayerBar() {
                     >
                         {/* Title */}
                         <motion.div layout className="text-title-medium font-bold truncate text-on-surface w-full flex items-center gap-2">
-                            <MarqueeText text={getDisplayText(track as TrackDisplay, 'title', displayLanguage) || "Not Playing"} />
+                            <MarqueeText text={getDisplayText(displayTrack as TrackDisplay, 'title', displayLanguage) || "Not Playing"} />
                         </motion.div>
 
                         {/* Artist / Time */}
                         <motion.div layout className="flex items-center gap-2 text-on-surface-variant w-full">
                             <span className="truncate text-body-medium">
-                                {getDisplayText(track as TrackDisplay, 'artist', displayLanguage) || "Artist"}
+                                {getDisplayText(displayTrack as TrackDisplay, 'artist', displayLanguage) || "Artist"}
                             </span>
                             {!isHovered && (
                                 <motion.div

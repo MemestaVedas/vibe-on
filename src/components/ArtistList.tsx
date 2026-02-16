@@ -130,7 +130,18 @@ export function ArtistList() {
             return sortedArtists.filter(a => a.tracks.some(t => t.album.toLowerCase().includes(term)));
         }
 
-        return sortedArtists.filter(a => a.name.toLowerCase().includes(query));
+        return sortedArtists.filter(a => {
+            // Check artist name (original)
+            if (a.name.toLowerCase().includes(query)) return true;
+
+            // Check tracks for Romaji/English artist metadata
+            // We only need to check one track since they are grouped by artist
+            const firstTrack = a.tracks[0];
+            if (firstTrack.artist_romaji && firstTrack.artist_romaji.toLowerCase().includes(query)) return true;
+            if (firstTrack.artist_en && firstTrack.artist_en.toLowerCase().includes(query)) return true;
+
+            return false;
+        });
 
     }, [library, searchQuery]);
 
@@ -164,56 +175,81 @@ export function ArtistList() {
                 Item: GridItem,
                 Footer: () => <div className="h-32"></div>
             }}
-            itemContent={(_, artist) => {
-                // Use the first track to resolve display name for the Artist
-                const firstTrack = artist.tracks[0];
-                const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
-
-                return (
-                    <div
-                        onClick={() => setSelectedArtist(artist.name)}
-                        className="group flex flex-col gap-3 p-3 rounded-[1.5rem] hover:bg-surface-container-high transition-colors cursor-pointer"
-                    >
-                        <div className="aspect-square w-full relative">
-                            <div className="w-full h-full">
-                                <M3ArchImage
-                                    src={useCoverArt(artist.cover)}
-                                    fallback={<IconMicrophone size={48} className="opacity-50" />}
-                                />
-                            </div>
-                            <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayArtist(artist); }} />
-                        </div>
-
-                        <div className="flex flex-col items-center text-center gap-0.5">
-                            <span className="text-title-medium font-semibold text-on-surface truncate w-full" title={displayArtistName}>
-                                {displayArtistName}
-                            </span>
-                            <span className="text-body-medium text-on-surface-variant">
-                                {artist.albumCount} {artist.albumCount === 1 ? 'Album' : 'Albums'}
-                            </span>
-                        </div>
-                    </div>
-                );
-            }}
+            itemContent={(_, artist) => (
+                <ArtistItem
+                    artist={artist}
+                    displayLanguage={displayLanguage}
+                    setSelectedArtist={setSelectedArtist}
+                    handlePlayArtist={handlePlayArtist}
+                />
+            )}
         />
     );
 }
+
+// Extracted component to safely use hooks
+const ArtistItem = ({
+    artist,
+    displayLanguage,
+    setSelectedArtist,
+    handlePlayArtist
+}: {
+    artist: Artist,
+    displayLanguage: any,
+    setSelectedArtist: (name: string) => void,
+    handlePlayArtist: (artist: Artist) => void
+}) => {
+    // Use the first track to resolve display name for the Artist
+    const firstTrack = artist.tracks[0];
+    const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
+    const coverUrl = useCoverArt(artist.cover);
+
+    return (
+        <div
+            onClick={() => setSelectedArtist(artist.name)}
+            className="group flex flex-col gap-3 p-3 rounded-[1.5rem] hover:bg-surface-container-high transition-colors cursor-pointer"
+        >
+            <div className="aspect-square w-full relative">
+                <div className="w-full h-full">
+                    <M3ArchImage
+                        src={coverUrl}
+                        fallback={<IconMicrophone size={48} className="opacity-50" />}
+                    />
+                </div>
+                <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayArtist(artist); }} />
+            </div>
+
+            <div className="flex flex-col items-center text-center gap-0.5">
+                <span className="text-title-medium font-semibold text-on-surface truncate w-full" title={displayArtistName}>
+                    {displayArtistName}
+                </span>
+                <span className="text-body-medium text-on-surface-variant">
+                    {artist.albumCount} {artist.albumCount === 1 ? 'Album' : 'Albums'}
+                </span>
+            </div>
+        </div>
+    );
+};
 
 import { WavySeparator } from './WavySeparator';
 import { VerticalWavySeparator } from './VerticalWavySeparator';
 
 // Helper Type for Display Items
 type DisplayItem =
-    | { type: 'header', album: string }
+    | { type: 'header', album: string, displayAlbum: string }
     | { type: 'track', track: TrackDisplay, index: number };
 
 function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => void }) {
     const playQueue = usePlayerStore(state => state.playQueue);
+    const displayLanguage = usePlayerStore(state => state.displayLanguage);
     const coverUrl = useCoverArt(artist.cover);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showStickyHeader, setShowStickyHeader] = useState(false);
     const [scroller, setScroller] = useState<HTMLElement | null>(null);
+
+    // Get localized artist name
+    const displayArtistName = getDisplayText(artist.tracks[0], 'artist', displayLanguage);
 
     // Sort tracks: By Album, then by Disc, then by Track
     const sortedTracks = useMemo(() => {
@@ -228,10 +264,10 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
 
     // Extract albums for sidebar
     const albums = useMemo(() => {
-        const albumMap = new Map<string, { name: string, cover: string | null }>();
+        const albumMap = new Map<string, { name: string, cover: string | null, firstTrack: TrackDisplay }>();
         sortedTracks.forEach(t => {
             if (!albumMap.has(t.album)) {
-                albumMap.set(t.album, { name: t.album, cover: t.cover_image || null });
+                albumMap.set(t.album, { name: t.album, cover: t.cover_image || null, firstTrack: t });
             }
         });
         return Array.from(albumMap.values());
@@ -244,13 +280,14 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
 
         sortedTracks.forEach((track, index) => {
             if (track.album !== currentAlbum) {
-                items.push({ type: 'header', album: track.album });
+                const displayAlbum = getDisplayText(track, 'album', displayLanguage);
+                items.push({ type: 'header', album: track.album, displayAlbum });
                 currentAlbum = track.album;
             }
             items.push({ type: 'track', track, index });
         });
         return items;
-    }, [sortedTracks]);
+    }, [sortedTracks, displayLanguage]);
 
     const scrollToAlbum = (albumName: string) => {
         const index = displayItems.findIndex(item => item.type === 'header' && item.album === albumName);
@@ -285,7 +322,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                         <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                     </svg>
                 </button>
-                <span className="font-bold text-title-large text-on-surface truncate">{artist.name}</span>
+                <span className="font-bold text-title-large text-on-surface truncate">{displayArtistName}</span>
                 <div className="flex-1" />
                 <button
                     onClick={() => playQueue(sortedTracks, 0)}
@@ -313,11 +350,11 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                     <div className="flex flex-col gap-3 min-w-0 flex-1 mb-1">
                         <div>
                             <div className="text-label-medium font-medium text-on-surface-variant uppercase tracking-wider mb-1">Artist</div>
-                            <h1 className="text-display-small font-bold text-on-surface tracking-tight text-wrap leading-tight">{artist.name}</h1>
+                            <h1 className="text-display-small font-bold text-on-surface tracking-tight text-wrap leading-tight">{displayArtistName}</h1>
                         </div>
 
                         <div className="text-title-medium text-on-surface-variant">
-                            {artist.albumCount} Albums • {artist.tracks.length} Songs
+                            {artist.albumCount} {artist.albumCount === 1 ? 'Album' : 'Albums'} • {artist.tracks.length} Songs
                         </div>
 
                         <div className="flex gap-3 mt-1">
@@ -347,6 +384,8 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                 <AlbumSidebarItem
                                     key={album.name}
                                     name={album.name}
+                                    displayLanguage={displayLanguage}
+                                    firstTrack={album.firstTrack}
                                     cover={album.cover}
                                     onClick={() => scrollToAlbum(album.name)}
                                 />
@@ -371,12 +410,14 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                     if (item.type === 'header') {
                                         return (
                                             <div className="py-4 mt-6 first:mt-0 sticky top-0 bg-surface z-[5]">
-                                                <WavySeparator label={item.album} />
+                                                <WavySeparator label={item.displayAlbum} />
                                             </div>
                                         );
                                     }
 
                                     // Track Item
+                                    const displayTitle = getDisplayText(item.track, 'title', displayLanguage);
+
                                     return (
                                         <div
                                             key={item.track.id}
@@ -389,7 +430,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                             <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">
                                                 {item.track.track_number || (item.index + 1)}
                                             </span>
-                                            <span className="flex-1 font-medium text-body-large truncate">{item.track.title}</span>
+                                            <span className="flex-1 font-medium text-body-large truncate">{displayTitle}</span>
                                             <span className="text-label-medium font-medium opacity-60 tabular-nums">
                                                 {Math.floor(item.track.duration_secs / 60)}:
                                                 {Math.floor(item.track.duration_secs % 60).toString().padStart(2, '0')}
@@ -406,8 +447,21 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
     );
 }
 
-function AlbumSidebarItem({ name, cover, onClick }: { name: string, cover: string | null, onClick: () => void }) {
+function AlbumSidebarItem({
+    name,
+    cover,
+    firstTrack,
+    displayLanguage,
+    onClick
+}: {
+    name: string,
+    cover: string | null,
+    firstTrack: TrackDisplay,
+    displayLanguage: any,
+    onClick: () => void
+}) {
     const coverUrl = useCoverArt(cover);
+    const displayName = getDisplayText(firstTrack, 'album', displayLanguage);
 
     return (
         <div
@@ -424,7 +478,7 @@ function AlbumSidebarItem({ name, cover, onClick }: { name: string, cover: strin
                 )}
             </div>
             <span className="text-body-medium font-medium text-on-surface-variant group-hover:text-on-surface line-clamp-2 leading-tight text-wrap">
-                {name}
+                {displayName}
             </span>
         </div>
     );

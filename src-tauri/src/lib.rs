@@ -519,6 +519,16 @@ async fn init_library(
 
                 files.retain(|f| !existing_set.contains(Path::new(f).components().as_path()));
 
+                // Debug logging for retained files
+                if !files.is_empty() {
+                    println!("[Library] Retained {} files after checking {} existing paths.", files.len(), existing_paths.len());
+                    if files.len() < 10 {
+                        println!("[Library] Sample retained files: {:?}", files);
+                    }
+                } else {
+                     println!("[Library] All files skipped (Perfect match).");
+                }
+
                 // Force include tracks that are missing metadata (Romaji), even if they exist in DB
                 if let Ok(missing_metadata_paths) = db.get_tracks_missing_metadata() {
                     if !missing_metadata_paths.is_empty() {

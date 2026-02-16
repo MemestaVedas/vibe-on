@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useThemeStore } from '../store/themeStore';
+import { motion, AnimatePresence } from 'motion/react';
 
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
@@ -35,15 +36,15 @@ export const Equalizer: React.FC = () => {
         setSpeed
     } = usePlayerStore();
 
+    const { colors } = useThemeStore();
+    const { primary, surface } = colors;
+
     const [newPresetName, setNewPresetName] = useState('');
     const [showPresetManager, setShowPresetManager] = useState(false);
 
     const handleGainChange = (index: number, value: number) => {
-        console.log(`[EqualizerUI] Changing band ${index} to ${value} dB`);
         setEqGain(index, value);
     };
-
-    console.log('[EqualizerUI] Render state:', { activePresetId, preampDb, eqGains });
 
     const handleExportPresets = async () => {
         try {
@@ -87,45 +88,52 @@ export const Equalizer: React.FC = () => {
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
             onClick={() => setShowEq(false)}
         >
             <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 layoutId="equalizer-panel"
-                className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 w-full max-w-5xl shadow-2xl relative overflow-hidden"
+                className="bg-surface border border-white/5 rounded-[2rem] p-8 w-full max-w-5xl shadow-2xl relative overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
+                style={{ backgroundColor: surface }}
             >
                 {/* Decorative Background */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 blur-[100px] pointer-events-none" />
+                <div
+                    className="absolute top-0 right-0 w-96 h-96 opacity-10 blur-[120px] pointer-events-none rounded-full"
+                    style={{ backgroundColor: primary }}
+                />
 
                 <div className="flex flex-col gap-8 relative z-10">
                     <div className="flex justify-between items-center">
                         <div>
-                            <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+                            <h2 className="text-3xl font-bold tracking-tight text-on-surface">
                                 Audio Engine
                             </h2>
-                            <p className="text-zinc-500 text-sm mt-1">10-Band Graphic EQ & DSP Effects</p>
+                            <p className="text-on-surface-variant text-sm mt-1">10-Band Graphic EQ & DSP Effects</p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-3">
                             <button
                                 onClick={() => setShowPresetManager(!showPresetManager)}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-lg ${showPresetManager
-                                    ? 'bg-zinc-200 text-zinc-900 shadow-zinc-200/20'
-                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                                className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${showPresetManager
+                                    ? 'bg-primary text-on-primary shadow-lg shadow-primary/20'
+                                    : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface'
                                     }`}
+                                style={showPresetManager ? { backgroundColor: primary } : {}}
                             >
                                 Presets
                             </button>
                             <button
                                 onClick={() => setShowEq(false)}
-                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors"
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface transition-colors"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="6 18L18 6M6 6l12 12" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
@@ -133,21 +141,23 @@ export const Equalizer: React.FC = () => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                         {/* Main Equalizer Section */}
-                        <div className="lg:col-span-3">
+                        <div className="lg:col-span-3 bg-surface-container rounded-[1.5rem] p-6 border border-white/5">
                             <div className="flex justify-between items-end h-64 gap-2 md:gap-4 px-2">
                                 {eqGains.slice(0, 10).map((gain, i) => (
                                     <div key={BANDS[i]} className="flex-1 flex flex-col items-center gap-4 group h-full">
                                         <div className="relative w-full flex-1 flex flex-col items-center justify-center">
                                             {/* Track Background */}
-                                            <div className="absolute inset-y-0 w-1 bg-zinc-800 rounded-full group-hover:bg-zinc-700 transition-colors" />
+                                            <div className="absolute inset-y-0 w-1.5 bg-surface-container-highest rounded-full group-hover:bg-on-surface-variant/20 transition-colors" />
 
                                             {/* Active Indicator Line */}
                                             <div
-                                                className="absolute w-1 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all duration-300"
+                                                className="absolute w-1.5 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.2)] transition-all duration-300"
                                                 style={{
+                                                    backgroundColor: primary,
                                                     height: `${Math.abs(gain) * 3}%`,
                                                     bottom: gain >= 0 ? '50%' : `calc(50% + ${gain * 3}%)`,
-                                                    transformOrigin: gain >= 0 ? 'bottom' : 'top'
+                                                    transformOrigin: gain >= 0 ? 'bottom' : 'top',
+                                                    boxShadow: `0 0 10px ${primary}40`
                                                 }}
                                             />
 
@@ -171,42 +181,48 @@ export const Equalizer: React.FC = () => {
                                             />
 
                                             {/* Tooltip on Hover */}
-                                            <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-2 group-hover:translate-y-0 bg-zinc-800 text-xs px-2 py-1 rounded-md text-zinc-300 shadow-xl border border-zinc-700 whitespace-nowrap z-30">
-                                                Band {i}: {gain > 0 ? '+' : ''}{gain.toFixed(1)} dB
+                                            <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-2 group-hover:translate-y-0 bg-surface-container-highest text-xs px-3 py-1.5 rounded-lg text-on-surface shadow-xl border border-white/5 whitespace-nowrap z-50 pointer-events-none font-medium">
+                                                {gain > 0 ? '+' : ''}{gain.toFixed(1)} dB
                                             </div>
 
                                             {/* Visual Knob */}
                                             <div
-                                                className="pointer-events-none absolute w-6 h-6 bg-white rounded-lg shadow-xl border-4 border-zinc-900 z-10 flex items-center justify-center transition-all duration-75 group-active:scale-90"
+                                                className="pointer-events-none absolute w-5 h-5 rounded-full shadow-lg border-[3px] z-10 flex items-center justify-center transition-all duration-200 group-active:scale-95"
                                                 style={{
-                                                    bottom: `calc(50% + ${gain * 3}% - 12px)`,
-                                                    backgroundColor: gain !== 0 ? '#10b981' : '#fff'
+                                                    bottom: `calc(50% + ${gain * 3}% - 10px)`,
+                                                    backgroundColor: surface,
+                                                    borderColor: primary
                                                 }}
-                                            >
-                                                <div className="w-1 h-2 bg-zinc-900/20 rounded-full" />
-                                            </div>
+                                            />
                                         </div>
 
                                         <div className="flex flex-col items-center gap-1">
-                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tighter group-hover:text-emerald-500 transition-colors">
+                                            <span
+                                                className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-200"
+                                                style={{ color: gain !== 0 ? primary : colors.onSurfaceVariant }}
+                                            >
                                                 {BAND_LABELS[i]}
                                             </span>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <div className="mt-8 pt-8 border-t border-zinc-800/50 flex items-center justify-center gap-12">
+
+                            <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-center gap-12">
                                 <div className="text-center">
-                                    <span className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1">Status</span>
-                                    <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                                    <span className="block text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest mb-1.5">Preset</span>
+                                    <span
+                                        className="text-xs font-semibold px-4 py-1.5 rounded-full border bg-primary/10 border-primary/20"
+                                        style={{ color: primary }}
+                                    >
                                         {activePresetId ? presets.find(p => p.id === activePresetId)?.name : 'Custom'}
                                     </span>
                                 </div>
-                                <div className="w-px h-8 bg-zinc-800" />
+                                <div className="w-px h-8 bg-white/10" />
                                 <div className="flex gap-4">
                                     <button
                                         onClick={() => applyPreset(presets.find(p => p.id === 'flat')!)}
-                                        className="text-xs text-zinc-500 hover:text-white transition-colors uppercase tracking-widest font-bold"
+                                        className="text-xs text-on-surface-variant hover:text-on-surface transition-colors uppercase tracking-widest font-bold px-4 py-2 hover:bg-white/5 rounded-full"
                                     >
                                         Reset EQ
                                     </button>
@@ -216,77 +232,59 @@ export const Equalizer: React.FC = () => {
 
                         {/* DSP & Effects Sidebar */}
                         <div className="flex flex-col gap-6">
-                            <div className="bg-zinc-800/30 rounded-2xl p-5 border border-zinc-800/50">
-                                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-4">Gain Control</span>
-                                <div className="flex items-center gap-4">
-                                    <div className="flex-1">
-                                        <input
-                                            type="range"
-                                            min="-12"
-                                            max="12"
-                                            step="0.5"
-                                            value={preampDb}
-                                            onChange={(e) => setPreamp(parseFloat(e.target.value))}
-                                            className="w-full accent-emerald-500"
-                                        />
+                            {[
+                                { label: 'Preamp', value: preampDb, setter: setPreamp, min: -12, max: 12, step: 0.5, format: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`, resetVal: 0 },
+                                { label: 'Balance', value: balance, setter: setBalance, min: -1, max: 1, step: 0.01, format: (v: number) => v === 0 ? 'C' : v < 0 ? 'L' : 'R', resetVal: 0 },
+                                { label: 'Tempo', value: speed, setter: setSpeed, min: 0.5, max: 2.0, step: 0.05, format: (v: number) => `${v.toFixed(2)}x`, resetVal: 1.0 }
+                            ].map((control) => (
+                                <div key={control.label} className="bg-surface-container rounded-[1.25rem] p-5 border border-white/5 hover:border-white/10 transition-colors">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{control.label}</span>
+                                        <button
+                                            onClick={() => control.setter(control.resetVal)}
+                                            className="text-[10px] font-bold text-primary hover:text-primary/80 uppercase tracking-wider"
+                                            style={{ color: primary }}
+                                        >
+                                            Reset
+                                        </button>
                                     </div>
-                                    <span className="text-sm font-mono text-zinc-300 w-16 text-right">
-                                        {preampDb > 0 ? '+' : ''}{preampDb.toFixed(1)} <span className="text-[10px] text-zinc-500">dB</span>
-                                    </span>
-                                </div>
-                                <div className="flex justify-between mt-2">
-                                    <span className="text-[10px] text-zinc-600">PREAMP</span>
-                                    <button onClick={() => setPreamp(0)} className="text-[10px] text-zinc-600 hover:text-zinc-400">RESET</button>
-                                </div>
-                            </div>
 
-                            <div className="bg-zinc-800/30 rounded-2xl p-5 border border-zinc-800/50">
-                                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-4">Stereo Balance</span>
-                                <div className="flex items-center gap-4">
-                                    <div className="flex-1">
-                                        <input
-                                            type="range"
-                                            min="-1"
-                                            max="1"
-                                            step="0.01"
-                                            value={balance}
-                                            onChange={(e) => setBalance(parseFloat(e.target.value))}
-                                            className="w-full accent-blue-500"
-                                        />
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex-1 relative h-6 flex items-center">
+                                            <input
+                                                type="range"
+                                                min={control.min}
+                                                max={control.max}
+                                                step={control.step}
+                                                value={control.value}
+                                                onChange={(e) => control.setter(parseFloat(e.target.value))}
+                                                className="w-full absolute z-10 opacity-0 cursor-pointer h-full"
+                                            />
+                                            {/* Custom Track */}
+                                            <div className="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full"
+                                                    style={{
+                                                        width: `${((control.value - control.min) / (control.max - control.min)) * 100}%`,
+                                                        backgroundColor: primary
+                                                    }}
+                                                />
+                                            </div>
+                                            {/* Custom Thumb */}
+                                            <div
+                                                className="absolute w-4 h-4 bg-surface border-2 rounded-full shadow-sm pointer-events-none"
+                                                style={{
+                                                    left: `calc(${((control.value - control.min) / (control.max - control.min)) * 100}% - 8px)`,
+                                                    borderColor: primary
+                                                }}
+                                            />
+                                        </div>
+                                        <span className="text-sm font-mono text-on-surface w-14 text-right font-medium">
+                                            {control.format(control.value)}
+                                        </span>
                                     </div>
-                                    <span className="text-sm font-mono text-zinc-300 w-12 text-right">
-                                        {balance === 0 ? 'C' : balance < 0 ? 'L' : 'R'}
-                                    </span>
                                 </div>
-                                <div className="flex justify-between mt-2">
-                                    <span className="text-[10px] text-zinc-600">PAN</span>
-                                    <button onClick={() => setBalance(0)} className="text-[10px] text-zinc-600 hover:text-zinc-400">CENTER</button>
-                                </div>
-                            </div>
-
-                            <div className="bg-zinc-800/30 rounded-2xl p-5 border border-zinc-800/50">
-                                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-4">Playback Speed</span>
-                                <div className="flex items-center gap-4">
-                                    <div className="flex-1">
-                                        <input
-                                            type="range"
-                                            min="0.5"
-                                            max="2.0"
-                                            step="0.05"
-                                            value={speed}
-                                            onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                                            className="w-full accent-purple-500"
-                                        />
-                                    </div>
-                                    <span className="text-sm font-mono text-zinc-300 w-12 text-right">
-                                        {speed.toFixed(2)}<span className="text-[10px] text-zinc-500">x</span>
-                                    </span>
-                                </div>
-                                <div className="flex justify-between mt-2">
-                                    <span className="text-[10px] text-zinc-600">TEMPO</span>
-                                    <button onClick={() => setSpeed(1.0)} className="text-[10px] text-zinc-600 hover:text-zinc-400">1.0x</button>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
 
@@ -297,25 +295,26 @@ export const Equalizer: React.FC = () => {
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
-                                className="overflow-hidden border-t border-zinc-800 mt-4 pt-6"
+                                className="overflow-hidden border-t border-white/5 mt-2 pt-6"
                             >
                                 <div className="flex flex-col gap-6">
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto no-scrollbar pr-2">
                                         {presets.map((preset) => (
                                             <div key={preset.id} className="relative group">
                                                 <button
                                                     onClick={() => applyPreset(preset)}
                                                     className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${activePresetId === preset.id
-                                                        ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/20'
-                                                        : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                                                        ? 'border-transparent text-on-primary shadow-md'
+                                                        : 'bg-surface-container-high border-transparent text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
                                                         }`}
+                                                    style={activePresetId === preset.id ? { backgroundColor: primary, color: colors.onPrimary } : {}}
                                                 >
                                                     {preset.name}
                                                 </button>
                                                 {!DEFAULT_PRESET_IDS.has(preset.id) && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); removePreset(preset.id); }}
-                                                        className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-error text-on-error rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm scale-90 hover:scale-100"
                                                     >
                                                         ×
                                                     </button>
@@ -324,15 +323,15 @@ export const Equalizer: React.FC = () => {
                                         ))}
                                     </div>
 
-                                    <div className="flex flex-col md:flex-row gap-4 items-end">
+                                    <div className="flex flex-col md:flex-row gap-4 items-end bg-surface-container p-4 rounded-xl border border-white/5">
                                         <div className="flex-1 w-full">
-                                            <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest block mb-1">Preset Name</label>
+                                            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-1.5">Save New Preset</label>
                                             <input
                                                 type="text"
                                                 placeholder="My Awesome Preset..."
                                                 value={newPresetName}
                                                 onChange={(e) => setNewPresetName(e.target.value)}
-                                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all font-medium"
+                                                className="w-full bg-surface-container-high border-transparent rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-on-surface-variant/50"
                                             />
                                         </div>
                                         <div className="flex gap-2 w-full md:w-auto">
@@ -343,13 +342,15 @@ export const Equalizer: React.FC = () => {
                                                         setNewPresetName('');
                                                     }
                                                 }}
-                                                className="flex-1 md:flex-none px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-sm font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                                                className="flex-1 md:flex-none px-6 py-2.5 text-on-primary text-sm font-bold rounded-lg transition-all shadow-lg active:scale-95"
+                                                style={{ backgroundColor: primary }}
                                             >
-                                                Save Preset
+                                                Save
                                             </button>
+                                            <div className="w-px h-10 bg-white/10 mx-2 hidden md:block" />
                                             <button
                                                 onClick={handleExportPresets}
-                                                className="p-2.5 bg-zinc-800 text-zinc-400 hover:text-white rounded-xl transition-colors border border-zinc-700/50"
+                                                className="p-2.5 bg-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded-lg transition-colors"
                                                 title="Export Custom Presets"
                                             >
                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -358,7 +359,7 @@ export const Equalizer: React.FC = () => {
                                             </button>
                                             <button
                                                 onClick={handleImportPresets}
-                                                className="p-2.5 bg-zinc-800 text-zinc-400 hover:text-white rounded-xl transition-colors border border-zinc-700/50"
+                                                className="p-2.5 bg-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded-lg transition-colors"
                                                 title="Import Presets"
                                             >
                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -53,6 +53,12 @@ impl BiquadFilter {
     }
 
     fn update_coeffs(&mut self, frequency: f32, sample_rate: u32, gain_db: f32, q: f32) {
+        // Bypass filter when gain is 0dB (flat response)
+        if gain_db == 0.0 {
+            self.coeffs = BiquadCoeffs::new();
+            return;
+        }
+
         let w0 = 2.0 * PI * frequency / sample_rate as f32;
         let a = 10.0f32.powf(gain_db / 40.0);
         let alpha = w0.sin() / (2.0 * q);
@@ -68,7 +74,7 @@ impl BiquadFilter {
                 let b2 = a * ((a + 1.0) - (a - 1.0) * cos_w0 - sa);
                 let a0 = (a + 1.0) + (a - 1.0) * cos_w0 + sa;
                 let a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos_w0);
-                let a2 = (a + 1.0) - (a - 1.0) * cos_w0 - sa;
+                let a2 = (a + 1.0) + (a - 1.0) * cos_w0 - sa;
 
                 (b0, b1, b2, a0, a1, a2)
             }
@@ -178,11 +184,15 @@ where
         };
 
         eq.recalculate_coeffs();
-        println!("[Equalizer] Created new instance for {} channels at {} Hz", channels, sample_rate);
+        println!(
+            "[Equalizer] Created new instance for {} channels at {} Hz",
+            channels, sample_rate
+        );
         eq
     }
 
     fn recalculate_coeffs(&mut self) {
+        let mut coeffs_updated = false;
         if let Ok(gains) = self.gains.try_lock() {
             if gains.len() >= 10 {
                 if self.cached_gains.len() < gains.len() {
@@ -191,13 +201,15 @@ where
 
                 for (i, &g) in gains.iter().enumerate() {
                     if self.cached_gains[i] != g {
-                         println!("[Equalizer] Band {} gain changed to {} dB", i, g);
-                         self.cached_gains[i] = g;
+                        println!("[Equalizer] Band {} gain changed to {} dB", i, g);
+                        self.cached_gains[i] = g;
+                        coeffs_updated = true;
                     }
                 }
             }
         }
 
+        // Always update coefficients on first call or when gains changed
         let q = 1.0;
         for channel_idx in 0..self.channels as usize {
             for (band_idx, filter) in self.filters[channel_idx].iter_mut().enumerate() {
@@ -294,7 +306,7 @@ where
         if reverb_mix > 0.0 {
             self.reverb.set_room_size(reverb_decay);
             self.reverb.set_wet(reverb_mix);
-            self.reverb.set_dry(1.0);
+            self.reverb.set_dry(0.0); // Freeverb handles mixing internally
 
             let (rev_l, rev_r) = self.reverb.process(left, right);
             left = rev_l;

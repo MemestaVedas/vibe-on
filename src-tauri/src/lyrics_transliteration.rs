@@ -1,8 +1,8 @@
-use lindera_tokenizer::tokenizer::{Tokenizer, TokenizerConfig};
-use lindera_dictionary::{DictionaryConfig, DictionaryKind};
 use lindera_core::mode::Mode;
-use wana_kana::ConvertJapanese;
+use lindera_dictionary::{DictionaryConfig, DictionaryKind};
+use lindera_tokenizer::tokenizer::{Tokenizer, TokenizerConfig};
 use std::sync::OnceLock;
+use wana_kana::ConvertJapanese;
 
 // Global Tokenizer instance to avoid reloading dictionary (approx 100ms-500ms)
 static TOKENIZER: OnceLock<Tokenizer> = OnceLock::new();
@@ -18,7 +18,7 @@ fn get_tokenizer() -> &'static Tokenizer {
             user_dictionary: None,
             mode: Mode::Normal,
         };
-        
+
         Tokenizer::from_config(config).unwrap_or_else(|e| {
             eprintln!("Failed to initialize Lindera tokenizer: {}", e);
             panic!("Tokenizer init failed: {}", e);
@@ -48,7 +48,10 @@ pub fn to_romaji(text: &str) -> String {
     let tokenizer = get_tokenizer();
     let tokens = match tokenizer.tokenize(text) {
         Ok(t) => t,
-        Err(_) => return text.to_string(),
+        Err(e) => {
+            println!("[Transliteration] Tokenize failed for '{}': {}", text, e);
+            return text.to_string();
+        }
     };
 
     let mut result = String::new();
@@ -57,26 +60,26 @@ pub fn to_romaji(text: &str) -> String {
         // Token details: [POS, POS-detail, ..., Reading, Pronunciation]
         // Index 7 is Reading (Katakana)
         // Linera 0.24+ (or specific version): Use get_details() which lazily loads details
-        
+
         // Use the reading if available (last item often, or specific index 7 for IPADIC)
         let reading = if let Some(details) = token.get_details() {
-             if details.len() > 7 && details[7] != "*" {
-                 details[7].to_string()
-             } else {
-                 token.text.to_string()
-             }
+            if details.len() > 7 && details[7] != "*" {
+                details[7].to_string()
+            } else {
+                token.text.to_string()
+            }
         } else {
             token.text.to_string()
         };
 
         // Convert the reading (Katakana) to Romaji
         let romaji = reading.to_romaji();
-        
+
         // Proper spacing strategies:
         // Japanese text doesn't have spaces. Romaji needs them between words.
         // We append a space after each token's romaji.
         if !result.is_empty() && !result.ends_with(' ') {
-             result.push(' ');
+            result.push(' ');
         }
         result.push_str(&romaji);
     }

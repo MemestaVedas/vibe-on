@@ -1,9 +1,10 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useLyricsStore } from '../store/lyricsStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import type { LyricsLine } from '../types';
+import { Virtuoso } from 'react-virtuoso';
 
 interface SideLyricsProps {
     variant?: 'carousel' | 'scrollable';
@@ -15,10 +16,11 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
     const { colors } = useThemeStore();
     const { primary } = colors;
 
-    const containerRef = useRef<HTMLDivElement>(null);
-    const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const virtuosoRef = useRef<any>(null);
+    // Track user scrolling to prevent auto-scroll interfering aggressively
+    const isUserScrolling = useRef(false);
+    const scrollTimeout = useRef<any>(null);
 
-    const [offsetY, setOffsetY] = useState(0);
     const position = status.position_secs;
 
     // Find current active line
@@ -32,30 +34,16 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
         return -1;
     }, [lines, position]);
 
-    // Carousel Logic
+    // Enhanced Auto-scroll Logic
     useEffect(() => {
-        if (variant === 'carousel' && activeLineIndex >= 0 && containerRef.current && lineRefs.current[activeLineIndex]) {
-            const containerHeight = containerRef.current.clientHeight;
-            const activeLine = lineRefs.current[activeLineIndex];
-
-            if (activeLine) {
-                const lineMid = activeLine.offsetTop + (activeLine.clientHeight / 2);
-                const newOffset = (containerHeight / 2) - lineMid;
-                setOffsetY(newOffset);
-            }
-        }
-    }, [activeLineIndex, lines, variant, lyricsMode]);
-
-    // Scrollable Logic (Auto-scroll to active)
-    useEffect(() => {
-        if (variant === 'scrollable' && activeLineIndex >= 0 && lineRefs.current[activeLineIndex]) {
-            lineRefs.current[activeLineIndex]?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'nearest'
+        if (activeLineIndex >= 0 && virtuosoRef.current && !isUserScrolling.current) {
+            virtuosoRef.current.scrollToIndex({
+                index: activeLineIndex,
+                align: 'center',
+                behavior: 'smooth'
             });
         }
-    }, [activeLineIndex, variant]);
+    }, [activeLineIndex]);
 
     const renderLineContent = (line: LyricsLine, isActive: boolean) => {
         if (lyricsMode === 'romaji') {
@@ -63,8 +51,8 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
         }
         if (lyricsMode === 'both' && line.romaji) {
             return (
-                <div className="flex flex-col items-center gap-0.5">
-                    <span className={`text-sm opacity-70 ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+                <div className="flex flex-col items-center gap-1">
+                    <span className={`text-xs font-bold uppercase tracking-wider opacity-60 ${isActive ? 'text-primary' : 'text-on-surface-variant'}`} style={{ color: isActive ? primary : undefined }}>
                         {line.romaji}
                     </span>
                     <span>{line.text}</span>
@@ -87,6 +75,7 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-2 py-10 text-center opacity-50">
                 <p className="text-body-medium">No lyrics found</p>
+                {plainLyrics && <p className="text-xs opacity-50">Plain text available below</p>}
             </div>
         );
     }
@@ -99,93 +88,101 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
         );
     }
 
-    // Scrollable Variant Render
-    if (variant === 'scrollable') {
+    // fallback for plain lyrics if no synced lines
+    if ((!lines || lines.length === 0) && plainLyrics) {
         return (
-            <div className="h-full overflow-y-auto px-4 py-8 scroll-smooth" ref={containerRef}>
-                {lines && lines.length > 0 ? (
-                    <div className="flex flex-col gap-4">
-                        {lines.map((line, index) => {
-                            const isActive = index === activeLineIndex;
-                            return (
-                                <div
-                                    key={`${line.time}-${index}`}
-                                    ref={el => { lineRefs.current[index] = el; }}
-                                    onClick={() => seek(line.time)}
-                                    className={`
-                                        cursor-pointer p-3 rounded-lg transition-all duration-200 text-lg
-                                        ${isActive
-                                            ? 'bg-surface-container-highest text-on-surface font-semibold shadow-sm'
-                                            : 'text-on-surface-variant/70 hover:bg-surface-container-high hover:text-on-surface'
-                                        }
-                                    `}
-                                >
-                                    {renderLineContent(line, isActive)}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : plainLyrics ? (
-                    <div className="whitespace-pre-wrap text-body-medium text-on-surface/80 leading-relaxed max-w-2xl mx-auto">
-                        {plainLyrics}
-                    </div>
-                ) : null}
+            <div className="h-full overflow-y-auto no-scrollbar p-6 whitespace-pre-wrap text-body-medium text-on-surface/80 leading-relaxed text-center fade-mask-y">
+                {plainLyrics}
             </div>
         );
     }
 
-    // Default Carousel Render
-    return (
-        <div
-            ref={containerRef}
-            className="flex-1 overflow-hidden min-h-0 relative select-none fade-mask-y"
-        >
-            {/* Synced Lyrics Carousel */}
-            {lines && lines.length > 0 && (
-                <motion.div
-                    className="flex flex-col gap-6 w-full items-center py-10"
-                    animate={{ y: offsetY }}
-                    transition={{ type: 'spring', stiffness: 100, damping: 20, mass: 1 }}
-                >
-                    {lines.map((line, index) => {
-                        const isActive = index === activeLineIndex;
-                        return (
-                            <motion.div
-                                key={`${line.time}-${index}`}
-                                ref={el => { lineRefs.current[index] = el; }}
-                                onClick={() => seek(line.time)}
-                                initial={false}
-                                animate={{
-                                    opacity: isActive ? 1 : 0.25,
-                                    scale: isActive ? 1.05 : 0.95,
-                                }}
-                                transition={{ duration: 0.3 }}
-                                className={`
-                                    cursor-pointer text-center px-6 max-w-full transition-colors duration-300
-                                    ${isActive ? 'font-bold z-10' : 'hover:opacity-60'}
-                                `}
-                            >
-                                <div
-                                    className="text-xl md:text-2xl leading-relaxed"
-                                    style={{
-                                        color: isActive ? primary : undefined,
-                                        textShadow: isActive ? `0 0 25px ${primary}60` : 'none'
-                                    }}
-                                >
-                                    {renderLineContent(line, isActive)}
-                                </div>
-                            </motion.div>
-                        );
-                    })}
-                </motion.div>
-            )}
+    // Scrollable List Variant (Simpler List)
+    if (variant === 'scrollable') {
+        return (
+            <Virtuoso
+                ref={virtuosoRef}
+                data={lines || []}
+                className="no-scrollbar h-full fade-mask-y"
+                followOutput={(isAtBottom) => {
+                    if (isUserScrolling.current) return false;
+                    return isAtBottom ? 'smooth' : false
+                }}
+                itemContent={(index, line) => {
+                    const isActive = index === activeLineIndex;
+                    return (
+                        <div
+                            key={`${line.time}-${index}`}
+                            onClick={() => seek(line.time)}
+                            className={`
+                                cursor-pointer p-3 rounded-lg transition-all duration-200 text-lg mb-2
+                                ${isActive
+                                    ? 'bg-surface-container-highest text-on-surface font-semibold shadow-sm scale-[1.02]'
+                                    : 'text-on-surface-variant/70 hover:bg-surface-container-high hover:text-on-surface'
+                                }
+                            `}
+                        >
+                            {renderLineContent(line, isActive)}
+                        </div>
+                    );
+                }}
+            />
+        );
+    }
 
-            {/* Plain Lyrics Scroll (Fallback) */}
-            {!lines && plainLyrics && (
-                <div className="h-full overflow-y-auto no-scrollbar p-6 whitespace-pre-wrap text-body-medium text-on-surface/80 leading-relaxed text-center">
-                    {plainLyrics}
-                </div>
-            )}
+    // Default Carousel Render (Virtuoso-based)
+    return (
+        <div className="h-full w-full relative fade-mask-y">
+            <Virtuoso
+                ref={virtuosoRef}
+                data={lines || []}
+                className="no-scrollbar h-full"
+                // Detect scroll to pause auto-scroll temporarily could be implemented via onScroll
+                // For now, simpler auto-scroll is sufficient as Virtuoso handles it well
+                isScrolling={(isScrolling) => {
+                    isUserScrolling.current = isScrolling;
+                    if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+                    if (!isScrolling) {
+                        // Resume auto-scroll after 2 seconds of no scrolling
+                        scrollTimeout.current = setTimeout(() => {
+                            isUserScrolling.current = false;
+                        }, 2000);
+                    }
+                }}
+                components={{
+                    Header: () => <div className="h-[40vh]" />,
+                    Footer: () => <div className="h-[40vh]" />
+                }}
+                itemContent={(index, line) => {
+                    const isActive = index === activeLineIndex;
+                    return (
+                        <motion.div
+                            initial={false}
+                            animate={{
+                                opacity: isActive ? 1 : 0.3,
+                                scale: isActive ? 1.05 : 0.95,
+                                filter: isActive ? 'blur(0px)' : 'blur(0.5px)',
+                            }}
+                            transition={{ duration: 0.3 }}
+                            className={`
+                                py-4 px-6 text-center cursor-pointer transition-colors duration-300
+                                ${isActive ? 'font-bold z-10' : 'hover:opacity-60'}
+                            `}
+                            onClick={() => seek(line.time)}
+                        >
+                            <div
+                                className="text-xl leading-relaxed"
+                                style={{
+                                    color: isActive ? primary : undefined,
+                                    textShadow: isActive ? `0 0 20px ${primary}40` : 'none'
+                                }}
+                            >
+                                {renderLineContent(line, isActive)}
+                            </div>
+                        </motion.div>
+                    );
+                }}
+            />
         </div>
     );
 }

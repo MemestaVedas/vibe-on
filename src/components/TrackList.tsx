@@ -184,7 +184,13 @@ export function TrackList() {
         return library.filter(track =>
             track.title.toLowerCase().includes(query) ||
             track.artist.toLowerCase().includes(query) ||
-            track.album.toLowerCase().includes(query)
+            track.album.toLowerCase().includes(query) ||
+            (track.title_romaji && track.title_romaji.toLowerCase().includes(query)) ||
+            (track.artist_romaji && track.artist_romaji.toLowerCase().includes(query)) ||
+            (track.album_romaji && track.album_romaji.toLowerCase().includes(query)) ||
+            (track.title_en && track.title_en.toLowerCase().includes(query)) ||
+            (track.artist_en && track.artist_en.toLowerCase().includes(query)) ||
+            (track.album_en && track.album_en.toLowerCase().includes(query))
         );
     }, [library, searchQuery]);
 

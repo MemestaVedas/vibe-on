@@ -78,8 +78,8 @@ export function TitleBar() {
             <button
                 onClick={() => setView('ytmusic')}
                 className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${view === 'ytmusic'
-                        ? 'bg-primary text-on-primary shadow-sm'
-                        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                    ? 'bg-primary text-on-primary shadow-sm'
+                    : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
                     }`}
                 title="YouTube Music"
             >
@@ -91,7 +91,7 @@ export function TitleBar() {
     return (
         <div
             data-tauri-drag-region
-            className="h-10 flex items-center justify-between px-4 bg-[#080808] text-on-surface select-none z-50 fixed top-0 right-0 left-0 transition-colors duration-300"
+            className="h-10 flex items-center justify-between px-4 bg-[#080808] text-on-surface select-none z-[200] fixed top-0 right-0 left-0 transition-colors duration-300"
         >
             {/* macOS: Controls on Left, then App Name | Windows: App Name on Left */}
             {isMacOS ? (
