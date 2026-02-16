@@ -4,6 +4,9 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
 import { useSettingsStore } from '../store/settingsStore';
+import { TrackDisplay } from '../types'; // Import TrackDisplay
+import { TrackStats } from './mood';
+import { invoke } from '@tauri-apps/api/core';
 import { SquigglySlider } from './SquigglySlider';
 import { MarqueeText } from './MarqueeText';
 import {
@@ -17,7 +20,53 @@ import {
     IconQueue
 } from './Icons';
 import { useNavigationStore } from '../store/navigationStore';
+import { getDisplayText } from '../utils/textUtils';
+import { useVisualizerStore } from '../store/visualizerStore';
 
+// Icon for speakers/audio output
+function IconSpeaker({ size = 24 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+            <circle cx="12" cy="14" r="4" />
+            <line x1="12" y1="6" x2="12" y2="6.01" />
+        </svg>
+    );
+}
+
+// Icon for mobile/phone
+function IconMobile({ size = 24 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+            <line x1="12" y1="18" x2="12.01" y2="18" />
+        </svg>
+    );
+}
+
+// Icon for information/stats
+function IconInfo({ size = 24 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+    );
+}
+
+// Icon for visualizer
+function IconVisualizer({ size = 24 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12h18" />
+            <path d="M6 8v8" />
+            <path d="M10 5v14" />
+            <path d="M14 8v8" />
+            <path d="M18 10v4" />
+        </svg>
+    );
+}
 
 // --- Animation Constants ---
 const SMOOTH_SPRING = { type: "spring", stiffness: 300, damping: 40, mass: 1 } as const;
@@ -128,8 +177,13 @@ export function PlayerBar() {
     const cycleRepeatMode = usePlayerStore(s => s.cycleRepeatMode);
     const error = usePlayerStore(s => s.error);
     const setError = usePlayerStore(s => s.setError);
+    const audioOutput = usePlayerStore(s => s.audioOutput);
+    const setAudioOutput = usePlayerStore(s => s.setAudioOutput);
+
     const isShuffled = usePlayerStore(s => s.isShuffled);
     const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
+    const displayLanguage = usePlayerStore(s => s.displayLanguage);
+    const setVisualizerDisplayMode = useVisualizerStore(s => s.setDisplayMode);
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
     const { isRightPanelOpen, toggleRightPanel } = useNavigationStore();
     const lastStateRef = useRef(state);
@@ -205,6 +259,7 @@ export function PlayerBar() {
     const activeCoverUrl = useCoverArt(currentCover || track?.cover_image || track?.cover_url);
 
     const [isHovered, setIsHovered] = useState(false);
+    const [showStats, setShowStats] = useState(false);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleMouseEnter = () => {
@@ -399,13 +454,13 @@ export function PlayerBar() {
                     >
                         {/* Title */}
                         <motion.div layout className="text-title-medium font-bold truncate text-on-surface w-full flex items-center gap-2">
-                            <MarqueeText text={track?.title || "Not Playing"} />
+                            <MarqueeText text={getDisplayText(track as TrackDisplay, 'title', displayLanguage) || "Not Playing"} />
                         </motion.div>
 
                         {/* Artist / Time */}
                         <motion.div layout className="flex items-center gap-2 text-on-surface-variant w-full">
                             <span className="truncate text-body-medium">
-                                {track?.artist || "Artist"}
+                                {getDisplayText(track as TrackDisplay, 'artist', displayLanguage) || "Artist"}
                             </span>
                             {!isHovered && (
                                 <motion.div
@@ -451,7 +506,7 @@ export function PlayerBar() {
                                         {/* Play/Pause - Static/Sticky Center */}
                                         <OrganicControlButton
                                             onClick={handlePlayPause}
-                                            className="w-12 h-12 bg-primary text-on-primary shadow-elevation-1 hover:shadow-elevation-2 z-10"
+                                            className="w-12 h-12 bg-primary text-on-primary shadow-elevation-1 hover:shadow-elevation2 z-10"
                                             active
                                             initial={{ scale: 0.8, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
@@ -529,13 +584,44 @@ export function PlayerBar() {
                                         <IconRepeat size={22} mode={repeatMode} />
                                     </OrganicControlButton>
 
-                                    {/* Queue Toggle */}
+                                    <OrganicControlButton
+                                        onClick={() => setShowStats(true)}
+                                        className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+                                        initial={{ x: -20, opacity: 0 }}
+                                        animate={{ x: 0, opacity: 1 }}
+                                        transition={{ delay: 0.2 }}
+                                    >
+                                        <IconInfo size={22} />
+                                    </OrganicControlButton>
+
+                                    <OrganicControlButton
+                                        onClick={() => setAudioOutput(audioOutput === 'desktop' ? 'mobile' : 'desktop')}
+                                        className={`p-2 ${audioOutput === 'mobile' ? 'text-primary bg-primary-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}`}
+                                        initial={{ x: -20, opacity: 0 }}
+                                        animate={{ x: 0, opacity: 1 }}
+                                        transition={{ delay: 0.25 }}
+                                    >
+                                        {audioOutput === 'desktop' ? <IconSpeaker size={22} /> : <IconMobile size={22} />}
+                                    </OrganicControlButton>
+
+                                    <OrganicControlButton
+                                        onClick={() => {
+                                            if (setVisualizerDisplayMode) setVisualizerDisplayMode('fullscreen');
+                                        }}
+                                        className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+                                        initial={{ x: -20, opacity: 0 }}
+                                        animate={{ x: 0, opacity: 1 }}
+                                        transition={{ delay: 0.3 }}
+                                    >
+                                        <IconVisualizer size={22} />
+                                    </OrganicControlButton>
+
                                     <OrganicControlButton
                                         onClick={toggleRightPanel}
                                         className={`p-2 ${isRightPanelOpen ? 'text-primary bg-primary-container' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest'}`}
                                         initial={{ x: -20, opacity: 0 }}
                                         animate={{ x: 0, opacity: 1 }}
-                                        transition={{ delay: 0.2 }}
+                                        transition={{ delay: 0.35 }}
                                     >
                                         <IconQueue size={22} />
                                     </OrganicControlButton>
@@ -566,6 +652,91 @@ export function PlayerBar() {
                     )}
                 </AnimatePresence>
             </div >
+
+            {/* Track Stats Modal */}
+            <AnimatePresence>
+                {showStats && track && (
+                    <TrackStatsModal
+                        track={track}
+                        onClose={() => setShowStats(false)}
+                    />
+                )}
+            </AnimatePresence>
         </div >
+    );
+}
+
+/// Modal wrapper for TrackStats that fetches features
+function TrackStatsModal({ track, onClose }: { track: any; onClose: () => void }) {
+    const [features, setFeatures] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadFeatures = async () => {
+            try {
+                if (!track.path) return;
+                const result = await invoke('get_track_audio_features', { path: track.path });
+                setFeatures(result);
+                setError(null);
+            } catch (err) {
+                console.error('Failed to load audio features:', err);
+                setError(String(err));
+                setFeatures(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadFeatures();
+    }, [track.path]);
+
+    // Handle escape key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [onClose]);
+
+    if (isLoading) {
+        return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose}>
+                <div className="flex flex-col items-center gap-4 pointer-events-none">
+                    <div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full" />
+                    <p className="text-white text-body-medium">Analyzing audio features...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error || !features) {
+        return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose}>
+                <div className="flex flex-col items-center gap-4 bg-surface-container rounded-2xl p-6 max-w-md mx-4 pointer-events-auto">
+                    <p className="text-error text-body-large font-medium">Analysis Failed</p>
+                    <p className="text-on-surface-variant text-body-medium text-center">{error || 'Could not load audio features'}</p>
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-2 rounded-full bg-primary text-on-primary font-semibold hover:bg-primary/90"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="fixed inset-0 z-[100] pointer-events-auto" onClick={onClose}>
+            <TrackStats
+                features={features}
+                trackTitle={track.title}
+                trackArtist={track.artist}
+                onClose={onClose}
+            />
+        </div>
     );
 }

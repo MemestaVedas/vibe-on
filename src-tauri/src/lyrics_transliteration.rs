@@ -1,5 +1,30 @@
 use lindera_tokenizer::tokenizer::{Tokenizer, TokenizerConfig};
+use lindera_dictionary::{DictionaryConfig, DictionaryKind};
+use lindera_core::mode::Mode;
 use wana_kana::ConvertJapanese;
+use std::sync::OnceLock;
+
+// Global Tokenizer instance to avoid reloading dictionary (approx 100ms-500ms)
+static TOKENIZER: OnceLock<Tokenizer> = OnceLock::new();
+
+fn get_tokenizer() -> &'static Tokenizer {
+    TOKENIZER.get_or_init(|| {
+        let dictionary = DictionaryConfig {
+            kind: Some(DictionaryKind::IPADIC),
+            path: None,
+        };
+        let config = TokenizerConfig {
+            dictionary,
+            user_dictionary: None,
+            mode: Mode::Normal,
+        };
+        
+        Tokenizer::from_config(config).unwrap_or_else(|e| {
+            eprintln!("Failed to initialize Lindera tokenizer: {}", e);
+            panic!("Tokenizer init failed: {}", e);
+        })
+    })
+}
 
 /// Check if text contains Japanese characters (Hiragana, Katakana, Kanji)
 pub fn has_japanese(text: &str) -> bool {
@@ -16,21 +41,11 @@ pub fn has_japanese(text: &str) -> bool {
 
 /// Transliterate Japanese text to Romaji
 pub fn to_romaji(text: &str) -> String {
-    // 1. Initialize Lindera Tokenizer (IPADIC)
-    // In production, we might want to initialize this once globally as it loads dict into memory.
-    // For now, let's init per call or use lazy_static if performance is an issue.
-    // Given lyrics are fetched infrequently, per-call is likely fine but loading dict takes time.
-    // Let's use std::sync::OnceLock or similar if we can, but simpler first.
+    if !has_japanese(text) {
+        return text.to_string();
+    }
 
-    let config = TokenizerConfig::default();
-
-    // This might be slow if called repeatedly.
-    // Optimization TODO: cache the tokenizer.
-    let tokenizer = match Tokenizer::from_config(config) {
-        Ok(t) => t,
-        Err(_) => return text.to_string(), // Fallback if tokenizer fails
-    };
-
+    let tokenizer = get_tokenizer();
     let tokens = match tokenizer.tokenize(text) {
         Ok(t) => t,
         Err(_) => return text.to_string(),
@@ -38,47 +53,52 @@ pub fn to_romaji(text: &str) -> String {
 
     let mut result = String::new();
 
-    for token in tokens {
+    for mut token in tokens {
         // Token details: [POS, POS-detail, ..., Reading, Pronunciation]
-        // Usually details[7] is Reading (Katakana)
-        // If not available (e.g. unknown word), use surface form.
-
-        let json_val = serde_json::to_value(&token).unwrap_or(serde_json::Value::Null);
-
-        let surface = json_val
-            .get("text")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let details_vec: Vec<String> =
-            if let Some(arr) = json_val.get("details").and_then(|v| v.as_array()) {
-                arr.iter()
-                    .map(|v| v.as_str().unwrap_or("").to_string())
-                    .collect()
-            } else {
-                Vec::new()
-            };
-
-        let reading = if details_vec.len() > 7 && details_vec[7] != "*" {
-            details_vec[7].clone()
+        // Index 7 is Reading (Katakana)
+        // Linera 0.24+ (or specific version): Use get_details() which lazily loads details
+        
+        // Use the reading if available (last item often, or specific index 7 for IPADIC)
+        let reading = if let Some(details) = token.get_details() {
+             if details.len() > 7 && details[7] != "*" {
+                 details[7].to_string()
+             } else {
+                 token.text.to_string()
+             }
         } else {
-            surface.clone()
+            token.text.to_string()
         };
 
-        // Convert the reading (which is usually Katakana for known words) to Romaji
-        // Or if it's already Romaji/English, wana_kana handles it gracefully?
-        // simple to_romaji might convert English text oddly if not careful?
-        // wana_kana::to_romaji usually leaves Latin alone.
-
+        // Convert the reading (Katakana) to Romaji
         let romaji = reading.to_romaji();
+        
+        // Proper spacing strategies:
+        // Japanese text doesn't have spaces. Romaji needs them between words.
+        // We append a space after each token's romaji.
+        if !result.is_empty() && !result.ends_with(' ') {
+             result.push(' ');
+        }
         result.push_str(&romaji);
-        result.push(' '); // Spacer?
-                          // Kuroshiro 'spaced' mode adds spaces.
     }
 
-    // Clean up spaces
-    result.trim().to_string()
+    // Post-processing: Title Case?
+    // "aoi sora" -> "Aoi Sora" usually looks better for titles.
+    // Let's do simple capitalization of first letter of sentence for now, or each word?
+    // Title Case for metadata is safer.
+    to_title_case(&result.trim())
+}
+
+fn to_title_case(s: &str) -> String {
+    s.split_whitespace()
+        .map(|word| {
+            let mut c = word.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
 }
 
 /// Convert lyrics content (multiple lines) to Romaji

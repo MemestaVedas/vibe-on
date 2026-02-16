@@ -85,6 +85,7 @@ impl Default for AppState {
 fn get_or_init_player(state: &AppState) -> Result<(), String> {
     let mut player_guard = state.player.lock().unwrap();
     if player_guard.is_none() {
+        println!("[Backend] Initializing AudioPlayer...");
         *player_guard = Some(AudioPlayer::new()?);
     }
     Ok(())
@@ -380,6 +381,7 @@ fn stop(state: State<AppState>) -> Result<(), String> {
 
 #[tauri::command]
 fn set_volume(value: f32, state: State<AppState>) -> Result<(), String> {
+    get_or_init_player(&state)?;
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
         player.set_volume(value)
@@ -399,12 +401,72 @@ fn seek(value: f64, state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn set_eq_all(gains: Vec<f32>, state: State<AppState>) -> Result<(), String> {
+    get_or_init_player(&state)?;
+    let player_guard = state.player.lock().unwrap();
+    if let Some(ref player) = *player_guard {
+        player.set_eq_all(gains)
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn set_eq(band: usize, gain: f32, state: State<AppState>) -> Result<(), String> {
+    get_or_init_player(&state)?;
+    let player_guard = state.player.lock().unwrap();
+    if let Some(ref player) = *player_guard {
+        player.set_eq(band, gain)
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn set_reverb(mix: f32, decay: f32, state: State<AppState>) -> Result<(), String> {
+    get_or_init_player(&state)?;
+    let player_guard = state.player.lock().unwrap();
+    if let Some(ref player) = *player_guard {
+        player.set_reverb(mix, decay)
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn set_speed(value: f32, state: State<AppState>) -> Result<(), String> {
+    get_or_init_player(&state)?;
+    let player_guard = state.player.lock().unwrap();
+    if let Some(ref player) = *player_guard {
+        player.set_speed(value)
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
 fn get_player_state(state: State<AppState>) -> PlayerStatus {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
         player.get_status()
     } else {
         PlayerStatus::default()
+    }
+}
+
+// ============================================================================
+// Tauri Commands - Audio Visualizer
+// ============================================================================
+
+/// Get audio visualizer data (frequency spectrum and waveform).
+/// Called by frontend at ~60fps for real-time visualization.
+#[tauri::command]
+fn get_visualizer_data(state: State<AppState>) -> audio::VisualizerData {
+    let player_guard = state.player.lock().unwrap();
+    if let Some(ref player) = *player_guard {
+        player.get_visualizer_data()
+    } else {
+        audio::VisualizerData::default()
     }
 }
 
@@ -440,10 +502,48 @@ async fn init_library(
             if let Ok(existing_paths) = db.get_all_track_paths() {
                 let initial_count = files.len();
                 println!("[Library] Checking against {} existing tracks in DB...", existing_paths.len());
-                files.retain(|f| !existing_paths.contains(f));
+                
+                // Create normalized set for robust comparison
+                // Normalize by stripping unnecessary components (./) and using platform separators consistently
+                let existing_set: std::collections::HashSet<std::path::PathBuf> = existing_paths.iter()
+                    .map(|p| Path::new(p).components().as_path().to_path_buf())
+                    .collect();
+
+                // Log if we have potential matches that string comparison missed
+                if !existing_paths.is_empty() && !files.is_empty() {
+                    let total_normalized_matches = files.iter()
+                        .filter(|f| existing_set.contains(Path::new(f).components().as_path()))
+                        .count();
+                    println!("[Library] Debug: Found {} normalized matches out of {} files.", total_normalized_matches, files.len());
+                }
+
+                files.retain(|f| !existing_set.contains(Path::new(f).components().as_path()));
+
+                // Force include tracks that are missing metadata (Romaji), even if they exist in DB
+                if let Ok(missing_metadata_paths) = db.get_tracks_missing_metadata() {
+                    if !missing_metadata_paths.is_empty() {
+                         println!("[Library] Found {} tracks missing Romaji metadata. Forcing re-scan for these.", missing_metadata_paths.len());
+                         for missing_path in missing_metadata_paths {
+                             if missing_path.starts_with(&path) { 
+                                 if !files.contains(&missing_path) {
+                                     // Verify file still exists on disk before adding
+                                     if Path::new(&missing_path).exists() {
+                                         files.push(missing_path);
+                                     }
+                                 }
+                             }
+                         }
+                         // De-duplicate just in case
+                         files.sort();
+                         files.dedup();
+                    }
+                }
+                
                 let skipped = initial_count - files.len();
                 if skipped > 0 {
-                    println!("[Library] Optimized Scan: Skipped {} existing files. Processing {} new files.", skipped, files.len());
+                    println!("[Library] Optimized Scan: Skipped {} existing files. Processing {} files (new + metadata updates).", skipped, files.len());
+                } else if !existing_paths.is_empty() {
+                    println!("[Library] No files skipped. Re-inserting all found files ({}).", files.len());
                 }
             }
         }
@@ -641,6 +741,12 @@ fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8
             cover_image: None, // Will be populated from DB later
             disc_number,
             track_number,
+            title_romaji: None,
+            title_en: None,
+            artist_romaji: None,
+            artist_en: None,
+            album_romaji: None,
+            album_en: None,
         },
         cover_data,
     ))
@@ -723,6 +829,12 @@ fn get_track_metadata_helper_fast(path_str: &str) -> Result<TrackInfo, String> {
         cover_image: cover_image_path, // Now populated if external cover exists
         disc_number,
         track_number,
+        title_romaji: None,
+        title_en: None,
+        artist_romaji: None,
+        artist_en: None,
+        album_romaji: None,
+        album_en: None,
     })
 }
 
@@ -1537,6 +1649,11 @@ pub fn run() {
             stop,
             set_volume,
             seek,
+            set_eq_all,
+            set_eq,
+            set_reverb,
+            set_speed,
+            get_visualizer_data,
             get_player_state,
             scan_music_folder,
             get_track_metadata,
@@ -1628,9 +1745,15 @@ pub fn run() {
                                 artist,
                                 album,
                                 duration_secs,
-                                cover_image: None,
-                                disc_number: None,
-                                track_number: None,
+                                cover_image: t.get("coverImage").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                disc_number: t.get("discNumber").and_then(|v| v.as_u64()).map(|n| n as u32),
+                                track_number: t.get("trackNumber").and_then(|v| v.as_u64()).map(|n| n as u32),
+                                title_romaji: t.get("titleRomaji").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                title_en: t.get("titleEn").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                artist_romaji: t.get("artistRomaji").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                artist_en: t.get("artistEn").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                album_romaji: t.get("albumRomaji").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                album_en: t.get("albumEn").and_then(|v| v.as_str()).map(|s| s.to_string()),
                             })
                         }).collect();
                         
@@ -1687,3 +1810,5 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+

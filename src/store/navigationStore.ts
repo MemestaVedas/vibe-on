@@ -14,6 +14,10 @@ interface NavigationState {
     toggleRightPanel: () => void;
     setRightPanelOpen: (isOpen: boolean) => void;
 
+    isRightPanelCollapsed: boolean;
+    toggleRightPanelCollapsed: () => void;
+    setRightPanelCollapsed: (isCollapsed: boolean) => void;
+
     isLeftSidebarCollapsed: boolean;
     toggleLeftSidebar: () => void;
     setLeftSidebarCollapsed: (isCollapsed: boolean) => void;
@@ -23,6 +27,7 @@ export const useNavigationStore = create<NavigationState>((set) => ({
     view: 'tracks',
     selectedAlbumKey: null,
     isRightPanelOpen: false,
+    isRightPanelCollapsed: false,
     isLeftSidebarCollapsed: false,
 
     setView: (view) => set({ view, selectedAlbumKey: null }),
@@ -34,6 +39,9 @@ export const useNavigationStore = create<NavigationState>((set) => ({
 
     toggleRightPanel: () => set((state) => ({ isRightPanelOpen: !state.isRightPanelOpen })),
     setRightPanelOpen: (isOpen) => set({ isRightPanelOpen: isOpen }),
+
+    toggleRightPanelCollapsed: () => set((state) => ({ isRightPanelCollapsed: !state.isRightPanelCollapsed })),
+    setRightPanelCollapsed: (isCollapsed) => set({ isRightPanelCollapsed: isCollapsed }),
 
     toggleLeftSidebar: () => set((state) => ({ isLeftSidebarCollapsed: !state.isLeftSidebarCollapsed })),
     setLeftSidebarCollapsed: (isCollapsed) => set({ isLeftSidebarCollapsed: isCollapsed })

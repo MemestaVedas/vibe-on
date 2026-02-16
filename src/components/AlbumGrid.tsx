@@ -4,6 +4,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import type { TrackDisplay } from '../types';
+import { getDisplayText } from '../utils/textUtils';
 import { IconMusicNote, IconPlay, IconAlbum } from './Icons';
 import { motion } from 'framer-motion';
 
@@ -85,6 +86,7 @@ export function AlbumGrid() {
     const library = usePlayerStore(state => state.library);
     const playQueue = usePlayerStore(state => state.playQueue);
     const searchQuery = usePlayerStore(state => state.searchQuery);
+    const displayLanguage = usePlayerStore(state => state.displayLanguage);
     const { selectedAlbumKey, navigateToAlbum, clearSelectedAlbum } = useNavigationStore();
 
     const albums = useMemo(() => {
@@ -97,7 +99,9 @@ export function AlbumGrid() {
 
         library.forEach(track => {
             const normalizedName = normalizeAlbumName(track.album);
-            const key = `${normalizedName}-${track.artist}`;
+            // Group by Artist + Album Name to differentiate same album name by different artists
+            const key = `${track.artist}-${normalizedName}`;
+
             if (!albumMap.has(key)) {
                 albumMap.set(key, {
                     name: normalizedName,
@@ -106,39 +110,32 @@ export function AlbumGrid() {
                     tracks: []
                 });
             }
-            albumMap.get(key)?.tracks.push(track);
+            albumMap.get(key)!.tracks.push(track);
         });
 
-        // Use array sort (stable or not) - sorting by name
-        const sortedAlbums = Array.from(albumMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+        // Filter based on search
+        let albumList = Array.from(albumMap.values());
 
-        if (!searchQuery.trim()) return sortedAlbums;
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            // Simple search: check album name, artist, or any track title in album
+            // Note: search in playerStore handles library filtering, but here we rebuild from library.
+            // If library is already filtered in store, we might not need this?
+            // Actually `library` in store is ALL tracks usually. `TrackList` does filtering.
+            // We should check if we want to filter albums here.
 
-        const query = searchQuery.toLowerCase();
+            // The implementation in TrackList matches query against library.
+            // Here we should probably mimic it or use filtered results.
+            // But existing code seems to take raw library. Be careful.
 
-        if (query.startsWith('artist:')) {
-            const term = query.replace('artist:', '').trim();
-            if (!term) return sortedAlbums;
-            return sortedAlbums.filter(a => a.artist.toLowerCase().includes(term));
+            // Let's rely on component logic:
+            albumList = albumList.filter(album =>
+                album.name.toLowerCase().includes(query) ||
+                album.artist.toLowerCase().includes(query)
+            );
         }
 
-        if (query.startsWith('album:')) {
-            const term = query.replace('album:', '').trim();
-            if (!term) return sortedAlbums;
-            return sortedAlbums.filter(a => a.name.toLowerCase().includes(term));
-        }
-
-        if (query.startsWith('title:')) {
-            // For albums, title search might not make sense, or we search tracks? 
-            // Let's just search album name for now.
-            return [];
-        }
-
-        return sortedAlbums.filter(a =>
-            a.name.toLowerCase().includes(query) ||
-            a.artist.toLowerCase().includes(query)
-        );
-
+        return albumList.sort((a, b) => a.name.localeCompare(b.name));
     }, [library, searchQuery]);
 
     const handlePlayAlbum = (album: Album) => {
@@ -146,6 +143,7 @@ export function AlbumGrid() {
             playQueue(album.tracks, 0);
         }
     };
+
 
     if (selectedAlbumKey) {
         const album = albums.find(a => `${a.name}-${a.artist}` === selectedAlbumKey);
@@ -175,43 +173,43 @@ export function AlbumGrid() {
                 Item: GridItem,
                 Footer: () => <div className="h-32"></div>
             }}
-            itemContent={(_, album) => (
-                <AlbumCard
-                    key={`${album.name}-${album.artist}`}
-                    album={album}
-                    onClick={() => navigateToAlbum(album.name, album.artist)}
-                    onPlay={() => handlePlayAlbum(album)}
-                />
-            )}
+            itemContent={(_, album) => {
+                const firstTrack = album.tracks[0];
+                const displayAlbumName = getDisplayText(firstTrack, 'album', displayLanguage);
+                const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
+
+                return (
+                    <div
+                        key={`${album.name}-${album.artist}`}
+                        onClick={() => navigateToAlbum(album.name, album.artist)}
+                        className="group flex flex-col gap-4 p-4 rounded-[2rem] hover:bg-surface-container-high transition-colors cursor-pointer"
+                    >
+                        <div className="aspect-square w-full relative">
+                            <div className="w-full h-full">
+                                <M3RoundedSquareImage
+                                    src={useCoverArt(album.cover)}
+                                    fallback={<IconMusicNote size={64} />}
+                                />
+                            </div>
+                            <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayAlbum(album); }} />
+                        </div>
+
+                        <div className="px-1 flex flex-col gap-0.5">
+                            <div className="text-title-large font-semibold text-on-surface truncate" title={displayAlbumName}>
+                                {displayAlbumName}
+                            </div>
+                            <div className="text-body-large text-on-surface-variant truncate" title={displayArtistName}>
+                                {displayArtistName}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }}
         />
     );
 }
 
-function AlbumCard({ album, onClick, onPlay }: { album: Album, onClick: () => void, onPlay: () => void }) {
-    const coverUrl = useCoverArt(album.cover);
 
-    return (
-        <div
-            onClick={onClick}
-            className="group flex flex-col gap-4 p-4 rounded-[2rem] hover:bg-surface-container-high transition-colors cursor-pointer"
-        >
-            <div className="aspect-square w-full relative">
-                <div className="w-full h-full">
-                    <M3RoundedSquareImage
-                        src={coverUrl}
-                        fallback={<IconMusicNote size={64} />}
-                    />
-                </div>
-                <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); onPlay(); }} />
-            </div>
-
-            <div className="px-1 flex flex-col gap-0.5">
-                <div className="text-title-large font-semibold text-on-surface truncate" title={album.name}>{album.name}</div>
-                <div className="text-body-large text-on-surface-variant truncate" title={album.artist}>{album.artist}</div>
-            </div>
-        </div>
-    );
-}
 
 // Helper Type for Display Items
 type DisplayItem =
@@ -355,7 +353,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                     ),
                     Footer: () => <div className="h-32"></div>
                 }}
-                itemContent={(i, item) => {
+                itemContent={(_i, item) => {
                     if (item.type === 'header') {
                         return (
                             <div className="flex items-center gap-4 py-4 px-6 mt-2">

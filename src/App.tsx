@@ -20,6 +20,9 @@ import { ThemeManager } from './components/ThemeManager';
 import { FavoritesView } from './components/FavoritesView';
 import { AmbientBackground } from './components/AmbientBackground';
 import { AnimatePresence } from 'motion/react';
+import { Equalizer } from './components/Equalizer';
+import { FullscreenVisualizer } from './components/AudioVisualizer';
+import { useVisualizerStore } from './store/visualizerStore';
 
 // Lazy-loaded views — defers ~130KB JS parsing until first visit
 const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({ default: m.SettingsPage })));
@@ -33,8 +36,8 @@ import { useNavigationStore } from './store/navigationStore';
 
 function App() {
   useMediaSession(); // Initialize System Media Controls
-  const { loadLibrary, status, pause, resume, playFile, immersiveMode } = usePlayerStore();
-  const { view, setView, isRightPanelOpen, setRightPanelOpen, setLeftSidebarCollapsed } = useNavigationStore();
+  const { loadLibrary, status, pause, resume, playFile, immersiveMode, showEq, syncAudioSettings } = usePlayerStore();
+  const { view, setView, isRightPanelOpen, setRightPanelOpen, isRightPanelCollapsed, setLeftSidebarCollapsed } = useNavigationStore();
 
   useEffect(() => {
     const handleResize = () => {
@@ -60,6 +63,7 @@ function App() {
     // Initial check
     handleResize();
     loadLibrary();
+    syncAudioSettings();
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -103,6 +107,12 @@ function App() {
         } else if (status.state === 'Stopped' && status.track) {
           playFile(status.track.path);
         }
+      }
+
+      // V key for visualizer
+      if (e.code === 'KeyV') {
+        const vizStore = useVisualizerStore.getState();
+        vizStore.setDisplayMode(vizStore.displayMode === 'fullscreen' ? 'off' : 'fullscreen');
       }
     };
 
@@ -312,7 +322,7 @@ function App() {
             2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
 
             ${isRightPanelOpen
-              ? 'translate-x-0 opacity-100 w-[25rem]'
+              ? `translate-x-0 opacity-100 ${isRightPanelCollapsed ? 'w-[4.5rem]' : 'w-[25rem]'}`
               : 'translate-x-[110%] opacity-0 pointer-events-none 2xl:w-0 2xl:translate-x-0'
             }
           `}
@@ -331,6 +341,14 @@ function App() {
           <ImmersiveView />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showEq && (
+          <Equalizer />
+        )}
+      </AnimatePresence>
+
+      <FullscreenVisualizer />
     </div>
   );
 }

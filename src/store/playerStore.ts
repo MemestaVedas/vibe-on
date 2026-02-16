@@ -6,6 +6,37 @@ import type { PlayerStatus, TrackDisplay } from '../types';
 
 type RepeatMode = 'off' | 'all' | 'one';
 
+export interface EqPreset {
+    id: string;
+    name: string;
+    gains: number[];
+}
+
+const DEFAULT_PRESETS: EqPreset[] = [
+    { id: 'flat', name: 'Flat', gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { id: 'acoustic', name: 'Acoustic', gains: [3, 3, 2, 1, 1, 1, 2, 3, 3, 2] },
+    { id: 'classical', name: 'Classical', gains: [4, 3, 2, 2, -1, -1, 0, 2, 3, 4] },
+    { id: 'dance', name: 'Dance', gains: [5, 7, 5, 0, 2, 4, 5, 4, 3, 0] },
+    { id: 'deep', name: 'Deep', gains: [4, 3, 2, 0, -1, -2, -2, -3, -4, -5] },
+    { id: 'electronic', name: 'Electronic', gains: [4, 3, 1, 0, -2, 2, 1, 1, 4, 5] },
+    { id: 'hip-hop', name: 'Hip-Hop', gains: [5, 4, 0, -2, -3, -2, 0, 1, 2, 3] },
+    { id: 'jazz', name: 'Jazz', gains: [0, 2, 4, 3, 3, -1, -1, 1, 3, 5] },
+    { id: 'latin', name: 'Latin', gains: [2, 1, 0, 0, -1, -1, -1, 1, 3, 4] },
+    { id: 'loudness', name: 'Loudness', gains: [6, 4, 0, -2, -5, -2, 0, 2, 5, 7] },
+    { id: 'lounge', name: 'Lounge', gains: [-2, -1, 0, 2, 4, 2, 0, -1, 1, 0] },
+    { id: 'piano', name: 'Piano', gains: [1, 2, 0, 2, 3, 1, 3, 4, 2, 1] },
+    { id: 'pop', name: 'Pop', gains: [-1, 1, 3, 4, 4, -1, -2, -1, 1, 2] },
+    { id: 'r&b', name: 'R&B', gains: [3, 7, 5, 1, -2, -1, 1, 1, 2, 3] },
+    { id: 'rock', name: 'Rock', gains: [5, 4, 3, 1, -1, -1, 0, 2, 3, 4] },
+    { id: 'small-speakers', name: 'Small Speakers', gains: [-5, -4, -2, 1, 3, 5, 4, 2, 0, -2] },
+    { id: 'spoken-word', name: 'Spoken Word', gains: [-4, -2, 0, 1, 4, 5, 5, 2, 0, -3] },
+    { id: 'increase-bass', name: 'Increase Bass', gains: [6, 5, 4, 2, 0, 0, 0, 0, 0, 0] },
+    { id: 'reduce-bass', name: 'Reduce Bass', gains: [-6, -5, -4, -2, 0, 0, 0, 0, 0, 0] },
+    { id: 'increase-treble', name: 'Increase Treble', gains: [0, 0, 0, 0, 0, 2, 4, 6, 8, 8] },
+    { id: 'reduce-treble', name: 'Reduce Treble', gains: [0, 0, 0, 0, 0, -2, -4, -6, -8, -8] },
+    { id: 'increase-vocals', name: 'Increase Vocals', gains: [-2, -2, -1, 1, 3, 5, 4, 2, 0, -1] },
+];
+
 // Helper function to broadcast queue updates to mobile clients via WebSocket
 const broadcastQueueUpdate = async (queue: TrackDisplay[]) => {
     try {
@@ -40,6 +71,20 @@ interface PlayerStore {
     // Repeat mode
     repeatMode: RepeatMode;
 
+    // Equalizer
+    eqGains: number[]; // 10 bands
+    showEq: boolean;
+    presets: EqPreset[];
+    activePresetId: string | null;
+
+    // Advanced DSP
+    preampDb: number;
+    balance: number; // -1.0 (Left) to 1.0 (Right)
+    stereoWidth: number; // 0.0 (Mono) to 2.0 (Wide), Default 1.0
+    speed: number; // 0.5 to 2.0, Default 1.0
+    reverbMix: number;
+    reverbDecay: number;
+
     // Queue & Shuffle
     queue: TrackDisplay[];
     originalQueue: TrackDisplay[];
@@ -48,6 +93,7 @@ interface PlayerStore {
     // Favorites
     favorites: Set<string>; // Set of track paths
     searchQuery: string; // NEW: Search query
+    displayLanguage: 'original' | 'romaji' | 'en'; // NEW: Display preference
 
     playCounts: Record<string, number>; // Map of path -> count
 
@@ -64,6 +110,18 @@ interface PlayerStore {
     seek: (value: number) => Promise<void>;
     refreshStatus: () => Promise<void>;
     refreshLibrary: () => Promise<void>; // Add to interface
+    setEqGain: (band: number, gain: number) => void;
+    setShowEq: (show: boolean) => void;
+    addPreset: (name: string, gains: number[]) => void;
+    removePreset: (id: string) => void;
+    applyPreset: (preset: EqPreset) => void;
+
+    setPreamp: (val: number) => void;
+    setBalance: (balance: number) => void;
+    setStereoWidth: (val: number) => void;
+    setSpeed: (speed: number) => void;
+    setReverb: (mix: number, decay: number) => void;
+    syncAudioSettings: () => void;
 
     scanFolder: (path: string) => Promise<void>;
     removeFolder: (path: string) => Promise<void>;
@@ -73,9 +131,9 @@ interface PlayerStore {
     prevTrack: () => Promise<void>;
     getCurrentTrackIndex: () => number;
     addToHistory: (track: TrackDisplay) => void;
-    setSort: (key: keyof TrackDisplay) => void;
-    updateYtStatus: (status: any) => void;
+
     setSearchQuery: (query: string) => void;
+    setDisplayLanguage: (lang: 'original' | 'romaji' | 'en') => void;
     clearAllData: () => Promise<void>;
 
     // Queue Actions
@@ -138,11 +196,28 @@ export const usePlayerStore = create<PlayerStore>()(
             // Repeat mode
             repeatMode: 'off' as RepeatMode,
 
+            // Equalizer
+            eqGains: Array(10).fill(0), // 10 bands initialized to 0dB
+            showEq: false,
+            presets: DEFAULT_PRESETS,
+            activePresetId: 'flat',
+
+            reverbMix: 0.0,
+            reverbDecay: 0.5,
+            preampDb: 0,
+            balance: 0,
+            stereoWidth: 1.0,
+            speed: 1.0,
+
             // Favorites
             favorites: new Set<string>(),
 
             // Immersive Mode
             immersiveMode: false,
+
+            // Display Language
+            displayLanguage: 'original',
+            setDisplayLanguage: (lang) => set({ displayLanguage: lang }),
 
             // Audio Output
             audioOutput: 'desktop',
@@ -480,6 +555,82 @@ export const usePlayerStore = create<PlayerStore>()(
                 }
             },
 
+            setEqGain: (band: number, gain: number) => {
+                const { eqGains } = get();
+                const newGains = [...eqGains];
+                if (band >= 0 && band < 10) {
+                    newGains[band] = gain;
+                    set({ eqGains: newGains, activePresetId: null }); // Clear active preset (custom mode)
+                    // Send to backend
+                    console.log(`[PlayerStore] set_eq band=${band} gain=${gain}`);
+                    invoke('set_eq', { band, gain }).catch(err => {
+                        console.error('[PlayerStore] Failed to set EQ:', err);
+                    });
+                }
+            },
+
+            setShowEq: (show: boolean) => set({ showEq: show }),
+
+            addPreset: (name: string, gains: number[]) => {
+                const newId = `custom-${Date.now()}`;
+                const newPreset = { id: newId, name, gains: [...gains] };
+                set(state => ({
+                    presets: [...state.presets, newPreset],
+                    activePresetId: newId
+                }));
+            },
+
+            removePreset: (id: string) => set(state => ({
+                presets: state.presets.filter(p => p.id !== id)
+            })),
+
+            applyPreset: (preset: EqPreset) => {
+                set({ eqGains: [...preset.gains], activePresetId: preset.id });
+                // Apply to backend in a single bulk call
+                console.log(`[PlayerStore] apply_preset bulk update: ${preset.name}`);
+                invoke('set_eq_all', { gains: preset.gains }).catch(console.error);
+            },
+
+            setPreamp: (val: number) => {
+                set({ preampDb: val });
+                console.log(`[PlayerStore] set_preamp(band 10) gain=${val}`);
+                invoke('set_eq', { band: 10, gain: val }).catch(console.error);
+            },
+            setBalance: (val: number) => {
+                set({ balance: val });
+                invoke('set_eq', { band: 11, gain: val }).catch(console.error);
+            },
+            setStereoWidth: (val: number) => {
+                set({ stereoWidth: val });
+                invoke('set_eq', { band: 12, gain: val }).catch(console.error);
+            },
+            setSpeed: (val: number) => {
+                set({ speed: val });
+                invoke('set_speed', { value: val }).catch(console.error);
+            },
+            setReverb: (mix: number, decay: number) => {
+                set({ reverbMix: mix, reverbDecay: decay });
+                invoke('set_reverb', { mix, decay }).catch(console.error);
+            },
+
+            // Sync all settings to backend (called on startup)
+            syncAudioSettings: () => {
+                const state = get();
+                console.log('[PlayerStore] Syncing audio settings to backend...');
+                invoke('set_reverb', { mix: state.reverbMix, decay: state.reverbDecay }).catch(console.error);
+                invoke('set_speed', { value: state.speed }).catch(console.error);
+
+                // EQ
+                state.eqGains.forEach((gain, index) => {
+                    invoke('set_eq', { band: index, gain }).catch(console.error);
+                });
+
+                // DSP
+                invoke('set_eq', { band: 10, gain: state.preampDb }).catch(console.error);
+                invoke('set_eq', { band: 11, gain: state.balance }).catch(console.error);
+                invoke('set_eq', { band: 12, gain: state.stereoWidth }).catch(console.error);
+            },
+
             refreshStatus: async () => {
                 try {
                     const status = await invoke<PlayerStatus>('get_player_state');
@@ -719,11 +870,22 @@ export const usePlayerStore = create<PlayerStore>()(
                 // Queue is NOT persisted — reconstructed from library on startup
                 isShuffled: state.isShuffled,
                 savedVolume: state.savedVolume,
-                lastPlayedTrack: state.lastPlayedTrack
+                lastPlayedTrack: state.lastPlayedTrack,
+                displayLanguage: state.displayLanguage, // Persist preference
+                eqGains: state.eqGains,
+                presets: state.presets,
+                activePresetId: state.activePresetId,
+                preampDb: state.preampDb,
+                balance: state.balance,
+                stereoWidth: state.stereoWidth,
+                speed: state.speed,
+                reverbMix: state.reverbMix,
+                reverbDecay: state.reverbDecay,
             }),
             merge: (persistedState: any, currentState) => ({
                 ...currentState,
                 ...persistedState,
+                displayLanguage: persistedState?.displayLanguage || 'original',
                 favorites: new Set(persistedState?.favorites || []),
                 folders: persistedState?.folders || [],
                 // Queue is NOT restored — will be rebuilt from library on loadLibrary()
@@ -731,7 +893,23 @@ export const usePlayerStore = create<PlayerStore>()(
                 originalQueue: [],
                 isShuffled: persistedState?.isShuffled || false,
                 savedVolume: persistedState?.savedVolume ?? 1.0,
-                lastPlayedTrack: persistedState?.lastPlayedTrack || null
+                lastPlayedTrack: persistedState?.lastPlayedTrack || null,
+                eqGains: persistedState?.eqGains || Array(10).fill(0),
+                activePresetId: persistedState?.activePresetId || 'flat',
+                preampDb: persistedState?.preampDb ?? 0,
+                balance: persistedState?.balance ?? 0,
+                stereoWidth: persistedState?.stereoWidth ?? 1.0,
+                speed: persistedState?.speed ?? 1.0,
+                reverbMix: persistedState?.reverbMix ?? 0.0,
+                reverbDecay: persistedState?.reverbDecay ?? 0.5,
+
+                // Merge logic for presets:
+                presets: (() => {
+                    const persisted = (persistedState?.presets || []) as EqPreset[];
+                    const defaultIds = new Set(DEFAULT_PRESETS.map(d => d.id));
+                    const customPresets = persisted.filter(p => !defaultIds.has(p.id));
+                    return [...DEFAULT_PRESETS, ...customPresets];
+                })(),
             })
         }
     )

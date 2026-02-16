@@ -10,7 +10,10 @@ use lofty::prelude::*;
 use lofty::probe::Probe;
 use rodio::{Decoder, OutputStream, Sink, Source};
 
+use super::equalizer::Equalizer;
+use super::fft::{FftProcessor, VisualizerData, VisualizerTap};
 use super::state::{PlayerState, PlayerStatus, TrackInfo};
+use std::sync::{Mutex, RwLock};
 
 /// Commands sent to the audio thread
 pub enum AudioCommand {
@@ -24,12 +27,19 @@ pub enum AudioCommand {
     Load(String),  // Load metadata only
     GetStatus(Sender<PlayerStatus>),
     Shutdown,
+    SetEq(usize, f32), // band_index, gain_db
+    SetEqAll(Vec<f32>), // All band gains at once
+    SetSpeed(f32),
+    SetReverb(f32, f32), // mix (0-1), decay (0-1)
+    GetVisualizerData(Sender<VisualizerData>),
 }
 
 /// Thread-safe handle to the audio player
 pub struct AudioPlayer {
     command_tx: Sender<AudioCommand>,
     _thread: JoinHandle<()>,
+    eq_gains: Arc<Mutex<Vec<f32>>>,
+    fft_processor: Arc<FftProcessor>,
 }
 
 impl AudioPlayer {
@@ -38,8 +48,23 @@ impl AudioPlayer {
         let (command_tx, command_rx) = channel::<AudioCommand>();
         let (init_tx, init_rx) = std::sync::mpsc::sync_channel(0);
 
+        // Initialize gains: 10 bands + Preamp + Balance + Width + Spares
+        // 0-9: EQ
+        // 10: Preamp (0dB)
+        // 11: Balance (0.0)
+        // 12: Stereo Width (1.0 default)
+        let mut initial_gains = vec![0.0; 15];
+        initial_gains[12] = 1.0;
+
+        let eq_gains = Arc::new(Mutex::new(initial_gains));
+        let eq_gains_clone = eq_gains.clone();
+
+        // Create FFT processor for audio visualization
+        let fft_processor = Arc::new(FftProcessor::new(44100)); // Will update sample rate on play
+        let fft_buffer = fft_processor.get_buffer_handle();
+
         let thread = thread::spawn(move || {
-            AudioThread::run(command_rx, init_tx);
+            AudioThread::run(command_rx, init_tx, eq_gains_clone, fft_buffer);
         });
 
         // Wait for initialization to complete
@@ -47,6 +72,8 @@ impl AudioPlayer {
             Ok(Ok(())) => Ok(Self {
                 command_tx,
                 _thread: thread,
+                eq_gains,
+                fft_processor,
             }),
             Ok(Err(e)) => Err(format!("Audio initialization failed: {}", e)),
             Err(_) => Err("Audio thread panicked during initialization".to_string()),
@@ -95,12 +122,17 @@ impl AudioPlayer {
             .map_err(|e| format!("Failed to send seek command: {}", e))
     }
 
+    pub fn set_speed(&self, value: f32) -> Result<(), String> {
+        self.command_tx
+            .send(AudioCommand::SetSpeed(value))
+            .map_err(|e| format!("Failed to send speed command: {}", e))
+    }
+
     pub fn set_mute(&self, mute: bool) -> Result<(), String> {
         self.command_tx
             .send(AudioCommand::SetMute(mute))
             .map_err(|e| format!("Failed to send mute command: {}", e))
     }
-
     pub fn get_status(&self) -> PlayerStatus {
         let (tx, rx) = channel();
         if self.command_tx.send(AudioCommand::GetStatus(tx)).is_ok() {
@@ -108,6 +140,53 @@ impl AudioPlayer {
         } else {
             PlayerStatus::default()
         }
+    }
+
+    pub fn set_eq(&self, band: usize, gain: f32) -> Result<(), String> {
+        // Update local state (shared memory)
+        if let Ok(mut gains) = self.eq_gains.lock() {
+            if band < gains.len() {
+                gains[band] = gain;
+            }
+        }
+
+        self.command_tx
+            .send(AudioCommand::SetEq(band, gain))
+            .map_err(|e| format!("Failed to send eq command: {}", e))
+    }
+
+    pub fn set_eq_all(&self, new_gains: Vec<f32>) -> Result<(), String> {
+        // Update local state (shared memory)
+        if let Ok(mut gains) = self.eq_gains.lock() {
+            for (i, &g) in new_gains.iter().enumerate() {
+                if i < gains.len() {
+                    gains[i] = g;
+                }
+            }
+        }
+
+        self.command_tx
+            .send(AudioCommand::SetEqAll(new_gains))
+            .map_err(|e| format!("Failed to send bulk eq command: {}", e))
+    }
+
+    pub fn set_reverb(&self, mix: f32, decay: f32) -> Result<(), String> {
+        // Update local state indices 13 (mix) and 14 (decay)
+        if let Ok(mut gains) = self.eq_gains.lock() {
+            if gains.len() >= 15 {
+                gains[13] = mix.clamp(0.0, 1.0);
+                gains[14] = decay.clamp(0.0, 1.0);
+            }
+        }
+
+        self.command_tx
+            .send(AudioCommand::SetReverb(mix, decay))
+            .map_err(|e| format!("Failed to send reverb command: {}", e))
+    }
+
+    /// Get current visualizer data (frequency bins and waveform) for UI rendering
+    pub fn get_visualizer_data(&self) -> VisualizerData {
+        self.fft_processor.get_visualizer_data()
     }
 }
 
@@ -128,12 +207,16 @@ struct AudioThread {
     muted: bool,
     play_start_time: Option<Instant>,
     accumulated_time: f64,
+    eq_gains: Arc<Mutex<Vec<f32>>>,
+    fft_buffer: Arc<RwLock<super::fft::RingBuffer>>,
 }
 
 impl AudioThread {
     fn run(
         command_rx: Receiver<AudioCommand>,
         init_tx: std::sync::mpsc::SyncSender<Result<(), String>>,
+        eq_gains: Arc<Mutex<Vec<f32>>>,
+        fft_buffer: Arc<RwLock<super::fft::RingBuffer>>,
     ) {
         // Initialize audio output on this thread
         let (stream, stream_handle) = match OutputStream::try_default() {
@@ -165,6 +248,8 @@ impl AudioThread {
             muted: false,
             play_start_time: None,
             accumulated_time: 0.0,
+            eq_gains,
+            fft_buffer,
         };
 
         loop {
@@ -200,6 +285,21 @@ impl AudioThread {
                 }
                 Ok(AudioCommand::Shutdown) => {
                     break;
+                }
+                Ok(AudioCommand::SetSpeed(value)) => {
+                    audio.handle_set_speed(value);
+                }
+                Ok(AudioCommand::SetEq(band, gain)) => {
+                    println!("[AudioThread] EQ changed: band {} -> {} dB", band, gain);
+                }
+                Ok(AudioCommand::SetEqAll(gains)) => {
+                    println!("[AudioThread] Bulk EQ update: {} bands", gains.len());
+                }
+                Ok(AudioCommand::SetReverb(mix, decay)) => {
+                    println!("[AudioThread] Reverb set: mix={}, decay={}", mix, decay);
+                }
+                Ok(AudioCommand::GetVisualizerData(tx)) => {
+                    let _ = tx.send(VisualizerData::default());
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                     // Check if track finished
@@ -241,7 +341,7 @@ impl AudioThread {
             }
         };
         // Increase buffer size to prevent underruns (static/breaking)
-        let reader = BufReader::with_capacity(512 * 1024, file);
+        let reader = BufReader::with_capacity(128 * 1024, file);
         let source = match Decoder::new(reader) {
             Ok(s) => s,
             Err(e) => {
@@ -263,7 +363,13 @@ impl AudioThread {
         };
 
         sink.set_volume(self.volume);
-        sink.append(source);
+
+        // Wrap source in processing chain:
+        // Decoder -> f32 -> VisualizerTap (for FFT) -> Equalizer -> Sink
+        let source_f32 = source.convert_samples::<f32>();
+        let tapped = VisualizerTap::new(source_f32, Arc::clone(&self.fft_buffer));
+        let equalizer = Equalizer::new(tapped, self.eq_gains.clone());
+        sink.append(equalizer);
 
         self.sink = Some(sink);
         self.state = PlayerState::Playing;
@@ -304,6 +410,14 @@ impl AudioThread {
                     album: "Unknown Album".to_string(),
                     duration_secs: 0.0,
                     cover_image: None,
+                    disc_number: None,
+                    track_number: None,
+                    title_romaji: None,
+                    title_en: None,
+                    artist_romaji: None,
+                    artist_en: None,
+                    album_romaji: None,
+                    album_en: None,
                 };
             }
         };
@@ -344,6 +458,14 @@ impl AudioThread {
             album,
             duration_secs,
             cover_image: None,
+            disc_number: None,
+            track_number: None,
+            title_romaji: None,
+            title_en: None,
+            artist_romaji: None,
+            artist_en: None,
+            album_romaji: None,
+            album_en: None,
         }
     }
 
@@ -398,6 +520,12 @@ impl AudioThread {
         }
     }
 
+    fn handle_set_speed(&mut self, value: f32) {
+        if let Some(ref sink) = self.sink {
+            sink.set_speed(value);
+        }
+    }
+
     fn handle_seek(
         &mut self,
         seconds: f64,
@@ -442,7 +570,7 @@ impl AudioThread {
                 }
             };
 
-            let reader = BufReader::with_capacity(512 * 1024, file);
+            let reader = BufReader::with_capacity(128 * 1024, file);
             let source = match Decoder::new(reader) {
                 Ok(s) => s,
                 Err(e) => {
@@ -463,7 +591,12 @@ impl AudioThread {
             };
 
             sink.set_volume(self.volume);
-            sink.append(skipped_source);
+
+            // Wrap source in processing chain (same as handle_play)
+            let source_f32 = skipped_source.convert_samples::<f32>();
+            let tapped = VisualizerTap::new(source_f32, Arc::clone(&self.fft_buffer));
+            let equalizer = Equalizer::new(tapped, self.eq_gains.clone());
+            sink.append(equalizer);
 
             if !was_playing {
                 sink.pause();

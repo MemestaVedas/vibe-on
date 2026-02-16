@@ -30,6 +30,7 @@ if-addrs = "0.13"
 
 # Audio playback
 rodio = { version = "0.20", features = ["symphonia-all"] }
+rustfft = "6.2"
 
 # Metadata extraction
 lofty = "0.22"
@@ -80,6 +81,8 @@ log = "0.4"
 
 # Transliteration
 lindera-tokenizer = { version = "0.24", features = ["ipadic"] }
+lindera-core = "0.24"
+lindera-dictionary = "0.24"
 wana_kana = "4.0"
 
 [target.'cfg(windows)'.dependencies]

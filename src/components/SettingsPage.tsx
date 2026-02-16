@@ -16,7 +16,7 @@ export function SettingsPage() {
     const { primary } = colors;
 
     // Player store for folders
-    const { folders, scanFolder, removeFolder, clearAllData } = usePlayerStore();
+    const { folders, scanFolder, removeFolder, clearAllData, displayLanguage, setDisplayLanguage } = usePlayerStore();
     const appVersion = packageJson.version;
 
     const handleOpenFolder = async () => {
@@ -145,6 +145,48 @@ export function SettingsPage() {
                                     <div className="w-6 h-6 rounded-full bg-white/20"></div>
                                     <div className="flex-1 h-1 bg-white/10 rounded-full"></div>
                                 </div>
+                            </OptionButton>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section: Metadata Language */}
+                <section>
+                    <h2 className="text-xl font-semibold text-white mb-4">Language</h2>
+                    <div className="bg-white/5 rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-base font-medium text-white">Display Language</h3>
+                                <p className="text-sm text-white/50">Choose how song titles and artist names are displayed.</p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4">
+                            <OptionButton
+                                label="Original"
+                                active={displayLanguage === 'original'}
+                                onClick={() => setDisplayLanguage('original')}
+                                accentColor={primary}
+                            >
+                                <span className="text-2xl font-bold">あ</span>
+                            </OptionButton>
+
+                            <OptionButton
+                                label="Romaji"
+                                active={displayLanguage === 'romaji'}
+                                onClick={() => setDisplayLanguage('romaji')}
+                                accentColor={primary}
+                            >
+                                <span className="text-lg font-bold">Ro</span>
+                            </OptionButton>
+
+                            <OptionButton
+                                label="English"
+                                active={displayLanguage === 'en'}
+                                onClick={() => setDisplayLanguage('en')}
+                                accentColor={primary}
+                            >
+                                <span className="text-lg font-bold">EN</span>
                             </OptionButton>
                         </div>
                     </div>

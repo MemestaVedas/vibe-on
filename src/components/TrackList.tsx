@@ -6,6 +6,7 @@ import { IconMusicNote, IconPlay, IconHeart, IconPlus, IconPause } from './Icons
 import { WavySeparator } from './WavySeparator';
 import { ContextMenu } from './ContextMenu';
 import type { TrackDisplay } from '../types';
+import { getDisplayText } from '../utils/textUtils';
 
 
 // Format seconds to MM:SS
@@ -33,11 +34,15 @@ const TrackRow = memo(function TrackRow({ track, index, isActive, isPlaying, onC
     onClick: () => void,
     onContextMenu: (e: React.MouseEvent) => void
 }) {
-    // Desktop uses local files only
     const coverUrl = useCoverArt(track.cover_image);
     const isFavorite = usePlayerStore(state => state.isFavorite(track.path));
     const toggleFavorite = usePlayerStore(state => state.toggleFavorite);
     const addToQueue = usePlayerStore(state => state.addToQueue);
+    const displayLanguage = usePlayerStore(state => state.displayLanguage);
+
+    const displayTitle = getDisplayText(track, 'title', displayLanguage);
+    const displayArtist = getDisplayText(track, 'artist', displayLanguage);
+    const displayAlbum = getDisplayText(track, 'album', displayLanguage);
 
     return (
         <div
@@ -76,14 +81,14 @@ const TrackRow = memo(function TrackRow({ track, index, isActive, isPlaying, onC
                 </div>
                 <div className="flex flex-col min-w-0">
                     <span className={`truncate font-medium text-body-large ${isActive ? 'text-primary' : 'text-on-surface'}`}>
-                        {track.title}
+                        {displayTitle}
                     </span>
-                    <span className="truncate text-body-small opacity-70 lg:hidden">{track.artist}</span>
+                    <span className="truncate text-body-small opacity-70 lg:hidden">{displayArtist}</span>
                 </div>
             </span>
 
-            <span className="truncate text-body-medium opacity-80 hidden lg:block">{track.artist}</span>
-            <span className="truncate text-body-medium opacity-80 hidden xl:block">{track.album}</span>
+            <span className="truncate text-body-medium opacity-80 hidden lg:block">{displayArtist}</span>
+            <span className="truncate text-body-medium opacity-80 hidden xl:block">{displayAlbum}</span>
 
             <span className="text-right text-label-medium tabular-nums opacity-60 group-hover:hidden">
                 {formatDuration(track.duration_secs)}
@@ -154,16 +159,16 @@ export function TrackList() {
     // Filter library based on search query
     const filteredLibrary = useMemo(() => {
         if (!searchQuery.trim()) return library;
-        
+
         const query = searchQuery.toLowerCase();
-        
+
         // Check for prefixes
         if (query.startsWith('artist:')) {
             const term = query.replace('artist:', '').trim();
             if (!term) return library;
             return library.filter(track => track.artist.toLowerCase().includes(term));
         }
-        
+
         if (query.startsWith('album:')) {
             const term = query.replace('album:', '').trim();
             if (!term) return library;

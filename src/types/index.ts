@@ -25,6 +25,14 @@ export interface PlayerStatus {
 // Track display info for library
 export interface TrackDisplay extends TrackInfo {
   id: string; // Use path as unique ID
+
+  // Metadata Indexing
+  title_romaji?: string | null;
+  title_en?: string | null;
+  artist_romaji?: string | null;
+  artist_en?: string | null;
+  album_romaji?: string | null;
+  album_en?: string | null;
 }
 
 // Lyrics line with timestamp for synced lyrics

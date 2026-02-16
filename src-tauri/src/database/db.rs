@@ -48,6 +48,14 @@ impl DatabaseManager {
         // Migration: Add new columns if missing
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN disc_number INTEGER", []);
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN track_number INTEGER", []);
+        
+        // Migration: Add Romaji and English columns
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN title_romaji TEXT", []);
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN title_en TEXT", []);
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN artist_romaji TEXT", []);
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN artist_en TEXT", []);
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN album_romaji TEXT", []);
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN album_en TEXT", []);
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -58,18 +66,43 @@ impl DatabaseManager {
     pub fn insert_track(&self, track: &TrackInfo, cover_data: Option<&[u8]>) -> Result<()> {
         let conn = self.conn.lock().unwrap();
 
+        // Generate Romaji if needed
+        let title_romaji = if crate::lyrics_transliteration::has_japanese(&track.title) {
+            Some(crate::lyrics_transliteration::to_romaji(&track.title))
+        } else {
+            None
+        };
+
+        let artist_romaji = if crate::lyrics_transliteration::has_japanese(&track.artist) {
+            Some(crate::lyrics_transliteration::to_romaji(&track.artist))
+        } else {
+            None
+        };
+
+        let album_romaji = if crate::lyrics_transliteration::has_japanese(&track.album) {
+            Some(crate::lyrics_transliteration::to_romaji(&track.album))
+        } else {
+            None
+        };
+
         // Insert into tracks
         conn.execute(
-            "INSERT OR REPLACE INTO tracks (path, title, artist, album, duration_secs, disc_number, track_number) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
+            "INSERT OR REPLACE INTO tracks (
+                path, title, artist, album, duration_secs, disc_number, track_number,
+                title_romaji, artist_romaji, album_romaji
+            ) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             params![
                 track.path,
                 track.title,
                 track.artist,
                 track.album,
                 track.duration_secs,
                 track.disc_number,
-                track.track_number
+                track.track_number,
+                title_romaji,
+                artist_romaji,
+                album_romaji
             ],
         )?;
 
@@ -151,7 +184,8 @@ impl DatabaseManager {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+             t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
              ORDER BY t.artist, t.album, t.disc_number, t.track_number, t.title
@@ -169,6 +203,12 @@ impl DatabaseManager {
                 cover_image: cover_filename,
                 disc_number: row.get(6).unwrap_or(None),
                 track_number: row.get(7).unwrap_or(None),
+                title_romaji: row.get(8).unwrap_or(None),
+                title_en: row.get(9).unwrap_or(None),
+                artist_romaji: row.get(10).unwrap_or(None),
+                artist_en: row.get(11).unwrap_or(None),
+                album_romaji: row.get(12).unwrap_or(None),
+                album_en: row.get(13).unwrap_or(None),
             })
         })?;
 
@@ -190,10 +230,13 @@ impl DatabaseManager {
         let search_query = format!("%{}%", query);
 
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+             t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
              WHERE t.title LIKE ?1 OR t.artist LIKE ?1 OR t.album LIKE ?1
+                OR t.title_romaji LIKE ?1 OR t.artist_romaji LIKE ?1 OR t.album_romaji LIKE ?1
+                OR t.title_en LIKE ?1 OR t.artist_en LIKE ?1 OR t.album_en LIKE ?1
              ORDER BY t.artist, t.album, t.disc_number, t.track_number, t.title
              LIMIT ?2 OFFSET ?3",
         )?;
@@ -209,6 +252,12 @@ impl DatabaseManager {
                 cover_image: cover_filename,
                 disc_number: row.get(6).unwrap_or(None),
                 track_number: row.get(7).unwrap_or(None),
+                title_romaji: row.get(8).unwrap_or(None),
+                title_en: row.get(9).unwrap_or(None),
+                artist_romaji: row.get(10).unwrap_or(None),
+                artist_en: row.get(11).unwrap_or(None),
+                album_romaji: row.get(12).unwrap_or(None),
+                album_en: row.get(13).unwrap_or(None),
             })
         })?;
 
@@ -224,7 +273,8 @@ impl DatabaseManager {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number 
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+             t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
              WHERE t.path = ?1",
@@ -241,6 +291,12 @@ impl DatabaseManager {
                 cover_image: cover_filename,
                 disc_number: row.get(6).unwrap_or(None),
                 track_number: row.get(7).unwrap_or(None),
+                title_romaji: row.get(8).unwrap_or(None),
+                title_en: row.get(9).unwrap_or(None),
+                artist_romaji: row.get(10).unwrap_or(None),
+                artist_en: row.get(11).unwrap_or(None),
+                album_romaji: row.get(12).unwrap_or(None),
+                album_en: row.get(13).unwrap_or(None),
             })
         })?;
 
@@ -338,6 +394,47 @@ impl DatabaseManager {
     // If we paginated search, it gets complex.
     // Let's stick to get_albums/artists optimization first.
 
+    pub fn search_library(&self, query: &str) -> Result<Vec<TrackInfo>> {
+        let conn = self.conn.lock().unwrap();
+        let search_query = format!("%{}%", query);
+
+        let mut stmt = conn.prepare(
+            "SELECT path, title, artist, album, duration_secs, disc_number, track_number,
+             title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en
+             FROM tracks 
+             WHERE title LIKE ?1 OR artist LIKE ?1 OR album LIKE ?1
+                OR title_romaji LIKE ?1 OR artist_romaji LIKE ?1 OR album_romaji LIKE ?1
+                OR title_en LIKE ?1 OR artist_en LIKE ?1 OR album_en LIKE ?1
+             ORDER BY artist, album, track_number"
+        )?;
+
+        let track_iter = stmt.query_map(params![search_query], |row| {
+             Ok(TrackInfo {
+                path: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_secs: row.get(4)?,
+                cover_image: None, // Loaded on demand
+                disc_number: row.get(5)?,
+                track_number: row.get(6)?,
+                title_romaji: None,
+                title_en: None,
+                artist_romaji: None,
+                artist_en: None,
+                album_romaji: None,
+                album_en: None,
+            })
+        })?;
+
+        let mut tracks = Vec::new();
+        for track in track_iter {
+            tracks.push(track?);
+        }
+
+        Ok(tracks)
+    }
+
     pub fn get_all_tracks(&self) -> Result<Vec<TrackInfo>> {
         let conn = self.conn.lock().unwrap();
 
@@ -361,6 +458,12 @@ impl DatabaseManager {
                 cover_image: cover_filename,
                 disc_number: row.get(6).unwrap_or(None),
                 track_number: row.get(7).unwrap_or(None),
+                title_romaji: None,
+                title_en: None,
+                artist_romaji: None,
+                artist_en: None,
+                album_romaji: None,
+                album_en: None,
             })
         })?;
 
@@ -519,5 +622,21 @@ impl DatabaseManager {
         }
 
         Ok(())
+    }
+
+    pub fn get_tracks_missing_metadata(&self) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        // Check all tracks where romaji is NULL.
+        let mut stmt = conn.prepare(
+            "SELECT path FROM tracks WHERE title_romaji IS NULL"
+        )?;
+
+        let paths_iter = stmt.query_map([], |row| row.get(0))?;
+
+        let mut paths = Vec::new();
+        for path in paths_iter {
+            paths.push(path?);
+        }
+        Ok(paths)
     }
 }

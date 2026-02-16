@@ -4,6 +4,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMicrophone, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
+import { getDisplayText } from '../utils/textUtils';
 import { motion } from 'framer-motion';
 
 interface Artist {
@@ -83,6 +84,7 @@ export function ArtistList() {
     const library = usePlayerStore(state => state.library);
     const playQueue = usePlayerStore(state => state.playQueue);
     const searchQuery = usePlayerStore(state => state.searchQuery);
+    const displayLanguage = usePlayerStore(state => state.displayLanguage);
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
 
     const artists = useMemo(() => {
@@ -110,7 +112,6 @@ export function ArtistList() {
             artist.albumCount = albums.size;
         }
 
-        // Use array sort (stable or not) - sorting by name
         const sortedArtists = Array.from(artistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 
         if (!searchQuery.trim()) return sortedArtists;
@@ -124,16 +125,9 @@ export function ArtistList() {
         }
 
         if (query.startsWith('album:')) {
-            // Filter artists who have albums matching the term? 
-            // Or just return empty if searching strictly for albums?
-            // Let's filter artists that contain tracks from that album.
             const term = query.replace('album:', '').trim();
             if (!term) return sortedArtists;
             return sortedArtists.filter(a => a.tracks.some(t => t.album.toLowerCase().includes(term)));
-        }
-
-        if (query.startsWith('title:')) {
-            return [];
         }
 
         return sortedArtists.filter(a => a.name.toLowerCase().includes(query));
@@ -170,45 +164,38 @@ export function ArtistList() {
                 Item: GridItem,
                 Footer: () => <div className="h-32"></div>
             }}
-            itemContent={(_, artist) => (
-                <ArtistCard
-                    artist={artist}
-                    onClick={() => setSelectedArtist(artist.name)}
-                    onPlay={() => handlePlayArtist(artist)}
-                />
-            )}
+            itemContent={(_, artist) => {
+                // Use the first track to resolve display name for the Artist
+                const firstTrack = artist.tracks[0];
+                const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
+
+                return (
+                    <div
+                        onClick={() => setSelectedArtist(artist.name)}
+                        className="group flex flex-col gap-3 p-3 rounded-[1.5rem] hover:bg-surface-container-high transition-colors cursor-pointer"
+                    >
+                        <div className="aspect-square w-full relative">
+                            <div className="w-full h-full">
+                                <M3ArchImage
+                                    src={useCoverArt(artist.cover)}
+                                    fallback={<IconMicrophone size={48} className="opacity-50" />}
+                                />
+                            </div>
+                            <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayArtist(artist); }} />
+                        </div>
+
+                        <div className="flex flex-col items-center text-center gap-0.5">
+                            <span className="text-title-medium font-semibold text-on-surface truncate w-full" title={displayArtistName}>
+                                {displayArtistName}
+                            </span>
+                            <span className="text-body-medium text-on-surface-variant">
+                                {artist.albumCount} {artist.albumCount === 1 ? 'Album' : 'Albums'}
+                            </span>
+                        </div>
+                    </div>
+                );
+            }}
         />
-    );
-}
-
-function ArtistCard({ artist, onClick, onPlay }: { artist: Artist, onClick: () => void, onPlay: () => void }) {
-    const coverUrl = useCoverArt(artist.cover);
-
-    return (
-        <div
-            onClick={onClick}
-            className="group flex flex-col gap-3 p-3 rounded-[1.5rem] hover:bg-surface-container-high transition-colors cursor-pointer"
-        >
-            {/* Artist Image with M3 Arch Shape */}
-            <div className="aspect-square w-full relative">
-                <div className="w-full h-full">
-                    <M3ArchImage
-                        src={coverUrl}
-                        fallback={<IconMicrophone size={48} />}
-                    />
-                </div>
-
-                {/* Play Button - Very Sunny Shape - Outside bottom right */}
-                <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); onPlay(); }} />
-            </div>
-
-            <div className="px-1 text-center">
-                <div className="text-title-medium font-semibold text-on-surface truncate" title={artist.name}>{artist.name}</div>
-                <div className="text-body-medium text-on-surface-variant truncate">
-                    {artist.albumCount} albums • {artist.tracks.length} songs
-                </div>
-            </div>
-        </div>
     );
 }
 
@@ -380,7 +367,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                 customScrollParent={scroller}
                                 data={displayItems}
                                 overscan={200}
-                                itemContent={(i, item) => {
+                                itemContent={(_i, item) => {
                                     if (item.type === 'header') {
                                         return (
                                             <div className="py-4 mt-6 first:mt-0 sticky top-0 bg-surface z-[5]">
