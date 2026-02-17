@@ -31,6 +31,7 @@ pub struct TrackInfo {
     pub artist_en: Option<String>,
     pub album_romaji: Option<String>,
     pub album_en: Option<String>,
+    pub playlist_track_id: Option<i64>,
 }
 
 impl Default for TrackInfo {
@@ -50,6 +51,7 @@ impl Default for TrackInfo {
             artist_en: None,
             album_romaji: None,
             album_en: None,
+            playlist_track_id: None,
         }
     }
 }

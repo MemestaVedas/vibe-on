@@ -1,9 +1,9 @@
-import { TrackDisplay } from '../types';
+import { TrackInfo } from '../types';
 
 export type DisplayLanguage = 'original' | 'romaji' | 'en';
 
 export const getDisplayText = (
-    track: TrackDisplay | null,
+    track: TrackInfo | null,
     field: 'title' | 'artist' | 'album',
     language: DisplayLanguage
 ): string => {
@@ -15,21 +15,21 @@ export const getDisplayText = (
 
     // Try Romaji
     if (language === 'romaji') {
-        const romajiKey = `${field}_romaji` as keyof TrackDisplay;
+        const romajiKey = `${field}_romaji` as keyof TrackInfo;
         const romaji = track[romajiKey] as string | undefined | null;
         return romaji || original;
     }
 
     // Try English / Translation
     if (language === 'en') {
-        const enKey = `${field}_en` as keyof TrackDisplay;
+        const enKey = `${field}_en` as keyof TrackInfo;
         const en = track[enKey] as string | undefined | null;
         // Fallback chain: EN -> Romaji -> Original
         if (en) return en;
 
         // Fallback to Romaji if EN missing? Or straight to Original?
         // Plan said "fallback to Romaji -> Original"
-        const romajiKey = `${field}_romaji` as keyof TrackDisplay;
+        const romajiKey = `${field}_romaji` as keyof TrackInfo;
         const romaji = track[romajiKey] as string | undefined | null;
         return romaji || original;
     }

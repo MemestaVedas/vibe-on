@@ -6,6 +6,7 @@ import { IconMicrophone, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { motion } from 'framer-motion';
+import { ContextMenu } from './ContextMenu';
 
 interface Artist {
     name: string;
@@ -247,9 +248,19 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showStickyHeader, setShowStickyHeader] = useState(false);
     const [scroller, setScroller] = useState<HTMLElement | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
 
     // Get localized artist name
     const displayArtistName = getDisplayText(artist.tracks[0], 'artist', displayLanguage);
+
+    const handleContextMenu = (e: React.MouseEvent, track: TrackDisplay) => {
+        e.preventDefault();
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            track
+        });
+    };
 
     // Sort tracks: By Album, then by Disc, then by Track
     const sortedTracks = useMemo(() => {
@@ -425,6 +436,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                                 const index = sortedTracks.findIndex(t => t.id === item.track.id);
                                                 playQueue(sortedTracks, index);
                                             }}
+                                            onContextMenu={(e) => handleContextMenu(e, item.track)}
                                             className="group flex items-center gap-4 p-3 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
                                         >
                                             <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">
@@ -443,6 +455,14 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                     </div>
                 </div>
             </div>
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    track={contextMenu.track}
+                    onClose={() => setContextMenu(null)}
+                />
+            )}
         </div>
     );
 }

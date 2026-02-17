@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection, OptionalExtension, Result};
+use serde::Serialize;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -209,6 +210,7 @@ impl DatabaseManager {
                 artist_en: row.get(11).unwrap_or(None),
                 album_romaji: row.get(12).unwrap_or(None),
                 album_en: row.get(13).unwrap_or(None),
+                playlist_track_id: None,
             })
         })?;
 
@@ -258,6 +260,7 @@ impl DatabaseManager {
                 artist_en: row.get(11).unwrap_or(None),
                 album_romaji: row.get(12).unwrap_or(None),
                 album_en: row.get(13).unwrap_or(None),
+                playlist_track_id: None,
             })
         })?;
 
@@ -297,6 +300,7 @@ impl DatabaseManager {
                 artist_en: row.get(11).unwrap_or(None),
                 album_romaji: row.get(12).unwrap_or(None),
                 album_en: row.get(13).unwrap_or(None),
+                playlist_track_id: None,
             })
         })?;
 
@@ -424,6 +428,7 @@ impl DatabaseManager {
                 artist_en: row.get(10).unwrap_or(None),
                 album_romaji: row.get(11).unwrap_or(None),
                 album_en: row.get(12).unwrap_or(None),
+                playlist_track_id: None,
             })
         })?;
 
@@ -465,6 +470,7 @@ impl DatabaseManager {
                 artist_en: row.get(11).unwrap_or(None),
                 album_romaji: row.get(12).unwrap_or(None),
                 album_en: row.get(13).unwrap_or(None),
+                playlist_track_id: None,
             })
         })?;
 
@@ -636,4 +642,207 @@ impl DatabaseManager {
         }
         Ok(paths)
     }
+
+    // Playlist Methods
+
+    pub fn create_playlist(&self, name: &str) -> Result<String> {
+        let conn = self.conn.lock().unwrap();
+        let id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO playlists (id, name) VALUES (?1, ?2)",
+            params![id, name],
+        )?;
+        Ok(id)
+    }
+
+    pub fn delete_playlist(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM playlists WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn rename_playlist(&self, id: &str, new_name: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE playlists SET name = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+            params![new_name, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_playlists(&self) -> Result<Vec<DbPlaylist>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT id, name, created_at, updated_at FROM playlists ORDER BY name")?;
+
+        let playlist_iter = stmt.query_map([], |row| {
+            // Handle timestamps as strings for now, or use chrono if added later
+            let created_at: String = row.get(2).unwrap_or_default();
+            let updated_at: String = row.get(3).unwrap_or_default();
+
+            Ok(DbPlaylist {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                created_at,
+                updated_at,
+            })
+        })?;
+
+        let mut playlists = Vec::new();
+        for playlist in playlist_iter {
+            playlists.push(playlist?);
+        }
+        Ok(playlists)
+    }
+
+    pub fn add_track_to_playlist(&self, playlist_id: &str, track_path: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        // Get current max position
+        let max_pos: Option<i32> = conn
+            .query_row(
+                "SELECT MAX(position) FROM playlist_tracks WHERE playlist_id = ?1",
+                params![playlist_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(None);
+
+        let new_pos = max_pos.unwrap_or(-1) + 1;
+
+        conn.execute(
+            "INSERT INTO playlist_tracks (playlist_id, track_path, position) VALUES (?1, ?2, ?3)",
+            params![playlist_id, track_path, new_pos],
+        )?;
+        // Update playlist timestamp
+        conn.execute(
+            "UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            params![playlist_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_track_from_playlist(
+        &self,
+        playlist_id: &str,
+        playlist_track_id: i64,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM playlist_tracks WHERE id = ?1 AND playlist_id = ?2",
+            params![playlist_track_id, playlist_id],
+        )?;
+        // Update playlist timestamp
+        conn.execute(
+            "UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            params![playlist_id],
+        )?;
+        Ok(())
+    }
+
+    // Simple reorder: just update position of one item (swap logic might be needed in frontend or complex here)
+    // Actually, simple way is to delete and re-insert or update one.
+    // Better: update position. But dealing with shifting other items is tricky in simple SQL without a transaction block handling it.
+    // For MVP: Let's assume we might implement full reorder later or just update position if we trust frontend sending right values.
+    // Let's implement a swap or simple update.
+    pub fn reorder_playlist_track(
+        &self,
+        _playlist_id: &str,
+        playlist_track_id: i64,
+        new_position: i32,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        // This is naive and might cause duplicates positions, but fine for MVP v1
+        conn.execute(
+            "UPDATE playlist_tracks SET position = ?1 WHERE id = ?2",
+            params![new_position, playlist_track_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_playlist_tracks(&self, playlist_id: &str) -> Result<Vec<TrackInfo>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+             t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en, pt.id as playlist_track_id
+             FROM playlist_tracks pt
+             LEFT JOIN tracks t ON pt.track_path = t.path
+             LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
+             WHERE pt.playlist_id = ?1
+             ORDER BY pt.position"
+        )?;
+
+        let track_iter = stmt.query_map(params![playlist_id], |row| {
+            let cover_filename: Option<String> = row.get(5)?;
+            // check if track exists (t.path not null). If null, maybe file deleted but still in playlist.
+            // Row.get(0) will fail if null? No, Option<String> works.
+            let path: Option<String> = row.get(0).ok();
+
+            if let Some(p) = path {
+                Ok(TrackInfo {
+                    path: p,
+                    title: row.get(1)?,
+                    artist: row.get(2)?,
+                    album: row.get(3)?,
+                    duration_secs: row.get(4)?,
+                    cover_image: cover_filename,
+                    disc_number: row.get(6).unwrap_or(None),
+                    track_number: row.get(7).unwrap_or(None),
+                    title_romaji: row.get(8).unwrap_or(None),
+                    title_en: row.get(9).unwrap_or(None),
+                    artist_romaji: row.get(10).unwrap_or(None),
+                    artist_en: row.get(11).unwrap_or(None),
+                    album_romaji: row.get(12).unwrap_or(None),
+                    album_en: row.get(13).unwrap_or(None),
+                    playlist_track_id: Some(row.get(14)?),
+                })
+            } else {
+                // Return dummy or empty track for missing file?
+                // Or error out?
+                // Let's return a special 'Missing' track info or just valid struct with 'Unknown'
+                Ok(TrackInfo {
+                    path: "MISSING".to_string(),
+                    title: "Unknown Track".to_string(),
+                    artist: "Unknown".to_string(),
+                    album: "Unknown".to_string(),
+                    duration_secs: 0.0,
+                    cover_image: None,
+                    disc_number: None,
+                    track_number: None,
+                    title_romaji: None,
+                    title_en: None,
+                    artist_romaji: None,
+                    artist_en: None,
+                    album_romaji: None,
+                    album_en: None,
+                    playlist_track_id: Some(row.get(14)?),
+                })
+            }
+        })?;
+
+        let mut tracks = Vec::new();
+        for track in track_iter {
+            let t = track?;
+            if t.path != "MISSING" {
+                tracks.push(t);
+            }
+        }
+        Ok(tracks)
+    }
+}
+
+#[derive(Serialize)]
+pub struct DbPlaylist {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Serialize)]
+pub struct DbPlaylistTrack {
+    pub id: i64,
+    pub playlist_id: String,
+    pub track_path: String,
+    pub position: i32,
+    pub added_at: String,
 }

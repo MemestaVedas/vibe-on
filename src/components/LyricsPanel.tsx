@@ -236,7 +236,7 @@ export function LyricsPanel() {
                     <div
                         ref={containerRef}
                         onScroll={handleScroll}
-                        className="h-[calc(100%-72px)] overflow-y-auto px-6 py-8 no-scrollbar"
+                        className="h-[calc(100%-72px)] overflow-y-auto px-6 py-8 no-scrollbar ignore-context-close"
                     >
                         {isLoading && (
                             <div className="flex flex-col items-center justify-center h-full gap-4">

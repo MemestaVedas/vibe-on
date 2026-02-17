@@ -35,6 +35,25 @@ CREATE TABLE IF NOT EXISTS unreleased_tracks (
     content_type TEXT NOT NULL,
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS playlists (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    playlist_id TEXT NOT NULL,
+    track_path TEXT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    position INTEGER NOT NULL,
+    FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist_id ON playlist_tracks(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_tracks_position ON playlist_tracks(position);
 "#;
 
 pub fn init_db(conn: &Connection) -> Result<()> {

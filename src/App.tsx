@@ -31,6 +31,7 @@ import { StatisticsPage } from './components/StatisticsPage';
 const YouTubeMusic = lazy(() => import('./components/YouTubeMusic').then(m => ({ default: m.YouTubeMusic })));
 const TorrentManager = lazy(() => import('./components/TorrentManager').then(m => ({ default: m.TorrentManager })));
 import { ImmersiveView } from './components/ImmersiveView';
+import { PlaylistView } from './components/PlaylistView';
 
 
 import { useNavigationStore } from './store/navigationStore';
@@ -296,6 +297,7 @@ function App() {
               {view === 'albums' && <AlbumGrid />}
               {view === 'artists' && <ArtistList />}
               {view === 'favorites' && <FavoritesView />}
+              {view === 'playlist' && <PlaylistView />}
               <Suspense fallback={<div className="flex-1 flex items-center justify-center text-on-surface-variant/50"><div className="animate-pulse">Loading...</div></div>}>
                 {view === 'statistics' && <StatisticsPage />}
                 {view === 'settings' && <SettingsPage />}
@@ -340,6 +342,12 @@ function App() {
       <AnimatePresence>
         {immersiveMode && (
           <ImmersiveView />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEq && (
+          <Equalizer />
         )}
       </AnimatePresence>
 

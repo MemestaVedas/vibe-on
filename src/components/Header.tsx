@@ -1,7 +1,8 @@
+import type { AppView } from '../types';
 
 interface HeaderProps {
-    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents';
-    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents') => void;
+    view: AppView;
+    onViewChange: (view: AppView) => void;
 }
 
 export function Header({ view }: HeaderProps) {
@@ -23,7 +24,7 @@ export function Header({ view }: HeaderProps) {
 
     // For settings/ytmusic, just show title
     // Statistics and Favorites have their own large headers, so hide this one
-    if (view === 'statistics' || view === 'favorites') {
+    if (view === 'statistics' || view === 'favorites' || view === 'playlist') {
         return <header data-tauri-drag-region className="h-4"></header>;
     }
 

@@ -103,7 +103,7 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
             <Virtuoso
                 ref={virtuosoRef}
                 data={lines || []}
-                className="no-scrollbar h-full fade-mask-y"
+                className="no-scrollbar h-full fade-mask-y ignore-context-close"
                 followOutput={(isAtBottom) => {
                     if (isUserScrolling.current) return false;
                     return isAtBottom ? 'smooth' : false
@@ -136,7 +136,7 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
             <Virtuoso
                 ref={virtuosoRef}
                 data={lines || []}
-                className="no-scrollbar h-full"
+                className="no-scrollbar h-full ignore-context-close"
                 // Detect scroll to pause auto-scroll temporarily could be implemented via onScroll
                 // For now, simpler auto-scroll is sufficient as Virtuoso handles it well
                 isScrolling={(isScrolling) => {

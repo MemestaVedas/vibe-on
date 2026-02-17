@@ -1,12 +1,14 @@
 import { useState, useMemo, forwardRef } from 'react';
 import { VirtuosoGrid, Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
+import { useThemeStore } from '../store/themeStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { IconMusicNote, IconPlay, IconAlbum } from './Icons';
 import { motion } from 'framer-motion';
+import { ContextMenu } from './ContextMenu';
 
 
 interface Album {
@@ -248,8 +250,19 @@ type DisplayItem =
 
 function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }) {
     const { playQueue } = usePlayerStore();
+    const { displayLanguage } = useThemeStore();
     const coverUrl = useCoverArt(album.cover);
     const [showStickyHeader, setShowStickyHeader] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
+
+    const handleContextMenu = (e: React.MouseEvent, track: TrackDisplay) => {
+        e.preventDefault();
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            track
+        });
+    };
 
     // Prepare sorted tracks and inject headers
     const displayItems = useMemo<DisplayItem[]>(() => {
@@ -343,6 +356,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                     const target = e.currentTarget as HTMLElement;
                     setShowStickyHeader(target.scrollTop > 300);
                 }}
+                context={{ displayLanguage }}
                 components={{
                     Header: () => (
                         <div className="p-8 pb-4 flex gap-8 items-end bg-surface-container-low shrink-0 mb-2">
@@ -383,7 +397,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                     ),
                     Footer: () => <div className="h-32"></div>
                 }}
-                itemContent={(_i, item) => {
+                itemContent={(_i, item, { displayLanguage }) => {
                     if (item.type === 'header') {
                         return (
                             <div className="flex items-center gap-4 py-4 px-6 mt-2">
@@ -406,10 +420,13 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                                     const index = sortedTracks.indexOf(item.track);
                                     playQueue(sortedTracks, index);
                                 }}
+                                onContextMenu={(e) => handleContextMenu(e, item.track)}
                                 className="group flex items-center gap-6 p-3 rounded-xl hover:bg-surface-container-highest cursor-pointer text-on-surface-variant hover:text-on-surface transition-colors"
                             >
                                 <span className="w-8 text-center text-title-medium font-medium opacity-60 group-hover:opacity-100">{item.track.track_number || (item.index)}</span>
-                                <span className="flex-1 font-medium text-body-large truncate">{item.track.title}</span>
+                                <span className="flex-1 font-medium text-body-large truncate">
+                                    {getDisplayText(item.track, 'title', displayLanguage)}
+                                </span>
                                 <span className="text-label-large font-medium opacity-60 tabular-nums">
                                     {Math.floor(item.track.duration_secs / 60)}:
                                     {Math.floor(item.track.duration_secs % 60).toString().padStart(2, '0')}
@@ -419,6 +436,14 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                     );
                 }}
             />
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    track={contextMenu.track}
+                    onClose={() => setContextMenu(null)}
+                />
+            )}
         </div>
     );
 }

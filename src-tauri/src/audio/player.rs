@@ -27,7 +27,7 @@ pub enum AudioCommand {
     Load(String),  // Load metadata only
     GetStatus(Sender<PlayerStatus>),
     Shutdown,
-    SetEq(usize, f32), // band_index, gain_db
+    SetEq(usize, f32),  // band_index, gain_db
     SetEqAll(Vec<f32>), // All band gains at once
     SetSpeed(f32),
     SetReverb(f32, f32), // mix (0-1), decay (0-1)
@@ -436,6 +436,7 @@ impl AudioThread {
                     artist_en: None,
                     album_romaji: None,
                     album_en: None,
+                    playlist_track_id: None,
                 };
             }
         };
@@ -484,6 +485,7 @@ impl AudioThread {
             artist_en: None,
             album_romaji: None,
             album_en: None,
+            playlist_track_id: None,
         }
     }
 

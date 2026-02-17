@@ -39,7 +39,9 @@ export interface ThemeColors {
 
 interface ThemeStore {
     colors: ThemeColors;
+    displayLanguage: 'original' | 'romaji' | 'en';
     setColors: (colors: ThemeColors) => void;
+    setDisplayLanguage: (lang: 'original' | 'romaji' | 'en') => void;
 }
 
 // Default Fallback (Signal Orange / Technical Brutalist)
@@ -78,5 +80,7 @@ const DEFAULT_THEME: ThemeColors = {
 
 export const useThemeStore = create<ThemeStore>((set) => ({
     colors: DEFAULT_THEME,
+    displayLanguage: 'romaji',
     setColors: (colors) => set({ colors }),
+    setDisplayLanguage: (lang) => set({ displayLanguage: lang }),
 }));

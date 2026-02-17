@@ -66,8 +66,21 @@ export interface UnreleasedTrack extends TrackInfo {
 }
 
 // Search filter for finding unreleased content
-export interface SearchFilter {
-  query: string;
+export interface UnreleasedSearchFilter {
   content_type?: ContentType;
   max_results?: number;
 }
+
+// Playlist interface matching Backend
+export interface Playlist {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlaylistTrack extends TrackInfo {
+  playlist_track_id: number;
+}
+
+export type AppView = 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents' | 'playlist';

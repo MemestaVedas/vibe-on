@@ -1,7 +1,10 @@
 import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
-import { motion } from 'framer-motion';
+import { usePlaylistStore } from '../store/playlistStore';
+import { useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { WavySeparator } from './WavySeparator';
+import type { AppView } from '../types';
 
 import {
     IconHome,
@@ -14,8 +17,8 @@ import {
 } from './Icons';
 
 interface SidebarProps {
-    view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents';
-    onViewChange: (view: 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents') => void;
+    view: AppView;
+    onViewChange: (view: AppView) => void;
 }
 
 const sidebarSpring = {
@@ -29,6 +32,16 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
     const { library } = usePlayerStore();
     const { isLeftSidebarCollapsed, toggleLeftSidebar } = useNavigationStore();
     const isCollapsed = isLeftSidebarCollapsed; // Alias for cleaner code below
+
+    useEffect(() => {
+        usePlaylistStore.getState().fetchPlaylists();
+    }, []);
+
+    const playlists = usePlaylistStore(state => state.playlists);
+    const recentlyAddedToPlaylist = usePlaylistStore(state => state.recentlyAddedToPlaylist);
+    // Use store hook for reactivity instead of getState in render
+    const currentView = useNavigationStore(state => state.view);
+    const activePlaylistId = useNavigationStore(state => state.activePlaylistId);
 
     return (
         <motion.aside
@@ -148,6 +161,44 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                     />
                 </div>
 
+                {/* Wavy Separator */}
+                {!isCollapsed && (
+                    <div className="px-2 mt-2">
+                        <WavySeparator label="" color="var(--md-sys-color-outline-variant)" />
+                    </div>
+                )}
+
+                {/* Playlists Section */}
+                <div className={`flex flex-col gap-1 mt-2 ${isCollapsed ? 'items-center w-full' : ''}`}>
+                    {!isCollapsed && (
+                        <div className="px-4 py-2 flex items-center justify-between">
+                            <span className="text-label-large text-on-surface-variant font-medium">Playlists</span>
+                            <button
+                                onClick={() => {
+                                    const name = prompt("Enter playlist name:");
+                                    if (name) usePlaylistStore.getState().createPlaylist(name);
+                                }}
+                                className="p-1 hover:bg-surface-container-high rounded-full text-on-surface-variant"
+                                title="Create Playlist"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
+                            </button>
+                        </div>
+                    )}
+
+                    {playlists.map(playlist => (
+                        <NavItem
+                            key={playlist.id}
+                            icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" /></svg>}
+                            label={playlist.name}
+                            active={currentView === 'playlist' && activePlaylistId === playlist.id}
+                            isGlowing={recentlyAddedToPlaylist === playlist.id}
+                            onClick={() => useNavigationStore.getState().navigateToPlaylist(playlist.id)}
+                            collapsed={isCollapsed}
+                        />
+                    ))}
+                </div>
+
             </nav>
 
             {/* Footer / Current Folder */}
@@ -166,6 +217,7 @@ function NavItem({
     onClick,
     count,
     collapsed,
+    isGlowing = false,
 }: {
     icon: React.ReactNode;
     label: string;
@@ -173,6 +225,7 @@ function NavItem({
     onClick?: () => void;
     count?: number;
     collapsed: boolean;
+    isGlowing?: boolean;
 }) {
     return (
         <button
@@ -183,7 +236,9 @@ function NavItem({
                 ${collapsed ? 'justify-center w-14 h-14 rounded-full' : 'w-full h-14 px-5 rounded-full gap-5'}
                 ${active
                     ? 'bg-secondary-container text-on-secondary-container font-semibold'
-                    : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                    : isGlowing
+                        ? 'text-primary font-bold'
+                        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
                 }
             `}
             title={collapsed ? label : undefined}
@@ -196,6 +251,33 @@ function NavItem({
                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                 />
             )}
+
+            {/* Glow Animation */}
+            {isGlowing && (
+                <motion.div
+                    layoutId="glowNavParams"
+                    className="absolute inset-0 rounded-full bg-primary/20 pointer-events-none"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                />
+            )}
+
+            {/* +1 Floating Animation */}
+            <AnimatePresence>
+                {isGlowing && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.5, x: 20 }}
+                        animate={{ opacity: 1, y: 0, scale: 1.2, x: 20 }}
+                        exit={{ opacity: 0, y: -20, scale: 0.8, x: 20 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        className="absolute right-8 top-4 z-50 text-primary font-bold text-title-medium pointer-events-none"
+                    >
+                        +1
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <span className="z-10 relative">{icon}</span>
 

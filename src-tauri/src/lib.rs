@@ -19,6 +19,7 @@ use audio::state::PlayerStatus;
 #[cfg(target_os = "windows")]
 use audio::MediaControlService;
 use audio::{AudioPlayer, MediaCmd, SearchFilter, TrackInfo, UnreleasedTrack};
+use crate::database::db::DbPlaylist;
 use database::DatabaseManager;
 use discord_rpc::DiscordRpc;
 use p2p::P2PManager;
@@ -757,6 +758,7 @@ fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8
             artist_en: None,
             album_romaji: None,
             album_en: None,
+            playlist_track_id: None,
         },
         cover_data,
     ))
@@ -845,6 +847,7 @@ fn get_track_metadata_helper_fast(path_str: &str) -> Result<TrackInfo, String> {
         artist_en: None,
         album_romaji: None,
         album_en: None,
+        playlist_track_id: None,
     })
 }
 
@@ -1638,6 +1641,117 @@ async fn get_p2p_peers(state: State<'_, AppState>) -> Result<Vec<p2p::discovery:
     }
 }
 
+// ============================================================================
+// Tauri Commands - Playlist Management
+// ============================================================================
+
+#[tauri::command]
+async fn create_playlist(
+    name: String,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<String, String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.create_playlist(&name).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn delete_playlist(
+    id: String,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.delete_playlist(&id).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn rename_playlist(
+    id: String,
+    new_name: String,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.rename_playlist(&id, &new_name).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn get_playlists(
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<Vec<DbPlaylist>, String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.get_playlists().map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn add_track_to_playlist(
+    playlist_id: String,
+    track_path: String,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.add_track_to_playlist(&playlist_id, &track_path).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn remove_track_from_playlist(
+    playlist_id: String,
+    playlist_track_id: i64,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.remove_track_from_playlist(&playlist_id, playlist_track_id).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn get_playlist_tracks(
+    playlist_id: String,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<Vec<TrackInfo>, String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.get_playlist_tracks(&playlist_id).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -1700,6 +1814,14 @@ pub fn run() {
             get_server_status,
             get_p2p_peers,
             get_local_ip,
+            // Playlist commands
+            create_playlist,
+            delete_playlist,
+            rename_playlist,
+            get_playlists,
+            add_track_to_playlist,
+            remove_track_from_playlist,
+            get_playlist_tracks,
         ])
         .setup(|_app| {
             // Initialize Windows Media Controls with the main window handle
@@ -1764,6 +1886,7 @@ pub fn run() {
                                 artist_en: t.get("artistEn").and_then(|v| v.as_str()).map(|s| s.to_string()),
                                 album_romaji: t.get("albumRomaji").and_then(|v| v.as_str()).map(|s| s.to_string()),
                                 album_en: t.get("albumEn").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                playlist_track_id: None,
                             })
                         }).collect();
                         

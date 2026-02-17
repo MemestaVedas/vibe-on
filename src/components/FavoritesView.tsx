@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { motion } from 'framer-motion';
+import { ContextMenu } from './ContextMenu';
+import type { TrackDisplay } from '../types';
+import { getDisplayText } from '../utils/textUtils';
 
 // ============================================================================
 // Icons
@@ -28,21 +32,17 @@ function IconPlay({ size = 24 }: { size?: number }) {
 // ============================================================================
 
 interface FavoriteTrackRowProps {
-    track: {
-        path: string;
-        title: string;
-        artist: string;
-        album: string;
-        duration_secs: number;
-        cover_url?: string;
-        cover_image?: string | null;
-    };
+    track: TrackDisplay;
     onPlay: () => void;
     onRemove: () => void;
+    onContextMenu: (e: React.MouseEvent) => void;
+    displayLanguage: 'original' | 'romaji' | 'en';
 }
 
-function FavoriteTrackRow({ track, onPlay, onRemove }: FavoriteTrackRowProps) {
+function FavoriteTrackRow({ track, onPlay, onRemove, onContextMenu, displayLanguage }: FavoriteTrackRowProps) {
     const coverArt = useCoverArt(track.cover_image);
+    const displayTitle = getDisplayText(track, 'title', displayLanguage);
+    const displayArtist = getDisplayText(track, 'artist', displayLanguage);
 
     const formatTime = (secs: number) => {
         const m = Math.floor(secs / 60);
@@ -57,6 +57,7 @@ function FavoriteTrackRow({ track, onPlay, onRemove }: FavoriteTrackRowProps) {
             exit={{ opacity: 0, x: 20 }}
             className="group flex items-center gap-4 p-3 rounded-2xl hover:bg-surface-container-highest transition-colors cursor-pointer"
             onClick={onPlay}
+            onContextMenu={onContextMenu}
         >
             {/* Cover Art */}
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-surface-container-high flex-shrink-0">
@@ -71,8 +72,8 @@ function FavoriteTrackRow({ track, onPlay, onRemove }: FavoriteTrackRowProps) {
 
             {/* Track Info */}
             <div className="flex-1 min-w-0">
-                <p className="text-body-large font-medium text-on-surface truncate">{track.title}</p>
-                <p className="text-body-medium text-on-surface-variant truncate">{track.artist}</p>
+                <p className="text-body-large font-medium text-on-surface truncate">{displayTitle}</p>
+                <p className="text-body-medium text-on-surface-variant truncate">{displayArtist}</p>
             </div>
 
             {/* Duration */}
@@ -107,11 +108,21 @@ function FavoriteTrackRow({ track, onPlay, onRemove }: FavoriteTrackRowProps) {
 }
 
 export function FavoritesView() {
-    const { library, favorites, toggleFavorite, playFile } = usePlayerStore();
+    const { library, favorites, toggleFavorite, playFile, displayLanguage } = usePlayerStore();
     const { colors } = useThemeStore();
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
 
     // Get favorite tracks from library
     const favoriteTracks = library.filter(track => favorites.has(track.path));
+
+    const handleContextMenu = (e: React.MouseEvent, track: any) => {
+        e.preventDefault();
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            track: track as TrackDisplay
+        });
+    };
 
     return (
         <div className="h-full flex flex-col">
@@ -143,6 +154,8 @@ export function FavoritesView() {
                                 track={track}
                                 onPlay={() => playFile(track.path)}
                                 onRemove={() => toggleFavorite(track.path)}
+                                onContextMenu={(e) => handleContextMenu(e, track)}
+                                displayLanguage={displayLanguage as 'original' | 'romaji' | 'en'}
                             />
                         ))}
                     </div>
@@ -158,6 +171,15 @@ export function FavoritesView() {
                     </div>
                 )}
             </div>
+
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    track={contextMenu.track}
+                    onClose={() => setContextMenu(null)}
+                />
+            )}
         </div>
     );
 }
