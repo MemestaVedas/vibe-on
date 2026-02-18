@@ -203,7 +203,8 @@ const ArtistItem = ({
     // Use the first track to resolve display name for the Artist
     const firstTrack = artist.tracks[0];
     const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
-    const coverUrl = useCoverArt(artist.cover);
+    const coverUrl = useCoverArt(artist.cover, firstTrack?.path);
+    // console.log(`[ArtistItem] ${artist.name}: CoverRaw: ${artist.cover}, URL: ${coverUrl}`);
 
     return (
         <div
@@ -243,15 +244,14 @@ type DisplayItem =
 function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => void }) {
     const playQueue = usePlayerStore(state => state.playQueue);
     const displayLanguage = usePlayerStore(state => state.displayLanguage);
-    const coverUrl = useCoverArt(artist.cover);
+    const displayArtistName = getDisplayText(artist.tracks[0], 'artist', displayLanguage);
+    const coverUrl = useCoverArt(artist.cover, artist.tracks[0]?.path);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showStickyHeader, setShowStickyHeader] = useState(false);
     const [scroller, setScroller] = useState<HTMLElement | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
 
-    // Get localized artist name
-    const displayArtistName = getDisplayText(artist.tracks[0], 'artist', displayLanguage);
 
     const handleContextMenu = (e: React.MouseEvent, track: TrackDisplay) => {
         e.preventDefault();
@@ -480,7 +480,7 @@ function AlbumSidebarItem({
     displayLanguage: any,
     onClick: () => void
 }) {
-    const coverUrl = useCoverArt(cover);
+    const coverUrl = useCoverArt(cover, firstTrack?.path);
     const displayName = getDisplayText(firstTrack, 'album', displayLanguage);
 
     return (

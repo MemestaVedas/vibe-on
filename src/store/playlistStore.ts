@@ -7,7 +7,10 @@ interface PlaylistState {
     currentPlaylistTracks: PlaylistTrack[];
     isLoading: boolean;
     error: string | null;
-    recentlyAddedToPlaylist: string | null;
+    isCreateDialogOpen: boolean;
+    pendingTrackToAdd: string | null;
+    openCreateDialog: (trackPath?: string) => void;
+    closeCreateDialog: () => void;
 
     fetchPlaylists: () => Promise<void>;
     createPlaylist: (name: string) => Promise<string | null>;
@@ -25,6 +28,11 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
     isLoading: false,
     error: null,
     recentlyAddedToPlaylist: null,
+
+    isCreateDialogOpen: false,
+    pendingTrackToAdd: null,
+    openCreateDialog: (trackPath) => set({ isCreateDialogOpen: true, pendingTrackToAdd: trackPath || null }),
+    closeCreateDialog: () => set({ isCreateDialogOpen: false, pendingTrackToAdd: null }),
 
     fetchPlaylists: async () => {
         set({ isLoading: true, error: null });

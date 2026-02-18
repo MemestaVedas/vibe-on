@@ -34,7 +34,8 @@ const TrackRow = memo(function TrackRow({ track, index, isActive, isPlaying, onC
     onClick: () => void,
     onContextMenu: (e: React.MouseEvent) => void
 }) {
-    const coverUrl = useCoverArt(track.cover_image);
+    const coverUrl = useCoverArt(track.cover_image, track.path);
+    // console.log(`[TrackRow] ${track.title}: CoverRaw: ${track.cover_image}, URL: ${coverUrl}`);
     const isFavorite = usePlayerStore(state => state.isFavorite(track.path));
     const toggleFavorite = usePlayerStore(state => state.toggleFavorite);
     const addToQueue = usePlayerStore(state => state.addToQueue);

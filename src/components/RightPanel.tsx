@@ -58,7 +58,8 @@ export function RightPanel() {
 
     // Cover art — robust matching for 3rd column
     const trackCover = useCurrentCover();
-    const coverUrl = useCoverArt(trackCover || trackCoverRaw);
+    const coverUrl = useCoverArt(trackCover || trackCoverRaw, trackPath || undefined);
+    // console.log(`[RightPanel] Track: ${trackPath}, CoverRaw: ${trackCoverRaw}, URL: ${coverUrl}`);
 
     // Determine what to show in the bottom section
     const hasContent = (lines && lines.length > 0) || (plainLyrics && plainLyrics.trim().length > 0);
@@ -438,7 +439,7 @@ export const QueueItem = memo(function QueueItem({ track, isActive, onClick, dis
     onClick?: () => void;
     displayLanguage: any;
 }) {
-    const coverUrl = useCoverArt(track.cover_image);
+    const coverUrl = useCoverArt(track.cover_image, track.path);
     const displayTitle = getDisplayText(track, 'title', displayLanguage);
     const displayArtist = getDisplayText(track, 'artist', displayLanguage);
 

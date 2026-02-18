@@ -55,6 +55,7 @@ const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback:
                 </clipPath>
             </defs>
             {src ? (
+                console.log('[M3RoundedSquareImage] Rendering src:', src) ||
                 <image href={src} x="0" y="0" width="320" height="320" preserveAspectRatio="xMidYMid slice" clipPath={`url(#${uniqueId})`} />
             ) : (
                 <g clipPath={`url(#${uniqueId})`}>
@@ -213,6 +214,7 @@ const AlbumItem = ({
     const displayAlbumName = getDisplayText(firstTrack, 'album', displayLanguage);
     const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
     const coverUrl = useCoverArt(album.cover, firstTrack?.path);
+    console.log(`[AlbumItem] ${album.name}: coverRaw=${album.cover}, url=${coverUrl}`);
 
     return (
         <div

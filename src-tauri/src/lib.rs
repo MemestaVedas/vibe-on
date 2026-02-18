@@ -483,6 +483,7 @@ async fn init_library(
 ) -> Result<Vec<TrackInfo>, String> {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use rayon::prelude::*;
+    use tauri::Emitter; // Ensure Emitter trait is in scope for .emit()
     
     // 1. Init DB if needed
     get_or_init_db(&state, &app_handle)?;
@@ -569,6 +570,10 @@ async fn init_library(
             let count = processed.fetch_add(1, Ordering::Relaxed) + 1;
             if count % 100 == 0 || count == total {
                 println!("[Library] Processed {}/{} files...", count, total);
+                let _ = app_handle.emit("library-scan-progress", serde_json::json!({
+                    "processed": count,
+                    "total": total
+                }));
             }
             
             // Extract metadata WITHOUT cover art (much faster)

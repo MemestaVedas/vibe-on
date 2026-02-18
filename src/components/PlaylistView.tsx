@@ -23,7 +23,7 @@ const PlaylistTrackRow = memo(function PlaylistTrackRow({ track, index, isActive
     onClick: () => void,
     onRemove: (e: React.MouseEvent) => void
 }) {
-    const coverUrl = useCoverArt(track.cover_image);
+    const coverUrl = useCoverArt(track.cover_image, track.path);
     const displayLanguage = usePlayerStore(state => state.displayLanguage);
 
     const displayTitle = getDisplayText(track, 'title', displayLanguage);

@@ -14,28 +14,40 @@ export function useCoverArt(coverPathRaw: string | null | undefined, trackPath?:
     const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     useEffect(() => {
+        // console.log('[useCoverArt] Input:', { coverPath, trackPath, coversDir });
+
         // If we have a direct HTTP URL, use it
-        if (coverPath?.startsWith('http')) {
+        if (coverPath?.startsWith('http') && !coverPath.includes('asset.localhost')) {
+            // console.log('[useCoverArt] Using direct HTTP URL:', coverPath);
             setImageUrl(coverPath);
             return;
         }
 
-        // If we have a local cover path, use it via Tauri asset protocol
+        // PRIORITIZE BACKEND SERVER (Port 5000) for Cached Filenames
+        // If we have a cached cover filename (no slashes), serve it directly from backend.
+        if (coverPath && !coverPath.includes('/')) {
+            const encodedCover = encodeURIComponent(coverPath);
+            // console.log('[useCoverArt] Using cached filename via backend:', coverPath);
+            setImageUrl(`http://localhost:5000/cover/${encodedCover}`);
+            return;
+        }
+
+        // If we have a track path, use the backend server to fetch the cover.
+        if (trackPath) {
+            const encodedPath = encodeURIComponent(trackPath);
+            const url = `http://localhost:5000/cover/${encodedPath}`;
+            setImageUrl(url);
+            return;
+        }
+
+        // Fallback: If no track path but we have a local cover path (e.g. legacy/manual usage)
+        // This likely still fails if asset protocol is broken, but we keep it just in case.
         if (coverPath && coversDir) {
             // Handle absolute vs relative paths
             const isAbsolute = coverPath.includes(':') || coverPath.startsWith('/');
             const path = (isAbsolute ? coverPath : `${coversDir}/${coverPath}`).replace(/\\/g, '/');
             const assetUrl = convertFileSrc(path);
             setImageUrl(assetUrl);
-            return;
-        }
-
-        // Fallback: If no local cover but we have track path, use server URL (which triggers extraction)
-        if (!coverPath && trackPath) {
-            // Use localhost:5000 to fetch cover (triggers lazy extraction in backend)
-            const encodedPath = encodeURIComponent(trackPath);
-            // Add timestamp to prevent aggressive browser caching if needed, but backend sends cache-control
-            setImageUrl(`http://localhost:5000/cover/${encodedPath}`);
             return;
         }
 

@@ -4,14 +4,18 @@ import { useCurrentCover } from '../hooks/useCurrentCover';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useImageColors } from '../hooks/useImageColors';
 import { useThemeStore } from '../store/themeStore';
+import { usePlayerStore } from '../store/playerStore';
 
 export function ThemeManager() {
     // Only subscribe to the current track's cover — NOT the entire library
     const coverImage = useCurrentCover();
     const setColors = useThemeStore(s => s.setColors);
 
+    // Get track for fallback URL generation
+    const track = usePlayerStore(s => s.status.track);
+
     // Get cover URL from the tiny thumbnail cache
-    const coverUrl = useCoverArt(coverImage);
+    const coverUrl = useCoverArt(coverImage, track?.path);
 
     // Extract colors using M3 Logic (results are cached by imageUrl)
     const colors = useImageColors(coverUrl);

@@ -51,7 +51,7 @@ export function ImmersiveView() {
 
     // Use memoized library lookup with fallback for Immersive View
     const currentCover = useCurrentCover();
-    const coverUrl = useCoverArt(currentCover || activeTrack?.cover_image || activeTrack?.cover_url);
+    const coverUrl = useCoverArt(currentCover || activeTrack?.cover_image || activeTrack?.cover_url, activeTrack?.path);
 
     // Find full track info from library for Romaji
     const displayTrack = useMemo(() => {
@@ -376,7 +376,7 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
                                     </span>
 
                                     <div className={`w-14 h-14 rounded-full overflow-hidden flex-shrink-0 border-2 ${isActive ? 'border-white/40' : 'border-white/5'}`}>
-                                        <QueueThumb cover={track.cover_image} />
+                                        <QueueThumb cover={track.cover_image} path={track.path} />
                                     </div>
 
                                     <div className="flex-1 min-w-0 px-3">
@@ -407,8 +407,8 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
     );
 }
 
-function QueueThumb({ cover }: { cover: string | null }) {
-    const url = useCoverArt(cover);
+function QueueThumb({ cover, path }: { cover: string | null, path: string }) {
+    const url = useCoverArt(cover, path);
     if (!url) return <div className="w-full h-full flex items-center justify-center"><IconMusicNote size={16} className="opacity-20" /></div>;
     return <img src={url} className="w-full h-full object-cover" />;
 }

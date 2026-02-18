@@ -162,12 +162,8 @@ export function ContextMenu({ x, y, track, onClose }: ContextMenuProps) {
                             ))}
                             <button
                                 onClick={() => {
-                                    const name = prompt("New playlist name:");
-                                    if (name) {
-                                        usePlaylistStore.getState().createPlaylist(name).then(id => {
-                                            if (id) handleAddToPlaylist(id);
-                                        });
-                                    }
+                                    usePlaylistStore.getState().openCreateDialog(track.path);
+                                    onClose();
                                 }}
                                 className="w-full flex items-center gap-3 px-4 py-3 text-label-large text-primary hover:bg-surface-container-highest transition-colors text-left font-medium border-t border-outline-variant/10"
                             >

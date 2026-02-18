@@ -40,7 +40,7 @@ interface FavoriteTrackRowProps {
 }
 
 function FavoriteTrackRow({ track, onPlay, onRemove, onContextMenu, displayLanguage }: FavoriteTrackRowProps) {
-    const coverArt = useCoverArt(track.cover_image);
+    const coverArt = useCoverArt(track.cover_image, track.path);
     const displayTitle = getDisplayText(track, 'title', displayLanguage);
     const displayArtist = getDisplayText(track, 'artist', displayLanguage);
 

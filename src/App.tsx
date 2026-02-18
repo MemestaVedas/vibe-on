@@ -16,6 +16,8 @@ import { GlobalEffects } from './components/GlobalEffects';
 import { MiniPlayer } from './components/MiniPlayer';
 import { useNavigationStore } from './store/navigationStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useToastStore } from './store/toastStore';
+import { PlaylistDialog } from './components/PlaylistDialog';
 import { useMediaSession } from './hooks/useMediaSession';
 import { usePlayerStore } from './store/playerStore';
 import { AnimatePresence } from 'framer-motion';
@@ -70,8 +72,29 @@ function App() {
     syncAudioSettings();
     refreshStatus();
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    // Listen for library scan progress
+    const showToast = useToastStore.getState().showToast;
+
+    // Use type assertion for window to avoid TS errors with __TAURI__
+    const tauriWindow = window as any;
+    if (tauriWindow.__TAURI__) {
+      const unlistenProgress = tauriWindow.__TAURI__.event.listen('library-scan-progress', (event: any) => {
+        const { processed, total } = event.payload;
+        // Only show progress every 50 songs or when complete to avoid toast spam
+        if (processed % 50 === 0 || processed === total) {
+          showToast(`Library Scan: ${processed} / ${total}`);
+        }
+      });
+
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        unlistenProgress.then((f: any) => f());
+      };
+    } else {
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
   }, [loadLibrary, setRightPanelOpen, setLeftSidebarCollapsed, syncAudioSettings, refreshStatus]);
 
   const { expandedArtMode } = useSettingsStore();
@@ -92,6 +115,7 @@ function App() {
     <div>
       <GlobalEffects />
       <ThemeManager />
+      <PlaylistDialog />
       {expandedArtMode === 'background' && <AmbientBackground />}
       <TitleBar />
 

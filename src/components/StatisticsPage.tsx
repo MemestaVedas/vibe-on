@@ -74,7 +74,7 @@ function StatCard({ icon, label, value, startColor, endColor }: StatCardProps) {
 }
 
 function TopAlbumCard({ album, index }: { album: any, index: number }) {
-    const coverUrl = useCoverArt(album.coverPath);
+    const coverUrl = useCoverArt(album.coverPath, album.trackPath);
 
     return (
         <div className="flex items-center gap-4 bg-surface-container-low p-3 rounded-2xl relative overflow-hidden group">
@@ -119,7 +119,7 @@ export function StatisticsPage() {
     // Calculate statistics from playCounts (persistent) rather than history (recent only)
     const stats = useMemo(() => {
         const artistPlayCounts = new Map<string, number>();
-        const albumPlayCounts = new Map<string, { title: string; artist: string; playCount: number; coverPath?: string | null }>();
+        const albumPlayCounts = new Map<string, { title: string; artist: string; playCount: number; coverPath?: string | null; trackPath?: string }>();
         let totalPlayTime = 0;
         let totalPlays = 0;
 
@@ -138,11 +138,18 @@ export function StatisticsPage() {
                 // Track album plays
                 if (track.album) {
                     const albumKey = `${track.album}-${track.artist}`;
-                    const currentAlbum = albumPlayCounts.get(albumKey) || { title: track.album, artist: track.artist, playCount: 0, coverPath: track.cover_image };
+                    const currentAlbum = albumPlayCounts.get(albumKey) || {
+                        title: track.album,
+                        artist: track.artist,
+                        playCount: 0,
+                        coverPath: track.cover_image,
+                        trackPath: track.path
+                    };
                     currentAlbum.playCount += count;
-                    // Update coverPath if it was null/undefined
+                    // Update coverPath/trackPath if it was null/undefined
                     if (!currentAlbum.coverPath && track.cover_image) {
                         currentAlbum.coverPath = track.cover_image;
+                        currentAlbum.trackPath = track.path;
                     }
                     albumPlayCounts.set(albumKey, currentAlbum);
                 }

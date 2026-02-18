@@ -705,10 +705,42 @@ pub async fn get_cover(
     State(state): State<Arc<ServerState>>,
     Path(path): Path<String>,
 ) -> Result<Response<Body>, StatusCode> {
-    let track_path = urlencoding::decode(&path).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
+    let path_arg = urlencoding::decode(&path).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
+    println!("[Server] get_cover request for path: {}", path_arg);
     
-    // Try to get cover from covers directory by looking up track info
     let app_state = state.app_state();
+    
+    // 1. Check if it's a direct filename request (cached cover)
+    // We do this inside a block to limit scope of db lock
+    let direct_file_path = {
+        let db_guard = app_state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if let Some(ref db) = *db_guard {
+            let covers_dir = db.get_covers_dir();
+            let potential_path = covers_dir.join(&path_arg);
+            if potential_path.exists() && potential_path.is_file() {
+                Some(potential_path)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some(path) = direct_file_path {
+        println!("[Server] Serving direct cover file: {:?}", path);
+        if let Ok(data) = tokio::fs::read(&path).await {
+            let content_type = if path.to_string_lossy().ends_with(".png") { "image/png" } else { "image/jpeg" };
+            return Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::CACHE_CONTROL, "public, max-age=86400")
+                .body(Body::from(data))
+                .unwrap());
+        }
+    }
+
+    // 2. Try to get cover from covers directory by looking up track info
     let cover_file_path = {
         let db_guard = app_state.db.lock()
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -717,13 +749,18 @@ pub async fn get_cover(
             let covers_dir = db.get_covers_dir();
             
             if let Ok(tracks) = db.get_all_tracks() {
-                if let Some(track) = tracks.iter().find(|t| t.path == track_path) {
+                if let Some(track) = tracks.iter().find(|t| t.path == path_arg) {
+                    println!("[Server] Found track in DB: {:?}", track.title);
                     if let Some(ref cover_filename) = track.cover_image {
-                        Some(covers_dir.join(cover_filename))
+                        let full_path = covers_dir.join(cover_filename);
+                        println!("[Server] Track has cover image: {:?} -> {:?}", cover_filename, full_path);
+                        Some(full_path)
                     } else {
+                        println!("[Server] Track has no cover image in DB");
                         None
                     }
                 } else {
+                    println!("[Server] Track not found in DB");
                     None
                 }
             } else {
@@ -737,6 +774,7 @@ pub async fn get_cover(
     // Try to read from cover file (after releasing lock)
     if let Some(cover_path) = cover_file_path {
         if let Ok(data) = tokio::fs::read(&cover_path).await {
+            println!("[Server] Successfully read cover file");
             let content_type = if cover_path.to_string_lossy().ends_with(".png") {
                 "image/png"
             } else {
@@ -749,12 +787,16 @@ pub async fn get_cover(
                 .header(header::CACHE_CONTROL, "public, max-age=86400")
                 .body(Body::from(data))
                 .unwrap());
+        } else {
+            println!("[Server] Failed to read cover file at {:?}", cover_path);
         }
     }
     
+    println!("[Server] Attempting to extract cover from audio file...");
     // Try to extract from audio file
-    match extract_cover_from_file(&track_path) {
+    match extract_cover_from_file(&path_arg) {
         Some((data, mime)) => {
+            println!("[Server] Successfully extracted cover!");
             // CACHE HIT: Save to disk and update DB
             let app_state = state.app_state();
             if let Ok(db_guard) = app_state.db.lock() {
@@ -767,12 +809,12 @@ pub async fn get_cover(
                     // Save to disk
                     if let Ok(mut file) = std::fs::File::create(&save_path) {
                         if std::io::Write::write_all(&mut file, &data).is_ok() {
-                            log::info!("💾 Cached cover for: {}", track_path);
+                            log::info!("💾 Cached cover for: {}", path_arg);
                             // Update DB
                             // We need to know album and artist to update. 
                             // extract_cover_from_file doesn't return metadata.
                             // However, we can look up the track in the DB to get album/artist.
-                            if let Ok(Some(track)) = db.get_track(&track_path) {
+                            if let Ok(Some(track)) = db.get_track(&path_arg) {
                                 let _ = db.update_album_cover(&track.album, &track.artist, &filename);
                             }
                         }
@@ -787,7 +829,10 @@ pub async fn get_cover(
                 .body(Body::from(data))
                 .unwrap())
         }
-        None => Err(StatusCode::NOT_FOUND),
+        None => {
+            println!("[Server] Failed to extract cover");
+            Err(StatusCode::NOT_FOUND)
+        },
     }
 }
 
