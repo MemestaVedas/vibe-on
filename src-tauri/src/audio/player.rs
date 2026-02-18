@@ -17,14 +17,14 @@ use std::sync::{Mutex, RwLock};
 
 /// Commands sent to the audio thread
 pub enum AudioCommand {
-    Play(String),
+    Play(TrackInfo),
     Pause,
     Resume,
     Stop,
     SetVolume(f32),
-    Seek(f64),     // New command
-    SetMute(bool), // Mute command
-    Load(String),  // Load metadata only
+    Seek(f64),       // New command
+    SetMute(bool),   // Mute command
+    Load(TrackInfo), // Load metadata only
     GetStatus(Sender<PlayerStatus>),
     Shutdown,
     SetEq(usize, f32),  // band_index, gain_db
@@ -81,14 +81,28 @@ impl AudioPlayer {
     }
 
     pub fn play_file(&self, path: &str) -> Result<(), String> {
+        self.play_track(TrackInfo {
+            path: path.to_string(),
+            ..TrackInfo::default()
+        })
+    }
+
+    pub fn play_track(&self, track: TrackInfo) -> Result<(), String> {
         self.command_tx
-            .send(AudioCommand::Play(path.to_string()))
+            .send(AudioCommand::Play(track))
             .map_err(|e| format!("Failed to send play command: {}", e))
     }
 
     pub fn load_file(&self, path: &str) -> Result<(), String> {
+        self.load_track(TrackInfo {
+            path: path.to_string(),
+            ..TrackInfo::default()
+        })
+    }
+
+    pub fn load_track(&self, track: TrackInfo) -> Result<(), String> {
         self.command_tx
-            .send(AudioCommand::Load(path.to_string()))
+            .send(AudioCommand::Load(track))
             .map_err(|e| format!("Failed to send load command: {}", e))
     }
 
@@ -255,11 +269,11 @@ impl AudioThread {
         loop {
             // Use timeout to allow polling for track completion
             match command_rx.recv_timeout(std::time::Duration::from_millis(100)) {
-                Ok(AudioCommand::Play(path)) => {
-                    audio.handle_play(&path, &stream_handle);
+                Ok(AudioCommand::Play(track)) => {
+                    audio.handle_play(track, &stream_handle);
                 }
-                Ok(AudioCommand::Load(path)) => {
-                    audio.handle_load(&path);
+                Ok(AudioCommand::Load(track)) => {
+                    audio.handle_load(track);
                 }
                 Ok(AudioCommand::Pause) => {
                     audio.handle_pause();
@@ -343,12 +357,13 @@ impl AudioThread {
         }
     }
 
-    fn handle_play(&mut self, path: &str, stream_handle: &Arc<rodio::OutputStreamHandle>) {
-        println!("[AudioThread] Handling play for path: '{}'", path);
+    fn handle_play(&mut self, track: TrackInfo, stream_handle: &Arc<rodio::OutputStreamHandle>) {
+        println!("[AudioThread] Handling play for track: '{}'", track.title);
         // Stop current playback
+        let path_str = track.path.clone();
         self.handle_stop();
 
-        let path = Path::new(path);
+        let path = Path::new(&path_str);
 
         // Open and decode the file
         let file = match File::open(path) {
@@ -368,8 +383,13 @@ impl AudioThread {
             }
         };
 
-        // Extract metadata
-        let track_info = self.extract_metadata(path);
+        // Extract metadata if needed (or combine)
+        let mut track_info = self.extract_metadata(path);
+
+        // If passed track has metadata, use it instead of extraction (which might be less complete/DB-cached)
+        if track.title != "Unknown" && !track.title.is_empty() {
+            track_info = track;
+        }
 
         // Create new sink and play
         let sink = match Sink::try_new(stream_handle) {
@@ -397,18 +417,23 @@ impl AudioThread {
         self.accumulated_time = 0.0;
     }
 
-    fn handle_load(&mut self, path: &str) {
-        println!("[AudioThread] Handling load for path: '{}'", path);
+    fn handle_load(&mut self, track: TrackInfo) {
+        println!("[AudioThread] Handling load for track: '{}'", track.title);
         // Stop current playback
+        let path_str = track.path.clone();
         self.handle_stop();
 
-        let path_obj = Path::new(path);
-        // Extract metadata
-        let track_info = self.extract_metadata(path_obj);
+        let path_obj = Path::new(&path_str);
+        // Extract metadata if needed
+        let mut track_info = self.extract_metadata(path_obj);
+
+        if track.title != "Unknown" && !track.title.is_empty() {
+            track_info = track;
+        }
 
         self.state = PlayerState::Paused; // Load starts in paused state
         self.current_track = Some(track_info);
-        self.current_path = Some(path.to_string());
+        self.current_path = Some(path_str);
         self.play_start_time = None;
         self.accumulated_time = 0.0;
     }

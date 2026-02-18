@@ -12,6 +12,7 @@ enum DiscordCommand {
         details: String,
         state: String,
         start_timestamp: Option<i64>,
+        end_timestamp: Option<i64>,
         image_url: Option<String>,
         album_name: Option<String>,
     },
@@ -71,6 +72,7 @@ impl DiscordRpc {
                         details,
                         state,
                         start_timestamp,
+                        end_timestamp,
                         image_url,
                         album_name,
                     } => {
@@ -88,7 +90,7 @@ impl DiscordRpc {
                                     album_name.as_deref().unwrap_or("Vibe Music Player"),
                                 );
                             } else {
-                                assets = assets.large_image("vibe_icon").large_text(
+                                assets = assets.large_image("logo_key").large_text(
                                     album_name.as_deref().unwrap_or("Vibe Music Player"),
                                 );
                             }
@@ -105,8 +107,14 @@ impl DiscordRpc {
                                 .assets(assets)
                                 .buttons(buttons);
 
-                            if let Some(start) = start_timestamp {
-                                let timestamps = activity::Timestamps::new().start(start);
+                            if start_timestamp.is_some() || end_timestamp.is_some() {
+                                let mut timestamps = activity::Timestamps::new();
+                                if let Some(start) = start_timestamp {
+                                    timestamps = timestamps.start(start);
+                                }
+                                if let Some(end) = end_timestamp {
+                                    timestamps = timestamps.end(end);
+                                }
                                 activity_payload = activity_payload.timestamps(timestamps);
                             }
 
@@ -144,6 +152,7 @@ impl DiscordRpc {
         details: &str,
         state: &str,
         start_timestamp: Option<i64>,
+        end_timestamp: Option<i64>,
         image_url: Option<String>,
         album_name: Option<String>,
     ) -> Result<(), String> {
@@ -152,6 +161,7 @@ impl DiscordRpc {
                 details: details.to_string(),
                 state: state.to_string(),
                 start_timestamp,
+                end_timestamp,
                 image_url,
                 album_name,
             })

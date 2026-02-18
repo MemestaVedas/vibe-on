@@ -112,11 +112,25 @@ async fn play_file(
 ) -> Result<(), String> {
     get_or_init_player(&state)?;
 
+    // Get track info from DB first so we can pass enriched metadata to the player
+    let track_info = {
+        let db_guard = state.db.lock().unwrap();
+        if let Some(ref db) = *db_guard {
+            db.get_track(&path).unwrap_or(None)
+        } else {
+            None
+        }
+    };
+
     // CRITICAL: Start audio playback IMMEDIATELY for responsiveness
     {
         let player_guard = state.player.lock().unwrap();
         if let Some(ref player) = *player_guard {
-            player.play_file(&path)?;
+            let track_to_play = track_info.clone().unwrap_or_else(|| TrackInfo {
+                path: path.clone(),
+                ..TrackInfo::default()
+            });
+            player.play_track(track_to_play)?;
         } else {
             return Err("Player not initialized".to_string());
         }
@@ -157,11 +171,12 @@ async fn play_file(
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs() as i64;
-
+            let end = now + info.duration_secs as i64;
             let _ = discord.set_activity(
                 &info.title,
                 &info.artist,
                 Some(now),
+                Some(end),
                 None,
                 Some(info.album.clone()),
             );
@@ -245,6 +260,7 @@ async fn play_file(
             let artist = info.artist.clone();
             let album = info.album.clone();
             let title = info.title.clone();
+            let duration = info.duration_secs;
 
             std::thread::spawn(move || {
                 println!("[Cover] Searching for: {} - {}", artist, album);
@@ -258,10 +274,12 @@ async fn play_file(
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs() as i64;
+                    let end = now + duration as i64;
                     let _ = discord_clone.set_activity(
                         &title,
                         &artist,
                         Some(now),
+                        Some(end),
                         Some(url),
                         Some(album),
                     );
@@ -276,7 +294,7 @@ async fn play_file(
                 .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or("Unknown Track");
-            let _ = discord.set_activity(filename, "Listening", None, None, None);
+            let _ = discord.set_activity(filename, "Listening", None, None, None, None);
         }
     });
 
@@ -295,13 +313,14 @@ fn pause(state: State<AppState>) -> Result<(), String> {
                 &format!("(Paused) {}", track.title),
                 &track.artist,
                 None,
+                None,
                 cover_url,
                 Some(track.album),
             );
         } else {
             let _ = state
                 .discord
-                .set_activity("Paused", "Vibe Music Player", None, None, None);
+                .set_activity("Paused", "Vibe Music Player", None, None, None, None);
         }
 
         // Update Windows Media Controls
@@ -336,10 +355,12 @@ fn resume(state: State<AppState>) -> Result<(), String> {
             let position = status.position_secs as i64;
             let start = now - position;
 
+            let end = now + (track.duration_secs as i64 - position);
             let _ = state.discord.set_activity(
                 &track.title,
                 &track.artist,
                 Some(start),
+                Some(end),
                 cover_url,
                 Some(track.album),
             );
@@ -1398,19 +1419,27 @@ fn update_yt_status(
     }
 
     if should_update {
+        let start_time = if status.is_playing {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+            Some(now - status.progress as i64)
+        } else {
+            None
+        };
+
+        let end_time = if status.is_playing {
+            start_time.map(|s| s + status.duration as i64)
+        } else {
+            None
+        };
+
         let _ = state.discord.set_activity(
             &status.title,
             &status.artist,
-            if status.is_playing {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64;
-                let start = now - status.progress as i64;
-                Some(start)
-            } else {
-                None
-            },
+            start_time,
+            end_time,
             if status.cover_url.is_empty() {
                 None
             } else {

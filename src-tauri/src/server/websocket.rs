@@ -103,6 +103,12 @@ pub enum ServerMessage {
         album: String,
         duration: f64,
         cover_url: Option<String>,
+        title_romaji: Option<String>,
+        title_en: Option<String>,
+        artist_romaji: Option<String>,
+        artist_en: Option<String>,
+        album_romaji: Option<String>,
+        album_en: Option<String>,
         is_playing: bool,
         position: f64,
         timestamp: u64,
@@ -193,9 +199,13 @@ impl From<ServerEvent> for ServerMessage {
     fn from(event: ServerEvent) -> Self {
         match event {
             ServerEvent::MediaSession {
-                track_id, title, artist, album, duration, cover_url, is_playing, position, timestamp
+                track_id, title, artist, album, duration, cover_url, 
+                title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+                is_playing, position, timestamp
             } => ServerMessage::MediaSession {
-                track_id, title, artist, album, duration, cover_url, is_playing, position, timestamp
+                track_id, title, artist, album, duration, cover_url, 
+                title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+                is_playing, position, timestamp
             },
             ServerEvent::PositionUpdate { position, timestamp: _ } => {
                 // Map to PlaybackState for mobile
@@ -732,7 +742,7 @@ async fn handle_client_message(
                                 let sample = (position * 44100.0) as u64;
                                 let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
                                 let port = state.config.port;
-                                let encoded_path = urlencoding::encode(&track.path).to_string();
+                                let encoded_path = urlencoding::encode(track.cover_image.as_deref().unwrap_or(&track.path)).to_string();
                                 let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
                                 (Some(track.path), sample, url)
                             }
@@ -800,7 +810,7 @@ async fn handle_client_message(
                                 let position = status.position_secs;
                                 let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
                                 let port = state.config.port;
-                                let encoded_path = urlencoding::encode(&track.path).to_string();
+                                let encoded_path = urlencoding::encode(track.cover_image.as_deref().unwrap_or(&track.path)).to_string();
                                 let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
                                 (Some(track.path), position, url)
                             }
@@ -944,7 +954,7 @@ async fn handle_client_message(
             let tracks = if let Ok(db_guard) = app_state.db.lock() {
                 if let Some(ref db) = *db_guard {
                     if let Ok(all_tracks) = db.get_all_tracks() {
-                         all_tracks.into_iter().map(|t| super::routes::TrackDetail {
+                        all_tracks.into_iter().map(|t| super::routes::TrackDetail {
                             path: t.path.clone(),
                             title: t.title,
                             artist: t.artist,
@@ -952,7 +962,13 @@ async fn handle_client_message(
                             duration_secs: t.duration_secs,
                             disc_number: t.disc_number,
                             track_number: t.track_number,
-                            cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+                            cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                            title_romaji: t.title_romaji,
+                            title_en: t.title_en,
+                            artist_romaji: t.artist_romaji,
+                            artist_en: t.artist_en,
+                            album_romaji: t.album_romaji,
+                            album_en: t.album_en,
                         }).collect()
                     } else {
                         Vec::new()
@@ -1008,79 +1024,18 @@ async fn send_current_status_internal(
     app_state: &tauri::State<'_, crate::AppState>,
     reply_tx: &tokio::sync::mpsc::Sender<ServerMessage>,
 ) {
-    let (track_id, title, artist, album, duration, cover_url, is_playing, position, volume) = {
-        if let Ok(player_guard) = app_state.player.lock() {
-            if let Some(ref player) = *player_guard {
-                let status = player.get_status();
-                let is_playing = status.state == crate::audio::PlayerState::Playing;
-                let position = status.position_secs;
-                let volume = status.volume;
-                
-                if let Some(ref track) = status.track {
-                    (
-                        track.path.clone(),
-                        track.title.clone(),
-                        track.artist.clone(),
-                        track.album.clone(),
-                        track.duration_secs,
-                        Some(format!("/cover/{}", urlencoding::encode(&track.path))),
-                        is_playing,
-                        position,
-                        volume,
-                    )
-                } else {
-                    ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, false, 0.0, volume)
-                }
-            } else {
-                ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, false, 0.0, 1.0)
-            }
-        } else {
-            ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, false, 0.0, 1.0)
-        }
-    };
-    
-    let active_output = state.active_output.read().await.clone();
-    
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
+    let (media_event, status_event) = get_player_state_events(state, app_state).await;
     
     // Send MediaSession message directly to client
-    let media_msg = ServerMessage::MediaSession {
-        track_id: track_id.clone(),
-        title: title.clone(),
-        artist: artist.clone(),
-        album: album.clone(),
-        duration,
-        cover_url: cover_url.clone(),
-        is_playing,
-        position,
-        timestamp,
-    };
+    let media_msg: ServerMessage = media_event.clone().into();
     let _ = reply_tx.send(media_msg).await;
     log::debug!("✅ Sent MediaSession to mobile client");
     
     // Also broadcast to all connected clients
-    state.broadcast(ServerEvent::MediaSession {
-        track_id,
-        title,
-        artist,
-        album,
-        duration,
-        cover_url,
-        is_playing,
-        position,
-        timestamp,
-    });
+    state.broadcast(media_event.clone());
     
     // Send Status message directly to client
-    let status_msg = ServerMessage::Status {
-        volume: volume as f64,
-        shuffle: *app_state.shuffle.lock().unwrap(),
-        repeat_mode: app_state.repeat_mode.lock().unwrap().clone(),
-        output: active_output.clone(),
-    };
+    let status_msg: ServerMessage = status_event.clone().into();
     let _ = reply_tx.send(status_msg).await;
     log::debug!("✅ Sent Status to mobile client");
 
@@ -1095,7 +1050,13 @@ async fn send_current_status_internal(
                 artist: t.artist.clone(),
                 album: t.album.clone(),
                 duration_secs: t.duration_secs,
-                cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+                cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                title_romaji: t.title_romaji.clone(),
+                title_en: t.title_en.clone(),
+                artist_romaji: t.artist_romaji.clone(),
+                artist_en: t.artist_en.clone(),
+                album_romaji: t.album_romaji.clone(),
+                album_en: t.album_en.clone(),
             }).collect(),
             current_index: index as i32,
         }
@@ -1105,13 +1066,8 @@ async fn send_current_status_internal(
     // Emit event to Tauri frontend to refresh UI
     let _ = state.app_handle.emit("refresh-player-state", ());
     
-    // Also broadcast to all connected clients
-    state.broadcast(ServerEvent::Status {
-        volume: volume as f64,
-        shuffle: *app_state.shuffle.lock().unwrap(),
-        repeat_mode: app_state.repeat_mode.lock().unwrap().clone(),
-        output: active_output,
-    });
+    // Also broadcast Status to all connected clients
+    state.broadcast(status_event);
 }
 
 /// Helper for starting playback of a track (desktop or mobile)
@@ -1126,28 +1082,33 @@ async fn play_track_internal(
         state.active_output.read().await.as_str() == "mobile"
     };
 
+    // Get track info from DB first so we can pass enriched metadata to the player
+    let track_info = {
+        let db_guard = app_state.db.lock().unwrap();
+        if let Some(ref db) = *db_guard {
+            db.get_track(&path).unwrap_or(None)
+        } else {
+            None
+        }
+    };
+
     if let Ok(mut player_guard) = app_state.player.lock() {
         if let Some(ref mut player) = *player_guard {
+            let track_to_play = track_info.clone().unwrap_or_else(|| crate::audio::TrackInfo {
+                path: path.clone(),
+                ..crate::audio::TrackInfo::default()
+            });
+
             if is_mobile {
-                let _ = player.load_file(&path);
+                let _ = player.load_track(track_to_play);
             } else {
-                let _ = player.play_file(&path);
+                let _ = player.play_track(track_to_play);
             }
         }
     }
     
     // Ensure queue is consistent (if empty, populate; if exists, update index)
     let should_broadcast = {
-        // Get track info from DB
-        let track_info = {
-            let db_guard = app_state.db.lock().unwrap();
-            if let Some(ref db) = *db_guard {
-                if let Ok(Some(t)) = db.get_track(&path) {
-                    Some(t)
-                } else { None }
-            } else { None }
-        };
-
         let mut needs_broadcast = false;
         if let Some(track) = track_info {
             let mut queue = app_state.queue.lock().unwrap();
@@ -1195,7 +1156,13 @@ async fn broadcast_queue_update(state: &Arc<ServerState>, app_state: &tauri::Sta
                 artist: t.artist.clone(),
                 album: t.album.clone(),
                 duration_secs: t.duration_secs,
-                cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+                cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                title_romaji: t.title_romaji.clone(),
+                title_en: t.title_en.clone(),
+                artist_romaji: t.artist_romaji.clone(),
+                artist_en: t.artist_en.clone(),
+                album_romaji: t.album_romaji.clone(),
+                album_en: t.album_en.clone(),
             }).collect::<Vec<_>>(),
             index
         )
@@ -1216,7 +1183,19 @@ async fn send_current_status_broadcast_only(
     state: &Arc<ServerState>,
     app_state: &tauri::State<'_, crate::AppState>,
 ) {
-    let (track_id, title, artist, album, duration, cover_url, is_playing, position, volume) = {
+    let (media_event, status_event) = get_player_state_events(state, app_state).await;
+    state.broadcast(media_event);
+    state.broadcast(status_event);
+}
+
+/// Helper to get consistent MediaSession and Status events for broadcasting/sending
+async fn get_player_state_events(
+    state: &Arc<ServerState>,
+    app_state: &tauri::State<'_, crate::AppState>,
+) -> (ServerEvent, ServerEvent) {
+    let (track_id, title, artist, album, duration, cover_url, 
+         title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+         is_playing, position, volume) = {
         if let Ok(player_guard) = app_state.player.lock() {
             if let Some(ref player) = *player_guard {
                 let status = player.get_status();
@@ -1231,19 +1210,31 @@ async fn send_current_status_broadcast_only(
                         track.artist.clone(),
                         track.album.clone(),
                         track.duration_secs,
-                        Some(format!("/cover/{}", urlencoding::encode(&track.path))),
+                        Some(format!("/cover/{}", urlencoding::encode(track.cover_image.as_deref().unwrap_or(&track.path)))),
+                        track.title_romaji.clone(),
+                        track.title_en.clone(),
+                        track.artist_romaji.clone(),
+                        track.artist_en.clone(),
+                        track.album_romaji.clone(),
+                        track.album_en.clone(),
                         is_playing,
                         position,
                         volume,
                     )
                 } else {
-                    ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, false, 0.0, volume)
+                    ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, 
+                     None, None, None, None, None, None,
+                     false, 0.0, volume)
                 }
             } else {
-                ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, false, 0.0, 1.0)
+                ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, 
+                 None, None, None, None, None, None,
+                 false, 0.0, 1.0)
             }
         } else {
-            ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, false, 0.0, 1.0)
+            ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, 
+             None, None, None, None, None, None,
+             false, 0.0, 1.0)
         }
     };
     
@@ -1254,24 +1245,37 @@ async fn send_current_status_broadcast_only(
         .unwrap()
         .as_millis() as u64;
     
-    state.broadcast(ServerEvent::MediaSession {
-        track_id,
-        title,
-        artist,
-        album,
-        duration,
-        cover_url,
-        is_playing,
-        position,
-        timestamp,
-    });
-    
-    state.broadcast(ServerEvent::Status {
-        volume: volume as f64,
-        shuffle: false,
-        repeat_mode: "off".to_string(),
-        output: active_output,
-    });
+    let (shuffle, repeat_mode) = {
+        let shuffle = *app_state.shuffle.lock().unwrap();
+        let repeat = app_state.repeat_mode.lock().unwrap().clone();
+        (shuffle, repeat)
+    };
+
+    (
+        ServerEvent::MediaSession {
+            track_id,
+            title,
+            artist,
+            album,
+            duration,
+            cover_url,
+            title_romaji,
+            title_en,
+            artist_romaji,
+            artist_en,
+            album_romaji,
+            album_en,
+            is_playing,
+            position,
+            timestamp,
+        },
+        ServerEvent::Status {
+            volume: volume as f64,
+            shuffle,
+            repeat_mode,
+            output: active_output,
+        }
+    )
 }
 
 /// Get local IP address

@@ -92,6 +92,18 @@ pub enum ServerEvent {
         duration: f64,
         #[serde(rename = "coverUrl")]
         cover_url: Option<String>,
+        #[serde(rename = "titleRomaji")]
+        title_romaji: Option<String>,
+        #[serde(rename = "titleEn")]
+        title_en: Option<String>,
+        #[serde(rename = "artistRomaji")]
+        artist_romaji: Option<String>,
+        #[serde(rename = "artistEn")]
+        artist_en: Option<String>,
+        #[serde(rename = "albumRomaji")]
+        album_romaji: Option<String>,
+        #[serde(rename = "albumEn")]
+        album_en: Option<String>,
         #[serde(rename = "isPlaying")]
         is_playing: bool,
         position: f64,
@@ -171,6 +183,18 @@ pub struct TrackSummary {
     pub duration_secs: f64,
     #[serde(rename = "coverUrl")]
     pub cover_url: Option<String>,
+    #[serde(rename = "titleRomaji")]
+    pub title_romaji: Option<String>,
+    #[serde(rename = "titleEn")]
+    pub title_en: Option<String>,
+    #[serde(rename = "artistRomaji")]
+    pub artist_romaji: Option<String>,
+    #[serde(rename = "artistEn")]
+    pub artist_en: Option<String>,
+    #[serde(rename = "albumRomaji")]
+    pub album_romaji: Option<String>,
+    #[serde(rename = "albumEn")]
+    pub album_en: Option<String>,
 }
 
 /// Connected WebSocket client info
@@ -264,10 +288,25 @@ pub async fn start_server(
                                 
                                 if let Ok(mut player_guard) = app_state.player.lock() {
                                     if let Some(ref mut player) = *player_guard {
+                                        // Fetch enriched metadata from DB
+                                        let track_info = {
+                                            let db_guard = app_state.db.lock().unwrap();
+                                            if let Some(ref db) = *db_guard {
+                                                db.get_track(&path).unwrap_or(None)
+                                            } else {
+                                                None
+                                            }
+                                        };
+
+                                        let track_to_play = track_info.unwrap_or_else(|| crate::audio::TrackInfo {
+                                            path: path.clone(),
+                                            ..crate::audio::TrackInfo::default()
+                                        });
+
                                         if is_mobile {
-                                            let _ = player.load_file(&path);
+                                            let _ = player.load_track(track_to_play);
                                         } else {
-                                            let _ = player.play_file(&path);
+                                            let _ = player.play_track(track_to_play);
                                         }
                                     }
                                 }

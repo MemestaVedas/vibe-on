@@ -66,6 +66,18 @@ pub struct TrackDetail {
     pub track_number: Option<u32>,
     #[serde(rename = "coverUrl")]
     pub cover_url: Option<String>,
+    #[serde(rename = "titleRomaji")]
+    pub title_romaji: Option<String>,
+    #[serde(rename = "titleEn")]
+    pub title_en: Option<String>,
+    #[serde(rename = "artistRomaji")]
+    pub artist_romaji: Option<String>,
+    #[serde(rename = "artistEn")]
+    pub artist_en: Option<String>,
+    #[serde(rename = "albumRomaji")]
+    pub album_romaji: Option<String>,
+    #[serde(rename = "albumEn")]
+    pub album_en: Option<String>,
 }
 
 /// Album info
@@ -250,9 +262,15 @@ pub async fn get_playback_state(
                     artist: t.artist.clone(),
                     album: t.album.clone(),
                     duration_secs: t.duration_secs,
-                    disc_number: None,
-                    track_number: None,
-                    cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+                    disc_number: t.disc_number,
+                    track_number: t.track_number,
+                    cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                    title_romaji: t.title_romaji.clone(),
+                    title_en: t.title_en.clone(),
+                    artist_romaji: t.artist_romaji.clone(),
+                    artist_en: t.artist_en.clone(),
+                    album_romaji: t.album_romaji.clone(),
+                    album_en: t.album_en.clone(),
                 });
                 
                 (is_playing, track, position, duration, volume)
@@ -325,7 +343,13 @@ pub async fn get_library(
             duration_secs: t.duration_secs,
             disc_number: t.disc_number,
             track_number: t.track_number,
-            cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+            cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+            title_romaji: t.title_romaji,
+            title_en: t.title_en,
+            artist_romaji: t.artist_romaji,
+            artist_en: t.artist_en,
+            album_romaji: t.album_romaji,
+            album_en: t.album_en,
         })
         .collect();
     
@@ -367,7 +391,13 @@ pub async fn search_library(
             duration_secs: t.duration_secs,
             disc_number: t.disc_number,
             track_number: t.track_number,
-            cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+            cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+            title_romaji: t.title_romaji.clone(),
+            title_en: t.title_en.clone(),
+            artist_romaji: t.artist_romaji.clone(),
+            artist_en: t.artist_en.clone(),
+            album_romaji: t.album_romaji.clone(),
+            album_en: t.album_en.clone(),
         })
         .collect();
     
@@ -471,6 +501,12 @@ pub async fn get_album_detail(
             disc_number: t.disc_number,
             track_number: t.track_number,
             cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+            title_romaji: t.title_romaji,
+            title_en: t.title_en,
+            artist_romaji: t.artist_romaji,
+            artist_en: t.artist_en,
+            album_romaji: t.album_romaji,
+            album_en: t.album_en,
         })
         .collect();
     
@@ -543,6 +579,12 @@ pub async fn get_artist_detail(
             disc_number: t.disc_number,
             track_number: t.track_number,
             cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+            title_romaji: t.title_romaji.clone(),
+            title_en: t.title_en.clone(),
+            artist_romaji: t.artist_romaji.clone(),
+            artist_en: t.artist_en.clone(),
+            album_romaji: t.album_romaji.clone(),
+            album_en: t.album_en.clone(),
         })
         .collect();
     
@@ -705,8 +747,14 @@ pub async fn get_cover(
     State(state): State<Arc<ServerState>>,
     Path(path): Path<String>,
 ) -> Result<Response<Body>, StatusCode> {
-    let path_arg = urlencoding::decode(&path).map_err(|_| StatusCode::BAD_REQUEST)?.to_string();
-    println!("[Server] get_cover request for path: {}", path_arg);
+    let track_path = urlencoding::decode(&path)
+        .map_err(|_| {
+            log::error!("❌ Failed to decode cover path: {}", path);
+            StatusCode::BAD_REQUEST
+        })?
+        .to_string();
+    
+    log::info!("🖼️ Cover request for: {}", track_path);
     
     let app_state = state.app_state();
     
@@ -716,7 +764,7 @@ pub async fn get_cover(
         let db_guard = app_state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         if let Some(ref db) = *db_guard {
             let covers_dir = db.get_covers_dir();
-            let potential_path = covers_dir.join(&path_arg);
+            let potential_path = covers_dir.join(&track_path);
             if potential_path.exists() && potential_path.is_file() {
                 Some(potential_path)
             } else {
@@ -740,31 +788,37 @@ pub async fn get_cover(
         }
     }
 
-    // 2. Try to get cover from covers directory by looking up track info
     let cover_file_path = {
-        let db_guard = app_state.db.lock()
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        
-        if let Some(ref db) = *db_guard {
+        let db_lock = app_state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if let Some(ref db) = *db_lock {
             let covers_dir = db.get_covers_dir();
             
-            if let Ok(tracks) = db.get_all_tracks() {
-                if let Some(track) = tracks.iter().find(|t| t.path == path_arg) {
-                    println!("[Server] Found track in DB: {:?}", track.title);
+            // Use direct lookup for better performance
+            match db.get_track(&track_path) {
+                Ok(Some(track)) => {
+                    log::info!("✅ Found track in DB: {:?}", track.title);
                     if let Some(ref cover_filename) = track.cover_image {
                         let full_path = covers_dir.join(cover_filename);
-                        println!("[Server] Track has cover image: {:?} -> {:?}", cover_filename, full_path);
-                        Some(full_path)
+                        if full_path.exists() {
+                            log::info!("✅ Found cached cover: {:?}", cover_filename);
+                            Some(full_path)
+                        } else {
+                            log::warn!("⚠️ Cached cover file missing at {:?}", full_path);
+                            None
+                        }
                     } else {
-                        println!("[Server] Track has no cover image in DB");
+                        log::info!("ℹ️ Track has no cover image in DB");
                         None
                     }
-                } else {
-                    println!("[Server] Track not found in DB");
+                },
+                Ok(None) => {
+                    log::warn!("⚠️ Track not found in DB for path: {}", track_path);
+                    None
+                },
+                Err(e) => {
+                    log::error!("❌ DB error looking up track: {}", e);
                     None
                 }
-            } else {
-                None
             }
         } else {
             None
@@ -792,9 +846,21 @@ pub async fn get_cover(
         }
     }
     
+    // Only attempt extraction if it looks like an audio file path
+    let is_audio = track_path.to_lowercase().ends_with(".mp3") || 
+                   track_path.to_lowercase().ends_with(".flac") || 
+                   track_path.to_lowercase().ends_with(".wav") || 
+                   track_path.to_lowercase().ends_with(".m4a") ||
+                   track_path.to_lowercase().ends_with(".ogg");
+
+    if !is_audio {
+        println!("[Server] Skipping extraction for non-audio path: {}", track_path);
+        return Err(StatusCode::NOT_FOUND);
+    }
+
     println!("[Server] Attempting to extract cover from audio file...");
     // Try to extract from audio file
-    match extract_cover_from_file(&path_arg) {
+    match extract_cover_from_file(&track_path) {
         Some((data, mime)) => {
             println!("[Server] Successfully extracted cover!");
             // CACHE HIT: Save to disk and update DB
@@ -809,12 +875,12 @@ pub async fn get_cover(
                     // Save to disk
                     if let Ok(mut file) = std::fs::File::create(&save_path) {
                         if std::io::Write::write_all(&mut file, &data).is_ok() {
-                            log::info!("💾 Cached cover for: {}", path_arg);
+                            log::info!("💾 Cached cover for: {}", track_path);
                             // Update DB
                             // We need to know album and artist to update. 
                             // extract_cover_from_file doesn't return metadata.
                             // However, we can look up the track in the DB to get album/artist.
-                            if let Ok(Some(track)) = db.get_track(&path_arg) {
+                            if let Ok(Some(track)) = db.get_track(&track_path) {
                                 let _ = db.update_album_cover(&track.album, &track.artist, &filename);
                             }
                         }
