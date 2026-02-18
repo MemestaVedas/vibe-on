@@ -212,7 +212,7 @@ const AlbumItem = ({
     const firstTrack = album.tracks[0];
     const displayAlbumName = getDisplayText(firstTrack, 'album', displayLanguage);
     const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
-    const coverUrl = useCoverArt(album.cover);
+    const coverUrl = useCoverArt(album.cover, firstTrack?.path);
 
     return (
         <div
@@ -220,12 +220,15 @@ const AlbumItem = ({
             className="group flex flex-col gap-4 p-4 rounded-[2rem] hover:bg-surface-container-high transition-colors cursor-pointer"
         >
             <div className="aspect-square w-full relative">
-                <div className="w-full h-full">
+                <motion.div
+                    layoutId={`cover-art-${album.name}-${album.artist}`}
+                    className="w-full h-full"
+                >
                     <M3RoundedSquareImage
                         src={coverUrl}
                         fallback={<IconMusicNote size={64} />}
                     />
-                </div>
+                </motion.div>
                 <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayAlbum(album); }} />
             </div>
 
@@ -251,7 +254,7 @@ type DisplayItem =
 function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }) {
     const { playQueue } = usePlayerStore();
     const { displayLanguage } = useThemeStore();
-    const coverUrl = useCoverArt(album.cover);
+    const coverUrl = useCoverArt(album.cover, album.tracks[0]?.path);
     const [showStickyHeader, setShowStickyHeader] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
 

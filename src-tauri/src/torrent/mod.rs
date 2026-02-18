@@ -62,6 +62,10 @@ const PUBLIC_TRACKERS: &[&str] = &[
     "http://tracker.ipv6tracker.ru:80/announce",
     "http://nyaa.tracker.wf:7777/announce",
     "http://tracker.files.fm:6969/announce",
+    // DHT Bootstrap nodes (some clients use them as trackers)
+    "udp://router.bittorrent.com:6881/announce",
+    "udp://router.utorrent.com:6881/announce",
+    "udp://dht.transmissionbt.com:6881/announce",
 ];
 
 // ============================================================================
@@ -144,15 +148,15 @@ impl TorrentManager {
 
         // Configure session options for maximum connectivity and speed
         let peer_opts = librqbit::PeerConnectionOptions {
-            connect_timeout: Some(Duration::from_secs(20)),       // Faster timeout
+            connect_timeout: Some(Duration::from_secs(30)),       // More room for slow handshakes
             read_write_timeout: Some(Duration::from_secs(60)),
             keep_alive_interval: Some(Duration::from_secs(30)),
         };
 
         let options = SessionOptions {
             disable_dht: false,                    // DHT enabled for peer discovery
-            disable_dht_persistence: true,
-            persistence: None,
+            disable_dht_persistence: false,         // Enable DHT persistence across restarts
+            persistence: None,                      // We handle torrent persistence ourselves in vibe_torrents.json
             listen_port_range: Some(6881..6999),   // Wide port range
             enable_upnp_port_forwarding: true,     // NAT traversal
             peer_opts: Some(peer_opts),

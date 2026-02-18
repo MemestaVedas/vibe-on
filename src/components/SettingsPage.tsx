@@ -245,6 +245,25 @@ function SettingsContent({ tab }: { tab: TabId }) {
                                 </OptionButton>
                             </div>
                         </div>
+
+                        {/* Section: Mini Player */}
+                        <section>
+                            <h2 className="text-xl font-semibold text-on-surface mb-4">Pro Tools</h2>
+                            <div className="bg-surface-container rounded-xl p-6 border border-white/5">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-base font-medium text-on-surface">Mini Player</h3>
+                                        <p className="text-sm text-on-surface-variant">Launch the floating picture-in-picture player.</p>
+                                    </div>
+                                    <button
+                                        onClick={() => usePlayerStore.getState().toggleMiniPlayer()}
+                                        className="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full hover:bg-secondary-container-high transition"
+                                    >
+                                        Launch
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
                     </section>
 
                     {/* Section: Metadata Language */}
@@ -437,6 +456,44 @@ function SettingsContent({ tab }: { tab: TabId }) {
                                     onChange={setAutoplay}
                                     accentColor={primary}
                                 />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Section: Sleep Timer */}
+                    <section>
+                        <h2 className="text-xl font-semibold text-on-surface mb-4">Sleep Timer</h2>
+                        <div className="bg-surface-container rounded-xl p-6 border border-white/5">
+                            <div className="flex flex-col gap-4">
+                                <div>
+                                    <h3 className="text-base font-medium text-on-surface">Stop Audio</h3>
+                                    <p className="text-sm text-on-surface-variant">Automatically pause playback after a set time.</p>
+                                </div>
+
+                                <div className="flex gap-2 flex-wrap">
+                                    {[15, 30, 45, 60].map(min => (
+                                        <button
+                                            key={min}
+                                            onClick={() => usePlayerStore.getState().setSleepTimer(min)}
+                                            className="px-4 py-2 bg-surface-container-highest rounded-lg text-sm font-medium hover:bg-primary-container hover:text-on-primary-container transition"
+                                        >
+                                            {min}m
+                                        </button>
+                                    ))}
+                                    <button
+                                        onClick={() => usePlayerStore.getState().setSleepTimer(0)}
+                                        className="px-4 py-2 bg-error-container text-on-error-container rounded-lg text-sm font-medium hover:opacity-80 transition"
+                                    >
+                                        Off
+                                    </button>
+                                </div>
+
+                                {usePlayerStore(s => s.sleepTimerTarget) && (
+                                    <div className="flex items-center gap-2 text-primary text-sm mt-1 bg-primary/10 p-2 rounded-lg self-start">
+                                        <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor"><path d="M360-840v-80h240v80H360Zm80 440h80v-240h-80v240Zm40 320q-74 0-139.5-28.5T226-186q-49-49-77.5-114.5T120-440q0-74 28.5-139.5T226-694q49-49 114.5-77.5T480-800q62 0 119 20t107 58l56-56 56 56-56 56q38 50 58 107t20 119q0 74-28.5 139.5T734-186q-49 49-114.5 77.5T480-80Zm0-80q116 0 198-82t82-198q0-116-82-198t-198-82q-116 0-198 82t-82 198q0 116 82 198t198 82Zm0-280Z" /></svg>
+                                        <span>Pausing at {new Date(usePlayerStore.getState().sleepTimerTarget!).toLocaleTimeString()}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </section>

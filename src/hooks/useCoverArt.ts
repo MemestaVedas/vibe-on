@@ -1,35 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
-import { readFile } from '@tauri-apps/plugin-fs';
-
-const coverArtCache = new Map<string, string>();
-const MAX_CACHE_SIZE = 50;
-
-function touchCache(key: string) {
-    const value = coverArtCache.get(key);
-    if (value) {
-        coverArtCache.delete(key);
-        coverArtCache.set(key, value);
-    }
-}
-
-function evictIfNeeded() {
-    if (coverArtCache.size > MAX_CACHE_SIZE) {
-        const firstKey = coverArtCache.keys().next().value;
-        if (firstKey) {
-            const url = coverArtCache.get(firstKey);
-            if (url && url.startsWith('blob:')) {
-                URL.revokeObjectURL(url);
-            }
-            coverArtCache.delete(firstKey);
-        }
-    }
-}
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 /**
- * Loads cover art from disk and manages a micro-cache.
+ * Loads cover art using Tauri's asset protocol which works in production.
  */
-export function useCoverArt(coverPathRaw: string | null | undefined) {
+export function useCoverArt(coverPathRaw: string | null | undefined, trackPath?: string) {
     const coversDir = usePlayerStore(s => s.coversDir);
 
     // Normalize path to forward slashes for consistent cache keys
@@ -38,44 +14,34 @@ export function useCoverArt(coverPathRaw: string | null | undefined) {
     const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!coverPath || !coversDir) {
-            setImageUrl(null);
-            return;
-        }
-
-        if (coverPath.startsWith('http')) {
+        // If we have a direct HTTP URL, use it
+        if (coverPath?.startsWith('http')) {
             setImageUrl(coverPath);
             return;
         }
 
-        const cached = coverArtCache.get(coverPath);
-        if (cached) {
-            touchCache(coverPath);
-            setImageUrl(cached);
+        // If we have a local cover path, use it via Tauri asset protocol
+        if (coverPath && coversDir) {
+            // Handle absolute vs relative paths
+            const isAbsolute = coverPath.includes(':') || coverPath.startsWith('/');
+            const path = (isAbsolute ? coverPath : `${coversDir}/${coverPath}`).replace(/\\/g, '/');
+            const assetUrl = convertFileSrc(path);
+            setImageUrl(assetUrl);
             return;
         }
 
-        const loadCover = async () => {
-            try {
-                // Handle absolute vs relative paths
-                const isAbsolute = coverPath.includes(':') || coverPath.startsWith('/');
-                const path = (isAbsolute ? coverPath : `${coversDir}/${coverPath}`).replace(/\\/g, '/');
+        // Fallback: If no local cover but we have track path, use server URL (which triggers extraction)
+        if (!coverPath && trackPath) {
+            // Use localhost:5000 to fetch cover (triggers lazy extraction in backend)
+            const encodedPath = encodeURIComponent(trackPath);
+            // Add timestamp to prevent aggressive browser caching if needed, but backend sends cache-control
+            setImageUrl(`http://localhost:5000/cover/${encodedPath}`);
+            return;
+        }
 
-                const data = await readFile(path);
-                const blob = new Blob([data], { type: 'image/jpeg' });
-                const url = URL.createObjectURL(blob);
+        setImageUrl(null);
 
-                evictIfNeeded();
-                coverArtCache.set(coverPath, url);
-                setImageUrl(url);
-            } catch (e) {
-                console.error('Failed to load cover:', coverPath, e);
-                setImageUrl(null);
-            }
-        };
-
-        loadCover();
-    }, [coverPath, coversDir]);
+    }, [coverPath, coversDir, trackPath]);
 
     return imageUrl;
 }

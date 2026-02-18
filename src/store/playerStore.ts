@@ -162,6 +162,13 @@ interface PlayerStore {
 
     // Autoplay Helpers
     playRandomAlbum: () => Promise<void>;
+
+    // Mini-Player & Sleep Timer
+    miniPlayer: boolean;
+    toggleMiniPlayer: () => Promise<void>;
+
+    sleepTimerTarget: number | null; // Timestamp in ms
+    setSleepTimer: (minutes: number) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -224,7 +231,82 @@ export const usePlayerStore = create<PlayerStore>()(
             // Audio Output
             audioOutput: 'desktop',
 
+            // Mini-Player & Sleep Timer
+            miniPlayer: false,
+            sleepTimerTarget: null,
+
             // Actions
+            toggleMiniPlayer: async () => {
+                const { miniPlayer } = get();
+                const { getCurrentWindow, LogicalSize, LogicalPosition, currentMonitor } = await import('@tauri-apps/api/window');
+                const appWindow = getCurrentWindow();
+
+                if (miniPlayer) {
+                    // Restore to normal
+                    try {
+                        const monitor = await currentMonitor();
+                        if (monitor) {
+                            const position = await appWindow.outerPosition();
+                            const scale = await appWindow.scaleFactor();
+
+                            // Normal window size (logical)
+                            const targetWidth = 1280;
+                            const targetHeight = 800;
+
+                            // Monitor bounds (logical)
+                            const monWidth = monitor.size.width / scale;
+                            const monHeight = monitor.size.height / scale;
+                            const monX = monitor.position.x / scale;
+                            const monY = monitor.position.y / scale;
+
+                            // Current position (logical)
+                            let newX = position.x / scale;
+                            let newY = position.y / scale;
+
+                            // Adjust if overflowing right/bottom
+                            if (newX + targetWidth > monX + monWidth) {
+                                newX = monX + monWidth - targetWidth;
+                            }
+                            if (newY + targetHeight > monY + monHeight) {
+                                newY = monY + monHeight - targetHeight;
+                            }
+
+                            // Prevent going past monitor start
+                            newX = Math.max(monX, newX);
+                            newY = Math.max(monY, newY);
+
+                            await appWindow.setPosition(new LogicalPosition(newX, newY));
+                        }
+                    } catch (e) {
+                        console.error('[PlayerStore] Failed to adjust position on enlarge:', e);
+                        // Fallback: center it
+                        await appWindow.center();
+                    }
+
+                    await appWindow.setAlwaysOnTop(false);
+                    await appWindow.setSize(new LogicalSize(1280, 800)); // Default size
+                    await appWindow.setResizable(true);
+                    set({ miniPlayer: false });
+                } else {
+                    // Shrink to Mini-Player
+                    await appWindow.setAlwaysOnTop(true);
+                    await appWindow.setSize(new LogicalSize(340, 160)); // Compact size
+                    await appWindow.setResizable(false);
+                    set({ miniPlayer: true });
+                }
+            },
+
+            setSleepTimer: (minutes: number) => {
+                if (minutes <= 0) {
+                    set({ sleepTimerTarget: null });
+                    console.log('[SleepTimer] Cancelled');
+                } else {
+                    const target = Date.now() + (minutes * 60 * 1000);
+                    set({ sleepTimerTarget: target });
+                    console.log(`[SleepTimer] Set for ${minutes} minutes (Target: ${new Date(target).toLocaleTimeString()})`);
+                }
+            },
+
             clearAllData: async () => {
                 console.log('[PlayerStore] clearAllData called');
                 try {
@@ -537,8 +619,11 @@ export const usePlayerStore = create<PlayerStore>()(
 
             setVolume: async (value: number) => {
                 try {
+                    set(state => ({
+                        savedVolume: value,
+                        status: { ...state.status, volume: value }
+                    }));
                     await invoke('set_volume', { value });
-                    set({ savedVolume: value });
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -883,6 +968,7 @@ export const usePlayerStore = create<PlayerStore>()(
                 speed: state.speed,
                 reverbMix: state.reverbMix,
                 reverbDecay: state.reverbDecay,
+                miniPlayer: state.miniPlayer, // Persist Mini-Player state
             }),
             merge: (persistedState: any, currentState) => ({
                 ...currentState,
@@ -896,6 +982,7 @@ export const usePlayerStore = create<PlayerStore>()(
                 isShuffled: persistedState?.isShuffled || false,
                 savedVolume: persistedState?.savedVolume ?? 1.0,
                 lastPlayedTrack: persistedState?.lastPlayedTrack || null,
+                miniPlayer: persistedState?.miniPlayer || false, // Restore Mini-Player state
                 eqGains: persistedState?.eqGains || Array(10).fill(0),
                 activePresetId: persistedState?.activePresetId || 'flat',
                 preampDb: persistedState?.preampDb ?? 0,

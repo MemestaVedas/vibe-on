@@ -9,6 +9,7 @@ import { TrackStats } from './mood';
 import { invoke } from '@tauri-apps/api/core';
 import { SquigglySlider } from './SquigglySlider';
 import { MarqueeText } from './MarqueeText';
+import { useRipple } from './RippleEffect';
 import {
     IconPrevious,
     IconPlay,
@@ -143,7 +144,7 @@ const ExpressiveControlButton = ({ onClick, icon, disabled, direction = 'left' }
 };
 
 // Internal organic button that accepts motion props
-const OrganicControlButton = ({ onClick, disabled, children, className = '', active = false, ...props }: any) => (
+const OrganicControlButton = ({ onClick, disabled, children, className = '', active = false, ripple, ...props }: any) => (
     <motion.button
         onClick={onClick}
         disabled={disabled}
@@ -152,7 +153,10 @@ const OrganicControlButton = ({ onClick, disabled, children, className = '', act
         className={`relative flex items-center justify-center rounded-full transition-colors disabled:opacity-30 ${className}`}
         {...props}
     >
-        {children}
+        {ripple}
+        <div className="relative z-10 flex items-center justify-center w-full h-full">
+            {children}
+        </div>
     </motion.button>
 );
 
@@ -199,6 +203,8 @@ export function PlayerBar() {
     // Derive isFavorite from favorites set — no getState() during render
     const isFav = usePlayerStore(s => track?.path ? s.favorites.has(track.path) : false);
 
+    const playRipple = useRipple({ size: 50 });
+
     // Poll for status updates while playing (500ms = smooth enough for progress bar)
     useEffect(() => {
         if (state === 'Playing') {
@@ -231,7 +237,8 @@ export function PlayerBar() {
         lastStateRef.current = state;
     }, [state, track, position_secs, nextTrack, repeatMode, playFile]);
 
-    const handlePlayPause = () => {
+    const handlePlayPause = (e: React.MouseEvent) => {
+        playRipple.trigger(e);
         if (state === 'Playing') {
             pause();
         } else if (state === 'Paused') {
@@ -264,7 +271,7 @@ export function PlayerBar() {
 
     // Determine Cover URL — robust lookup with fallback
     const currentCover = useCurrentCover();
-    const activeCoverUrl = useCoverArt(currentCover || track?.cover_image || track?.cover_url);
+    const activeCoverUrl = useCoverArt(currentCover || track?.cover_image || track?.cover_url, track?.path);
 
     const [isHovered, setIsHovered] = useState(false);
     const [showStats, setShowStats] = useState(false);
@@ -416,7 +423,7 @@ export function PlayerBar() {
                         {(!isHovered || expandedArtMode !== 'background' || !activeCoverUrl) && (
                             <motion.div
                                 layout
-                                layoutId="cover-art-container"
+                                layoutId={track ? `cover-art-${track.album}-${track.artist}` : "cover-art-container"}
                                 initial={{ scale: 0.8, opacity: 0, width: '1rem' }}
                                 animate={{ scale: 1, opacity: 1, width: isHovered ? '4rem' : '2.5rem' }}
                                 exit={{ scale: 0.8, opacity: 0, width: '1rem' }}
@@ -516,6 +523,7 @@ export function PlayerBar() {
                                             onClick={handlePlayPause}
                                             className="w-12 h-12 bg-primary text-on-primary shadow-elevation-1 hover:shadow-elevation2 z-10"
                                             active
+                                            ripple={playRipple.render}
                                             initial={{ scale: 0.8, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
                                             transition={{ type: "spring", stiffness: 400, damping: 25 }}

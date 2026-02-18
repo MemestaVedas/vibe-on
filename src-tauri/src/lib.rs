@@ -1857,6 +1857,40 @@ pub fn run() {
             
             // Start mobile companion server and P2P in background
             let app_handle = _app.handle().clone();
+
+            // Auto-start HTTP Server for cover art fallback & mobile companion
+            let state = app_handle.state::<AppState>();
+            // check if already running to be safe (though this is startup)
+            let should_start = {
+                let mut running = state.server_running.lock().unwrap();
+                if !*running {
+                    *running = true;
+                    true
+                } else {
+                    false
+                }
+            };
+
+            if should_start {
+                let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
+                *state.server_shutdown_tx.lock().unwrap() = Some(shutdown_tx);
+
+                let config = server::ServerConfig::default();
+                let port = config.port;
+                let server_running = state.server_running.clone();
+                let app_handle_server = app_handle.clone();
+
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = server::start_server(app_handle_server, config, shutdown_rx).await {
+                        eprintln!("[Server] Failed to auto-start: {}", e);
+                         if let Ok(mut running) = server_running.lock() {
+                             *running = false;
+                         }
+                    }
+                });
+                println!("[Server] Auto-started on port {}", port);
+            }
+
             let app_handle_for_queue = app_handle.clone();
             // Listen for queue updates from frontend
             _app.listen("queue-updated", move |event: tauri::Event| {
