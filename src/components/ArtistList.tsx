@@ -1,6 +1,7 @@
 import { useState, useMemo, forwardRef, useRef, useEffect } from 'react';
 import { VirtuosoGrid, Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
+import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMicrophone, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
@@ -86,7 +87,7 @@ export function ArtistList() {
     const playQueue = usePlayerStore(state => state.playQueue);
     const searchQuery = usePlayerStore(state => state.searchQuery);
     const displayLanguage = usePlayerStore(state => state.displayLanguage);
-    const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+    const { selectedArtistName, navigateToArtist, clearSelectedArtist } = useNavigationStore();
 
     const artists = useMemo(() => {
         const artistMap = new Map<string, Artist>();
@@ -152,39 +153,46 @@ export function ArtistList() {
         }
     };
 
-    if (selectedArtist) {
-        const artist = artists.find(a => a.name === selectedArtist);
-        if (!artist) return null;
-
-        return (
-            <div className="h-full">
-                <ArtistDetailView
-                    artist={artist}
-                    onBack={() => setSelectedArtist(null)}
-                />
-            </div>
-        );
-    }
+    const currentSelectedArtist = useMemo(() => {
+        return artists.find(a => a.name === selectedArtistName);
+    }, [artists, selectedArtistName]);
 
     return (
-        <VirtuosoGrid
-            style={{ height: '100%' }}
-            data={artists}
-            overscan={200}
-            components={{
-                List: GridList,
-                Item: GridItem,
-                Footer: () => <div className="h-32"></div>
-            }}
-            itemContent={(_, artist) => (
-                <ArtistItem
-                    artist={artist}
-                    displayLanguage={displayLanguage}
-                    setSelectedArtist={setSelectedArtist}
-                    handlePlayArtist={handlePlayArtist}
+        <div className="h-full relative overflow-hidden">
+            {/* List View - Persistent in background to preserve scroll/measurements */}
+            <div
+                className={`absolute inset-0 transition-opacity duration-300 ${selectedArtistName ? 'invisible opacity-0 pointer-events-none' : 'visible opacity-100'}`}
+            >
+                <VirtuosoGrid
+                    style={{ height: '100%' }}
+                    data={artists}
+                    overscan={1200}
+                    components={{
+                        List: GridList,
+                        Item: GridItem,
+                        Footer: () => <div className="h-32"></div>
+                    }}
+                    itemContent={(_, artist) => (
+                        <ArtistItem
+                            artist={artist}
+                            displayLanguage={displayLanguage}
+                            setSelectedArtist={navigateToArtist}
+                            handlePlayArtist={handlePlayArtist}
+                        />
+                    )}
                 />
+            </div>
+
+            {/* Detail View */}
+            {selectedArtistName && currentSelectedArtist && (
+                <div className="h-full animate-in fade-in slide-in-from-right-4 duration-300">
+                    <ArtistDetailView
+                        artist={currentSelectedArtist}
+                        onBack={clearSelectedArtist}
+                    />
+                </div>
             )}
-        />
+        </div>
     );
 }
 
@@ -221,7 +229,7 @@ const ArtistItem = ({
                 <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayArtist(artist); }} />
             </div>
 
-            <div className="flex flex-col items-center text-center gap-0.5">
+            <div className="flex flex-col items-center text-center gap-0.5 min-h-[3.5rem]">
                 <span className="text-title-medium font-semibold text-on-surface truncate w-full" title={displayArtistName}>
                     {displayArtistName}
                 </span>

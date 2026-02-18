@@ -1,20 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
-import { convertFileSrc } from '@tauri-apps/api/core';
 
 /**
  * Loads cover art with a robust priority chain:
  * 1. Direct HTTP URL → use as-is
- * 2. Cached cover filename → use native asset protocol directly (NO local server)
- * 3. Full local path → convertFileSrc (native asset protocol)
+ * 2. Cached cover filename → route through backend HTTP server (port 5000)
+ * 3. Full local path → route through backend HTTP server (port 5000)
  * 4. Extraction from audio file → only if allowExtraction is true (e.g. PlayerBar)
- *    (Probeless assignment to avoid network process overhead; backend returns 404 on failure)
+ *    (Uses the same backend HTTP endpoint for extraction)
  * 5. null / empty → null
  */
 export function useCoverArt(coverPathRaw: string | null | undefined, trackPath?: string, allowExtraction = false) {
-    const coversDir = usePlayerStore(s => s.coversDir);
+    const coversDirRaw = usePlayerStore(s => s.coversDir);
 
-    // Normalize path to forward slashes for consistent cache keys
+    // Normalize ALL paths to forward slashes (Windows backslash fix)
+    const coversDir = useMemo(() => coversDirRaw?.replace(/\\/g, '/') || null, [coversDirRaw]);
     const coverPath = useMemo(() => coverPathRaw?.replace(/\\/g, '/') || null, [coverPathRaw]);
 
     const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -30,24 +30,27 @@ export function useCoverArt(coverPathRaw: string | null | undefined, trackPath?:
             }
 
             // 2. Cached cover filename (no slashes = just a filename like "abc123.jpg")
-            //    BYPASS the local port 5000 server. Use native asset protocol directly.
+            //    Bypass native asset protocol, use backend HTTP server
             if (coverPath && !coverPath.includes('/')) {
-                const resolvedPath = coversDir ? `${coversDir}/${coverPath}` : null;
-                if (resolvedPath && !cancelled) {
-                    setImageUrl(convertFileSrc(resolvedPath));
+                if (!cancelled) {
+                    setImageUrl(`http://localhost:5000/cover/${encodeURIComponent(coverPath)}`);
                     return;
                 }
             }
 
-            // 3. Full local path — use native asset protocol
+            // 3. Full local path or track path fallback
+            //    Bypass native asset protocol, use backend HTTP server
             if (coverPath) {
                 const isAbsolute = coverPath.includes(':') || coverPath.startsWith('/');
-                const resolvedPath = isAbsolute
+                const pathForServer = isAbsolute
                     ? coverPath
                     : coversDir
                         ? `${coversDir}/${coverPath}`
                         : coverPath;
-                if (!cancelled) setImageUrl(convertFileSrc(resolvedPath));
+
+                if (!cancelled) {
+                    setImageUrl(`http://localhost:5000/cover/${encodeURIComponent(pathForServer)}`);
+                }
                 return;
             }
 

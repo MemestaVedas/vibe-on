@@ -4,13 +4,18 @@ import { SearchBar } from './SearchBar';
 import { MobilePairingPopup } from './MobilePairingPopup';
 import { useMobileStore } from '../store/mobileStore';
 
-import { IconMobileDevice } from './Icons';
+import { IconMobileDevice, IconMiniplayer } from './Icons';
+import { usePlayerStore } from '../store/playerStore';
 
 export function TitleBar() {
     const appWindow = getCurrentWindow();
     const [isMaximized, setIsMaximized] = useState(false);
     const [closeHovered, setCloseHovered] = useState(false);
     const [isMacOS, setIsMacOS] = useState(false);
+
+    // Miniplayer state
+    const toggleMiniPlayer = usePlayerStore(state => state.toggleMiniPlayer);
+    const isMiniPlayer = usePlayerStore(state => state.miniPlayer);
 
     // Mobile pairing state
     const { status, togglePopup, checkServerStatus } = useMobileStore();
@@ -69,6 +74,17 @@ export function TitleBar() {
         </button>
     );
 
+    // Miniplayer toggle button
+    const miniPlayerButton = (
+        <button
+            onClick={toggleMiniPlayer}
+            className={`w-5 h-5 flex items-center justify-center opacity-80 hover:opacity-100 transition-all duration-150 ${isMiniPlayer ? 'text-primary' : 'text-outline'}`}
+            title={isMiniPlayer ? "Exit Miniplayer" : "Miniplayer"}
+        >
+            <IconMiniplayer size={16} />
+        </button>
+    );
+
 
 
     return (
@@ -119,6 +135,7 @@ export function TitleBar() {
                         <SearchBar />
                     </div>
                     <div className="flex items-center gap-3">
+                        {miniPlayerButton}
                         {mobileButton}
                         <div data-tauri-drag-region className="flex items-center gap-3">
                             <div data-tauri-drag-region className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
@@ -138,6 +155,9 @@ export function TitleBar() {
                         <SearchBar />
                     </div>
                     <div className="flex items-center gap-3 pr-2">
+                        {/* Miniplayer Button */}
+                        {miniPlayerButton}
+
                         {/* Mobile Pairing Button */}
                         {mobileButton}
 

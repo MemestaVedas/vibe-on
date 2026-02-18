@@ -233,7 +233,7 @@ export function TrackList() {
                 <Virtuoso
                     style={{ height: '100%' }}
                     data={filteredLibrary}
-                    overscan={200}
+                    overscan={1200}
                     itemContent={(index, track) => {
                         // Check for album change
                         const prevTrack = index > 0 ? filteredLibrary[index - 1] : null;

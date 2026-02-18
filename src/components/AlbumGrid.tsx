@@ -1,5 +1,5 @@
 import { useState, useMemo, forwardRef } from 'react';
-import { VirtuosoGrid, Virtuoso } from 'react-virtuoso';
+import { VirtuosoGrid, Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { useNavigationStore } from '../store/navigationStore';
@@ -163,43 +163,46 @@ export function AlbumGrid() {
     };
 
 
-    if (selectedAlbumKey) {
-        const album = albums.find(a => `${a.name}-${a.artist}` === selectedAlbumKey);
-
-        if (!album) {
-            clearSelectedAlbum();
-            return null;
-        }
-
-        return (
-            <div className="h-full">
-                <AlbumDetailView
-                    album={album}
-                    onBack={() => clearSelectedAlbum()}
-                />
-            </div>
-        );
-    }
+    const currentSelectedAlbum = useMemo(() => {
+        return albums.find(a => `${a.name}-${a.artist}` === selectedAlbumKey);
+    }, [albums, selectedAlbumKey]);
 
     return (
-        <VirtuosoGrid
-            style={{ height: '100%' }}
-            data={albums}
-            overscan={200}
-            components={{
-                List: GridList,
-                Item: GridItem,
-                Footer: () => <div className="h-32"></div>
-            }}
-            itemContent={(_, album) => (
-                <AlbumItem
-                    album={album}
-                    displayLanguage={displayLanguage}
-                    navigateToAlbum={navigateToAlbum}
-                    handlePlayAlbum={handlePlayAlbum}
+        <div className="h-full relative overflow-hidden">
+            {/* List View - Persistent in background to preserve scroll/measurements */}
+            <div
+                className={`absolute inset-0 transition-opacity duration-300 ${selectedAlbumKey ? 'invisible opacity-0 pointer-events-none' : 'visible opacity-100'}`}
+            >
+                <VirtuosoGrid
+                    style={{ height: '100%' }}
+                    data={albums}
+                    overscan={1200}
+                    components={{
+                        List: GridList,
+                        Item: GridItem,
+                        Footer: () => <div className="h-32"></div>
+                    }}
+                    itemContent={(_, album) => (
+                        <AlbumItem
+                            album={album}
+                            displayLanguage={displayLanguage}
+                            navigateToAlbum={navigateToAlbum}
+                            handlePlayAlbum={handlePlayAlbum}
+                        />
+                    )}
                 />
+            </div>
+
+            {/* Detail View */}
+            {selectedAlbumKey && currentSelectedAlbum && (
+                <div className="h-full animate-in fade-in slide-in-from-right-4 duration-300">
+                    <AlbumDetailView
+                        album={currentSelectedAlbum}
+                        onBack={() => clearSelectedAlbum()}
+                    />
+                </div>
             )}
-        />
+        </div>
     );
 }
 
@@ -239,7 +242,7 @@ const AlbumItem = ({
                 <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayAlbum(album); }} />
             </div>
 
-            <div className="px-1 flex flex-col gap-0.5">
+            <div className="px-1 flex flex-col gap-0.5 min-h-[4.5rem]">
                 <div className="text-title-large font-semibold text-on-surface truncate" title={displayAlbumName}>
                     {displayAlbumName}
                 </div>
