@@ -40,7 +40,7 @@ export function MiniPlayer() {
     const volumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const coverPath = useCurrentCover();
-    const coverUrl = useCoverArt(coverPath, track?.path);
+    const coverUrl = useCoverArt(coverPath, track?.path, true);
 
     const displayTitle = displayTrack ? getDisplayText(displayTrack as any, 'title', displayLanguage) : '';
     const displayArtist = displayTrack ? getDisplayText(displayTrack as any, 'artist', displayLanguage) : '';

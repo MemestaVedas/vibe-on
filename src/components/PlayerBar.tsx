@@ -22,7 +22,6 @@ import {
 } from './Icons';
 import { useNavigationStore } from '../store/navigationStore';
 import { getDisplayText } from '../utils/textUtils';
-import { useVisualizerStore } from '../store/visualizerStore';
 
 // Icon for speakers/audio output
 function IconSpeaker({ size = 24 }: { size?: number }) {
@@ -52,19 +51,6 @@ function IconInfo({ size = 24 }: { size?: number }) {
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
-        </svg>
-    );
-}
-
-// Icon for visualizer
-function IconVisualizer({ size = 24 }: { size?: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12h18" />
-            <path d="M6 8v8" />
-            <path d="M10 5v14" />
-            <path d="M14 8v8" />
-            <path d="M18 10v4" />
         </svg>
     );
 }
@@ -195,7 +181,6 @@ export function PlayerBar() {
     const isShuffled = usePlayerStore(s => s.isShuffled);
     const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
     const displayLanguage = usePlayerStore(s => s.displayLanguage);
-    const setVisualizerDisplayMode = useVisualizerStore(s => s.setDisplayMode);
     const { albumArtStyle, expandedArtMode } = useSettingsStore();
     const { isRightPanelOpen, toggleRightPanel } = useNavigationStore();
     const lastStateRef = useRef(state);
@@ -271,7 +256,7 @@ export function PlayerBar() {
 
     // Determine Cover URL — robust lookup with fallback
     const currentCover = useCurrentCover();
-    const activeCoverUrl = useCoverArt(currentCover || track?.cover_image || track?.cover_url, track?.path);
+    const activeCoverUrl = useCoverArt(currentCover || track?.cover_image || track?.cover_url, track?.path, true);
 
     const [isHovered, setIsHovered] = useState(false);
     const [showStats, setShowStats] = useState(false);
@@ -618,18 +603,6 @@ export function PlayerBar() {
                                         transition={{ delay: 0.25 }}
                                     >
                                         {audioOutput === 'desktop' ? <IconSpeaker size={22} /> : <IconMobile size={22} />}
-                                    </OrganicControlButton>
-
-                                    <OrganicControlButton
-                                        onClick={() => {
-                                            if (setVisualizerDisplayMode) setVisualizerDisplayMode('fullscreen');
-                                        }}
-                                        className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
-                                        initial={{ x: -20, opacity: 0 }}
-                                        animate={{ x: 0, opacity: 1 }}
-                                        transition={{ delay: 0.3 }}
-                                    >
-                                        <IconVisualizer size={22} />
                                     </OrganicControlButton>
 
                                     <OrganicControlButton

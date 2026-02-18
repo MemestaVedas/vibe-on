@@ -49,27 +49,6 @@ export interface LyricsData {
   instrumental: boolean;
 }
 
-// Playback mode for seamless video switching
-export type PlaybackMode = 'audio' | 'video';
-
-// Content type filters for unreleased library
-export type ContentType = 'slowed_reverb' | 'loop' | 'live' | 'remix' | 'other';
-
-// Unreleased track from YouTube (user-uploaded content)
-export interface UnreleasedTrack extends TrackInfo {
-  video_id: string;           // YouTube video ID
-  thumbnail_url?: string;     // Video thumbnail
-  content_type: ContentType;  // Type of content
-  channel_name?: string;      // Uploader name
-  view_count?: number;        // View count
-  added_at?: number;          // Unix timestamp when added to library
-}
-
-// Search filter for finding unreleased content
-export interface UnreleasedSearchFilter {
-  content_type?: ContentType;
-  max_results?: number;
-}
 
 // Playlist interface matching Backend
 export interface Playlist {
@@ -83,4 +62,4 @@ export interface PlaylistTrack extends TrackInfo {
   playlist_track_id: number;
 }
 
-export type AppView = 'tracks' | 'albums' | 'artists' | 'settings' | 'ytmusic' | 'favorites' | 'statistics' | 'torrents' | 'playlist';
+export type AppView = 'tracks' | 'albums' | 'artists' | 'settings' | 'favorites' | 'statistics' | 'torrents' | 'playlist';

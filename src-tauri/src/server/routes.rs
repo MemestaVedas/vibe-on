@@ -758,66 +758,30 @@ pub async fn get_cover(
     
     let app_state = state.app_state();
     
-    // 1. Check if it's a direct filename request (cached cover)
-    // We do this inside a block to limit scope of db lock
-    let direct_file_path = {
+    let cover_file_path = {
         let db_guard = app_state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         if let Some(ref db) = *db_guard {
+            // 1. Check if it's a direct filename request (cached cover)
             let covers_dir = db.get_covers_dir();
-            let potential_path = covers_dir.join(&track_path);
-            if potential_path.exists() && potential_path.is_file() {
-                Some(potential_path)
+            let potential_cached_path = covers_dir.join(&track_path);
+            if potential_cached_path.exists() && potential_cached_path.is_file() {
+                Some(potential_cached_path)
             } else {
-                None
-            }
-        } else {
-            None
-        }
-    };
-
-    if let Some(path) = direct_file_path {
-        println!("[Server] Serving direct cover file: {:?}", path);
-        if let Ok(data) = tokio::fs::read(&path).await {
-            let content_type = if path.to_string_lossy().ends_with(".png") { "image/png" } else { "image/jpeg" };
-            return Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, content_type)
-                .header(header::CACHE_CONTROL, "public, max-age=86400")
-                .body(Body::from(data))
-                .unwrap());
-        }
-    }
-
-    let cover_file_path = {
-        let db_lock = app_state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        if let Some(ref db) = *db_lock {
-            let covers_dir = db.get_covers_dir();
-            
-            // Use direct lookup for better performance
-            match db.get_track(&track_path) {
-                Ok(Some(track)) => {
-                    log::info!("✅ Found track in DB: {:?}", track.title);
-                    if let Some(ref cover_filename) = track.cover_image {
-                        let full_path = covers_dir.join(cover_filename);
-                        if full_path.exists() {
-                            log::info!("✅ Found cached cover: {:?}", cover_filename);
-                            Some(full_path)
+                // 2. Look up track in DB
+                match db.get_track(&track_path) {
+                    Ok(Some(track)) => {
+                        if let Some(ref cover_filename) = track.cover_image {
+                            let full_path = covers_dir.join(cover_filename);
+                            if full_path.exists() {
+                                Some(full_path)
+                            } else {
+                                None
+                            }
                         } else {
-                            log::warn!("⚠️ Cached cover file missing at {:?}", full_path);
                             None
                         }
-                    } else {
-                        log::info!("ℹ️ Track has no cover image in DB");
-                        None
-                    }
-                },
-                Ok(None) => {
-                    log::warn!("⚠️ Track not found in DB for path: {}", track_path);
-                    None
-                },
-                Err(e) => {
-                    log::error!("❌ DB error looking up track: {}", e);
-                    None
+                    },
+                    _ => None
                 }
             }
         } else {

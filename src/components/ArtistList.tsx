@@ -138,8 +138,8 @@ export function ArtistList() {
             // Check tracks for Romaji/English artist metadata
             // We only need to check one track since they are grouped by artist
             const firstTrack = a.tracks[0];
-            if (firstTrack.artist_romaji && firstTrack.artist_romaji.toLowerCase().includes(query)) return true;
-            if (firstTrack.artist_en && firstTrack.artist_en.toLowerCase().includes(query)) return true;
+            if (firstTrack && (firstTrack.artist_romaji && firstTrack.artist_romaji.toLowerCase().includes(query.toLowerCase()))) return true;
+            if (firstTrack && (firstTrack.artist_en && firstTrack.artist_en.toLowerCase().includes(query.toLowerCase()))) return true;
 
             return false;
         });

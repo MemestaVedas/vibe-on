@@ -30,7 +30,6 @@ if-addrs = "0.13"
 
 # Audio playback
 rodio = { version = "0.20", features = ["symphonia-all"] }
-rustfft = "6.2"
 
 # Metadata extraction
 lofty = "0.22"

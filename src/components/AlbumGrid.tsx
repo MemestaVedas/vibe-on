@@ -55,8 +55,13 @@ const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback:
                 </clipPath>
             </defs>
             {src ? (
-                console.log('[M3RoundedSquareImage] Rendering src:', src) ||
-                <image href={src} x="0" y="0" width="320" height="320" preserveAspectRatio="xMidYMid slice" clipPath={`url(#${uniqueId})`} />
+                <image
+                    href={src}
+                    width="100%"
+                    height="100%"
+                    preserveAspectRatio="xMidYMid slice"
+                    clipPath={`url(#${uniqueId})`}
+                />
             ) : (
                 <g clipPath={`url(#${uniqueId})`}>
                     <rect x="0" y="0" width="320" height="320" fill="var(--md-sys-color-surface-container-highest)" />

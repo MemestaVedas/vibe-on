@@ -3,57 +3,72 @@ import { usePlayerStore } from '../store/playerStore';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 /**
- * Loads cover art using Tauri's asset protocol which works in production.
+ * Loads cover art with a robust priority chain:
+ * 1. Direct HTTP URL → use as-is
+ * 2. Cached cover filename → use native asset protocol directly (NO local server)
+ * 3. Full local path → convertFileSrc (native asset protocol)
+ * 4. Extraction from audio file → only if allowExtraction is true (e.g. PlayerBar)
+ *    (Probeless assignment to avoid network process overhead; backend returns 404 on failure)
+ * 5. null / empty → null
  */
-export function useCoverArt(coverPathRaw: string | null | undefined, trackPath?: string) {
+export function useCoverArt(coverPathRaw: string | null | undefined, trackPath?: string, allowExtraction = false) {
     const coversDir = usePlayerStore(s => s.coversDir);
 
     // Normalize path to forward slashes for consistent cache keys
-    const coverPath = useMemo(() => coverPathRaw?.replace(/\\/g, '/'), [coverPathRaw]);
+    const coverPath = useMemo(() => coverPathRaw?.replace(/\\/g, '/') || null, [coverPathRaw]);
 
     const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     useEffect(() => {
-        // console.log('[useCoverArt] Input:', { coverPath, trackPath, coversDir });
+        let cancelled = false;
 
-        // If we have a direct HTTP URL, use it
-        if (coverPath?.startsWith('http') && !coverPath.includes('asset.localhost')) {
-            // console.log('[useCoverArt] Using direct HTTP URL:', coverPath);
-            setImageUrl(coverPath);
-            return;
+        function resolve() {
+            // 1. Already a resolved HTTP URL — use directly
+            if (coverPath?.startsWith('http') && !coverPath.includes('asset.localhost')) {
+                if (!cancelled) setImageUrl(coverPath);
+                return;
+            }
+
+            // 2. Cached cover filename (no slashes = just a filename like "abc123.jpg")
+            //    BYPASS the local port 5000 server. Use native asset protocol directly.
+            if (coverPath && !coverPath.includes('/')) {
+                const resolvedPath = coversDir ? `${coversDir}/${coverPath}` : null;
+                if (resolvedPath && !cancelled) {
+                    setImageUrl(convertFileSrc(resolvedPath));
+                    return;
+                }
+            }
+
+            // 3. Full local path — use native asset protocol
+            if (coverPath) {
+                const isAbsolute = coverPath.includes(':') || coverPath.startsWith('/');
+                const resolvedPath = isAbsolute
+                    ? coverPath
+                    : coversDir
+                        ? `${coversDir}/${coverPath}`
+                        : coverPath;
+                if (!cancelled) setImageUrl(convertFileSrc(resolvedPath));
+                return;
+            }
+
+            // 4. No coverPath at all — try backend extraction from audio file.
+            //    ONLY if allowExtraction is true (to avoid overwhelming WebKit with 100s of requests in lists)
+            if (trackPath && allowExtraction) {
+                const encodedPath = encodeURIComponent(trackPath);
+                // Assign directly without HEAD probe to reduce network orchestration overhead.
+                // WebKit handles individual failing images better than an overwhelmed network process.
+                if (!cancelled) setImageUrl(`http://localhost:5000/cover/${encodedPath}`);
+                return;
+            }
+
+            // 5. Nothing available
+            if (!cancelled) setImageUrl(null);
         }
 
-        // PRIORITIZE BACKEND SERVER (Port 5000) for Cached Filenames
-        // If we have a cached cover filename (no slashes), serve it directly from backend.
-        if (coverPath && !coverPath.includes('/')) {
-            const encodedCover = encodeURIComponent(coverPath);
-            // console.log('[useCoverArt] Using cached filename via backend:', coverPath);
-            setImageUrl(`http://localhost:5000/cover/${encodedCover}`);
-            return;
-        }
+        resolve();
+        return () => { cancelled = true; };
 
-        // If we have a track path, use the backend server to fetch the cover.
-        if (trackPath) {
-            const encodedPath = encodeURIComponent(trackPath);
-            const url = `http://localhost:5000/cover/${encodedPath}`;
-            setImageUrl(url);
-            return;
-        }
-
-        // Fallback: If no track path but we have a local cover path (e.g. legacy/manual usage)
-        // This likely still fails if asset protocol is broken, but we keep it just in case.
-        if (coverPath && coversDir) {
-            // Handle absolute vs relative paths
-            const isAbsolute = coverPath.includes(':') || coverPath.startsWith('/');
-            const path = (isAbsolute ? coverPath : `${coversDir}/${coverPath}`).replace(/\\/g, '/');
-            const assetUrl = convertFileSrc(path);
-            setImageUrl(assetUrl);
-            return;
-        }
-
-        setImageUrl(null);
-
-    }, [coverPath, coversDir, trackPath]);
+    }, [coverPath, coversDir, trackPath, allowExtraction]);
 
     return imageUrl;
 }

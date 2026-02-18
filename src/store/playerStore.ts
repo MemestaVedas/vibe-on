@@ -66,7 +66,6 @@ interface PlayerStore {
     isLoading: boolean;
     error: string | null;
     sort: { key: keyof TrackDisplay; direction: 'asc' | 'desc' } | null;
-    activeSource: 'local' | 'youtube';
 
     // Repeat mode
     repeatMode: RepeatMode;
@@ -190,7 +189,6 @@ export const usePlayerStore = create<PlayerStore>()(
             isLoading: false,
             error: null,
             sort: null,
-            activeSource: 'local',
             searchQuery: '',
 
             // Persistence defaults
@@ -336,7 +334,6 @@ export const usePlayerStore = create<PlayerStore>()(
                         isLoading: false,
                         error: null,
                         sort: null,
-                        activeSource: 'local',
                         searchQuery: '',
                         repeatMode: 'off',
                         favorites: new Set(),
@@ -555,7 +552,7 @@ export const usePlayerStore = create<PlayerStore>()(
             playFile: async (path: string) => {
                 try {
                     console.log("[PlayerStore] Attempting to play:", path);
-                    set({ error: null, activeSource: 'local' });
+                    set({ error: null });
 
                     await invoke('play_file', { path });
 
@@ -580,14 +577,8 @@ export const usePlayerStore = create<PlayerStore>()(
 
             pause: async () => {
                 try {
-                    const { activeSource } = get();
-                    if (activeSource === 'youtube') {
-                        await invoke('yt_control', { action: 'pause' });
-                        set((state) => ({ status: { ...state.status, state: 'Paused' } }));
-                    } else {
-                        await invoke('pause');
-                        await get().refreshStatus();
-                    }
+                    await invoke('pause');
+                    await get().refreshStatus();
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -595,14 +586,8 @@ export const usePlayerStore = create<PlayerStore>()(
 
             resume: async () => {
                 try {
-                    const { activeSource } = get();
-                    if (activeSource === 'youtube') {
-                        await invoke('yt_control', { action: 'play' });
-                        set((state) => ({ status: { ...state.status, state: 'Playing' } }));
-                    } else {
-                        await invoke('resume');
-                        await get().refreshStatus();
-                    }
+                    await invoke('resume');
+                    await get().refreshStatus();
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -631,12 +616,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
             seek: async (value: number) => {
                 try {
-                    const { activeSource } = get();
-                    if (activeSource === 'youtube') {
-                        await invoke('yt_control', { action: 'seek', value });
-                    } else {
-                        await invoke('seek', { value });
-                    }
+                    await invoke('seek', { value });
                 } catch (e) {
                     set({ error: String(e) });
                 }
@@ -831,12 +811,7 @@ export const usePlayerStore = create<PlayerStore>()(
             },
 
             prevTrack: async () => {
-                const { queue, playFile, getCurrentTrackIndex, activeSource } = get();
-
-                if (activeSource === 'youtube') {
-                    await invoke('yt_control', { action: 'prev' });
-                    return;
-                }
+                const { queue, playFile, getCurrentTrackIndex } = get();
 
                 const currentIndex = getCurrentTrackIndex();
                 if (currentIndex > 0) {
@@ -847,12 +822,7 @@ export const usePlayerStore = create<PlayerStore>()(
             },
 
             nextTrack: async () => {
-                const { queue, playFile, getCurrentTrackIndex, activeSource, repeatMode } = get();
-
-                if (activeSource === 'youtube') {
-                    await invoke('yt_control', { action: 'next' });
-                    return;
-                }
+                const { queue, playFile, getCurrentTrackIndex, repeatMode } = get();
 
                 const currentIndex = getCurrentTrackIndex();
 
@@ -869,24 +839,6 @@ export const usePlayerStore = create<PlayerStore>()(
                 }
             },
 
-            updateYtStatus: (ytStatus: any) => {
-                set({
-                    activeSource: 'youtube',
-                    status: {
-                        state: ytStatus.is_playing ? 'Playing' : 'Paused',
-                        volume: 1.0,
-                        position_secs: ytStatus.progress,
-                        track: {
-                            title: ytStatus.title,
-                            artist: ytStatus.artist,
-                            album: ytStatus.album,
-                            duration_secs: ytStatus.duration,
-                            path: 'youtube',
-                            cover_image: null,
-                        } as any
-                    }
-                });
-            },
 
             cycleRepeatMode: () => {
                 const { repeatMode } = get();

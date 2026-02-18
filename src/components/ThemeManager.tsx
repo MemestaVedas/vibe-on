@@ -15,7 +15,7 @@ export function ThemeManager() {
     const track = usePlayerStore(s => s.status.track);
 
     // Get cover URL from the tiny thumbnail cache
-    const coverUrl = useCoverArt(coverImage, track?.path);
+    const coverUrl = useCoverArt(coverImage, track?.path, true);
 
     // Extract colors using M3 Logic (results are cached by imageUrl)
     const colors = useImageColors(coverUrl);

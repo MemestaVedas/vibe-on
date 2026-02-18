@@ -5,7 +5,7 @@ import { useCoverArt } from './useCoverArt';
 export function useMediaSession() {
     const { status, pause, resume, nextTrack, prevTrack, playFile } = usePlayerStore();
     const { state, track } = status;
-    const coverUrl = useCoverArt(track?.cover_image);
+    const coverUrl = useCoverArt(track?.cover_image, track?.path || undefined, true);
 
     // Maintain a silent audio element to ensure the WebView holds media focus
     // This allows the Windows Media Controls to appear and remain active

@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { useVisualizerStore } from '../store/visualizerStore';
 import { useMobileStore } from '../store/mobileStore';
 
 import { useShallow } from 'zustand/react/shallow';
@@ -88,11 +87,6 @@ export function GlobalEffects() {
                     playFile(status.track.path);
                 }
             }
-
-            if (e.code === 'KeyV') {
-                const vizStore = useVisualizerStore.getState();
-                vizStore.setDisplayMode(vizStore.displayMode === 'fullscreen' ? 'off' : 'fullscreen');
-            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -125,12 +119,11 @@ export function GlobalEffects() {
     const duration_secs = usePlayerStore(state => state.status.track?.duration_secs || 0);
     const activeState = usePlayerStore(state => state.status.state);
     const activePath = usePlayerStore(state => state.status.track?.path);
-    const activeSource = usePlayerStore(state => state.activeSource);
 
     const lastTrackPathRef = useRef<string | null>(null);
 
     useEffect(() => {
-        if (activeState !== 'Playing' || activeSource !== 'local' || duration_secs <= 0) return;
+        if (activeState !== 'Playing' || duration_secs <= 0) return;
 
         if (position_secs >= duration_secs - 0.5) {
             if (lastTrackPathRef.current === activePath) return;
@@ -170,7 +163,7 @@ export function GlobalEffects() {
                 }
             }, 300);
         }
-    }, [position_secs, duration_secs, activeState, activePath, activeSource, autoplay]);
+    }, [position_secs, duration_secs, activeState, activePath, autoplay]);
 
     // Reset lastTrackPath
     useEffect(() => {

@@ -8,7 +8,8 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 use super::schema::init_db;
-use crate::audio::{TrackInfo, UnreleasedTrack};
+use crate::audio::{TrackInfo};
+use crate::audio::state::UnreleasedTrack;
 
 pub struct DbAlbum {
     pub name: String,

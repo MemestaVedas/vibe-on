@@ -51,7 +51,7 @@ export function ImmersiveView() {
 
     // Use memoized library lookup with fallback for Immersive View
     const currentCover = useCurrentCover();
-    const coverUrl = useCoverArt(currentCover || activeTrack?.cover_image || activeTrack?.cover_url, activeTrack?.path);
+    const coverUrl = useCoverArt(currentCover || activeTrack?.cover_image || activeTrack?.cover_url, activeTrack?.path, true);
 
     // Find full track info from library for Romaji
     const displayTrack = useMemo(() => {

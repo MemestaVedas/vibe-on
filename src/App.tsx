@@ -5,7 +5,6 @@ const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({
 const StatisticsPage = lazy(() => import('./components/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
 
 // Lazy-loaded views — defers ~130KB JS parsing until first visit
-const YouTubeMusic = lazy(() => import('./components/YouTubeMusic').then(m => ({ default: m.YouTubeMusic })));
 const TorrentManager = lazy(() => import('./components/TorrentManager').then(m => ({ default: m.TorrentManager })));
 import { ImmersiveView } from './components/ImmersiveView';
 import { PlaylistView } from './components/PlaylistView';
@@ -33,7 +32,6 @@ import { FavoritesView } from './components/FavoritesView';
 import { RightPanel } from './components/RightPanel';
 import { LyricsPanel } from './components/LyricsPanel';
 import { Equalizer } from './components/Equalizer';
-import { FullscreenVisualizer } from './components/AudioVisualizer';
 
 function App() {
   useMediaSession(); // Initialize System Media Controls
@@ -78,11 +76,29 @@ function App() {
     // Use type assertion for window to avoid TS errors with __TAURI__
     const tauriWindow = window as any;
     if (tauriWindow.__TAURI__) {
+      let scanStarted = false;
+      let lastProgressPct = -1;
+
       const unlistenProgress = tauriWindow.__TAURI__.event.listen('library-scan-progress', (event: any) => {
         const { processed, total } = event.payload;
-        // Only show progress every 50 songs or when complete to avoid toast spam
-        if (processed % 50 === 0 || processed === total) {
-          showToast(`Library Scan: ${processed} / ${total}`);
+
+        // Show a "scan started" toast on the very first event
+        if (!scanStarted) {
+          scanStarted = true;
+          showToast(`Scanning library… (${total} files found)`);
+        }
+
+        // Show progress every ~10% of total (minimum every 50 songs)
+        const step = Math.max(50, Math.floor(total * 0.1));
+        const pct = Math.floor((processed / total) * 10); // 0-10 buckets
+        if (pct !== lastProgressPct && processed % step === 0) {
+          lastProgressPct = pct;
+          showToast(`Library scan: ${processed} / ${total}`);
+        }
+
+        // Completion toast
+        if (processed === total && total > 0) {
+          showToast(`✓ Library scan complete — ${total} tracks processed`);
         }
       });
 
@@ -151,7 +167,6 @@ function App() {
               }>
                 {view === 'statistics' && <StatisticsPage />}
                 {view === 'settings' && <SettingsPage />}
-                {view === 'ytmusic' && <YouTubeMusic />}
                 {view === 'torrents' && <TorrentManager />}
               </Suspense>
             </div>
@@ -201,7 +216,6 @@ function App() {
         )}
       </AnimatePresence>
 
-      <FullscreenVisualizer />
     </div>
 
   );

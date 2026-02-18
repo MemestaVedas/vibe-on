@@ -51,13 +51,7 @@ export function IconSettings({ size = 24, className, ...props }: IconProps) {
     );
 }
 
-export function IconYoutube({ size = 24, className, ...props }: IconProps) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
-            <path d="M10 15l5.19-3L10 9v6zm11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.96 1.61-1.87 1.87-1.6.44-8 .44-8 .44s-6.4 0-8-.44c-.9-.26-1.61-.97-1.87-1.87C1.5 15.8 1.33 14.19 1.33 12c0-2.19.16-3.8.44-4.83.25-.9.96-1.61 1.87-1.87 1.6-.44 8-.44 8-.44s6.4 0 8 .44c.9.26 1.61.97 1.87 1.87z" />
-        </svg>
-    );
-}
+
 
 // --- Playback Icons ---
 

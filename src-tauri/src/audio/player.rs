@@ -11,9 +11,8 @@ use lofty::probe::Probe;
 use rodio::{Decoder, OutputStream, Sink, Source};
 
 use super::equalizer::Equalizer;
-use super::fft::{FftProcessor, VisualizerData, VisualizerTap};
 use super::state::{PlayerState, PlayerStatus, TrackInfo};
-use std::sync::{Mutex, RwLock};
+use std::sync::Mutex;
 
 /// Commands sent to the audio thread
 pub enum AudioCommand {
@@ -31,7 +30,6 @@ pub enum AudioCommand {
     SetEqAll(Vec<f32>), // All band gains at once
     SetSpeed(f32),
     SetReverb(f32, f32), // mix (0-1), decay (0-1)
-    GetVisualizerData(Sender<VisualizerData>),
 }
 
 /// Thread-safe handle to the audio player
@@ -39,7 +37,6 @@ pub struct AudioPlayer {
     command_tx: Sender<AudioCommand>,
     _thread: JoinHandle<()>,
     eq_gains: Arc<Mutex<Vec<f32>>>,
-    fft_processor: Arc<FftProcessor>,
 }
 
 impl AudioPlayer {
@@ -59,12 +56,8 @@ impl AudioPlayer {
         let eq_gains = Arc::new(Mutex::new(initial_gains));
         let eq_gains_clone = eq_gains.clone();
 
-        // Create FFT processor for audio visualization
-        let fft_processor = Arc::new(FftProcessor::new(44100)); // Will update sample rate on play
-        let fft_buffer = fft_processor.get_buffer_handle();
-
         let thread = thread::spawn(move || {
-            AudioThread::run(command_rx, init_tx, eq_gains_clone, fft_buffer);
+            AudioThread::run(command_rx, init_tx, eq_gains_clone);
         });
 
         // Wait for initialization to complete
@@ -73,7 +66,6 @@ impl AudioPlayer {
                 command_tx,
                 _thread: thread,
                 eq_gains,
-                fft_processor,
             }),
             Ok(Err(e)) => Err(format!("Audio initialization failed: {}", e)),
             Err(_) => Err("Audio thread panicked during initialization".to_string()),
@@ -198,10 +190,6 @@ impl AudioPlayer {
             .map_err(|e| format!("Failed to send reverb command: {}", e))
     }
 
-    /// Get current visualizer data (frequency bins and waveform) for UI rendering
-    pub fn get_visualizer_data(&self) -> VisualizerData {
-        self.fft_processor.get_visualizer_data()
-    }
 }
 
 impl Drop for AudioPlayer {
@@ -222,7 +210,6 @@ struct AudioThread {
     play_start_time: Option<Instant>,
     accumulated_time: f64,
     eq_gains: Arc<Mutex<Vec<f32>>>,
-    fft_buffer: Arc<RwLock<super::fft::RingBuffer>>,
 }
 
 impl AudioThread {
@@ -230,7 +217,6 @@ impl AudioThread {
         command_rx: Receiver<AudioCommand>,
         init_tx: std::sync::mpsc::SyncSender<Result<(), String>>,
         eq_gains: Arc<Mutex<Vec<f32>>>,
-        fft_buffer: Arc<RwLock<super::fft::RingBuffer>>,
     ) {
         // Initialize audio output on this thread
         let (stream, stream_handle) = match OutputStream::try_default() {
@@ -263,7 +249,6 @@ impl AudioThread {
             play_start_time: None,
             accumulated_time: 0.0,
             eq_gains,
-            fft_buffer,
         };
 
         loop {
@@ -330,9 +315,6 @@ impl AudioThread {
                     }
                     println!("[AudioThread] Reverb set: mix={}, decay={}", mix, decay);
                 }
-                Ok(AudioCommand::GetVisualizerData(tx)) => {
-                    let _ = tx.send(VisualizerData::default());
-                }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                     // Check if track finished
                     if audio.state == PlayerState::Playing {
@@ -374,7 +356,7 @@ impl AudioThread {
             }
         };
         // Increase buffer size to prevent underruns (static/breaking)
-        let reader = BufReader::with_capacity(128 * 1024, file);
+        let reader = BufReader::with_capacity(512 * 1024, file);
         let source = match Decoder::new(reader) {
             Ok(s) => s,
             Err(e) => {
@@ -403,10 +385,9 @@ impl AudioThread {
         sink.set_volume(self.volume);
 
         // Wrap source in processing chain:
-        // Decoder -> f32 -> VisualizerTap (for FFT) -> Equalizer -> Sink
+        // Decoder -> f32 -> Equalizer -> Sink
         let source_f32 = source.convert_samples::<f32>();
-        let tapped = VisualizerTap::new(source_f32, Arc::clone(&self.fft_buffer));
-        let equalizer = Equalizer::new(tapped, self.eq_gains.clone());
+        let equalizer = Equalizer::new(source_f32, self.eq_gains.clone());
         sink.append(equalizer);
 
         self.sink = Some(sink);
@@ -615,7 +596,7 @@ impl AudioThread {
                 }
             };
 
-            let reader = BufReader::with_capacity(128 * 1024, file);
+            let reader = BufReader::with_capacity(512 * 1024, file);
             let source = match Decoder::new(reader) {
                 Ok(s) => s,
                 Err(e) => {
@@ -639,8 +620,7 @@ impl AudioThread {
 
             // Wrap source in processing chain (same as handle_play)
             let source_f32 = skipped_source.convert_samples::<f32>();
-            let tapped = VisualizerTap::new(source_f32, Arc::clone(&self.fft_buffer));
-            let equalizer = Equalizer::new(tapped, self.eq_gains.clone());
+            let equalizer = Equalizer::new(source_f32, self.eq_gains.clone());
             sink.append(equalizer);
 
             if !was_playing {
