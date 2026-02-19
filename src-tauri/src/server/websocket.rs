@@ -742,7 +742,7 @@ async fn handle_client_message(
                                 let sample = (position * 44100.0) as u64;
                                 let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
                                 let port = state.config.port;
-                                let encoded_path = urlencoding::encode(track.cover_image.as_deref().unwrap_or(&track.path)).to_string();
+                                let encoded_path = urlencoding::encode(&track.path).to_string();
                                 let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
                                 (Some(track.path), sample, url)
                             }
@@ -810,7 +810,7 @@ async fn handle_client_message(
                                 let position = status.position_secs;
                                 let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
                                 let port = state.config.port;
-                                let encoded_path = urlencoding::encode(track.cover_image.as_deref().unwrap_or(&track.path)).to_string();
+                                let encoded_path = urlencoding::encode(&track.path).to_string();
                                 let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
                                 (Some(track.path), position, url)
                             }
