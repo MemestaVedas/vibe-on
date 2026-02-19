@@ -113,38 +113,31 @@ export function GlobalEffects() {
         }
     }, [trackPath, trackTitle, trackArtist, trackDuration, fetchLyrics]);
 
-    // 4. Autoplay Logic
-    const autoplay = useSettingsStore(state => state.autoplay);
-    const position_secs = usePlayerStore(state => state.status.position_secs);
-    const duration_secs = usePlayerStore(state => state.status.track?.duration_secs || 0);
-    const activeState = usePlayerStore(state => state.status.state);
-    const activePath = usePlayerStore(state => state.status.track?.path);
-
+    // 4. Autoplay Logic — uses interval polling to avoid re-rendering on every position_secs update
     const lastTrackPathRef = useRef<string | null>(null);
 
     useEffect(() => {
-        if (activeState !== 'Playing' || duration_secs <= 0) return;
+        const interval = setInterval(() => {
+            const { status, repeatMode, nextTrack, getCurrentTrackIndex, queue, playRandomAlbum, pause, playFile } = usePlayerStore.getState();
+            const autoplay = useSettingsStore.getState().autoplay;
+            const { position_secs, track, state: activeState } = status;
+            const duration_secs = track?.duration_secs || 0;
+            const activePath = track?.path;
 
-        if (position_secs >= duration_secs - 0.5) {
-            if (lastTrackPathRef.current === activePath) return;
+            if (activeState !== 'Playing' || duration_secs <= 0) return;
 
-            lastTrackPathRef.current = activePath || null;
-
-            setTimeout(() => {
-                const { repeatMode, nextTrack, getCurrentTrackIndex, queue, playRandomAlbum, pause } = usePlayerStore.getState();
-                console.log('[Autoplay] Track ended. Repeat:', repeatMode);
+            if (position_secs >= duration_secs - 0.5) {
+                if (lastTrackPathRef.current === activePath) return;
+                lastTrackPathRef.current = activePath || null;
 
                 if (repeatMode === 'one') {
-                    // handled by PlayerBar effect typically, or backend
-                    if (activePath) usePlayerStore.getState().playFile(activePath);
+                    if (activePath) playFile(activePath);
                 } else if (repeatMode === 'all') {
                     nextTrack();
                 } else if (repeatMode === 'off') {
                     const currentIndex = getCurrentTrackIndex();
                     if (currentIndex >= queue.length - 1) {
-                        console.log('[Autoplay] End of queue reached.');
                         if (autoplay) {
-                            console.log('[Autoplay] Autoplay enabled, picking random album...');
                             playRandomAlbum();
                         } else {
                             pause();
@@ -155,17 +148,19 @@ export function GlobalEffects() {
                 } else if (autoplay) {
                     const currentIndex = getCurrentTrackIndex();
                     if (currentIndex >= queue.length - 1) {
-                        console.log('[Autoplay] Queue ended! Picking a random album...');
                         playRandomAlbum();
                     } else {
                         nextTrack();
                     }
                 }
-            }, 300);
-        }
-    }, [position_secs, duration_secs, activeState, activePath, autoplay]);
+            }
+        }, 1000); // Poll every 1s instead of re-rendering on every position_secs change
 
-    // Reset lastTrackPath
+        return () => clearInterval(interval);
+    }, []);
+
+    // Reset lastTrackPath when track changes
+    const activePath = usePlayerStore(state => state.status.track?.path);
     useEffect(() => {
         if (activePath && activePath !== lastTrackPathRef.current) {
             lastTrackPathRef.current = null;

@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useLyricsStore } from '../store/lyricsStore';

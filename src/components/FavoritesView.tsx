@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';

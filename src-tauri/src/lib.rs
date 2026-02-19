@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State, Listener};
 use audio::state::PlayerStatus;
 #[cfg(target_os = "windows")]
 use audio::MediaControlService;
-use audio::{AudioPlayer, MediaCmd, SearchFilter, TrackInfo};
+use audio::{AudioPlayer, MediaCmd, TrackInfo};
 use crate::database::db::DbPlaylist;
 use database::DatabaseManager;
 use discord_rpc::DiscordRpc;
@@ -921,6 +921,17 @@ fn get_cached_lyrics(track_path: String, state: State<AppState>) -> CachedLyrics
 }
 
 #[tauri::command]
+fn convert_lyrics_to_romaji(texts: Vec<String>) -> Vec<Option<String>> {
+    texts.iter().map(|text| {
+        if lyrics_transliteration::has_japanese(text) {
+            Some(lyrics_transliteration::to_romaji(text))
+        } else {
+            None
+        }
+    }).collect()
+}
+
+#[tauri::command]
 async fn get_lyrics(
     audio_path: String,
     artist: String,
@@ -1516,6 +1527,7 @@ pub fn run() {
             get_library_tracks,
             get_covers_dir,
             get_lyrics,
+            convert_lyrics_to_romaji,
             get_cached_lyrics,
             remove_folder,
             clear_all_data,

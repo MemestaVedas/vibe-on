@@ -11,6 +11,7 @@ interface PlaylistState {
     pendingTrackToAdd: string | null;
     openCreateDialog: (trackPath?: string) => void;
     closeCreateDialog: () => void;
+    recentlyAddedToPlaylist: string | null;
 
     fetchPlaylists: () => Promise<void>;
     createPlaylist: (name: string) => Promise<string | null>;

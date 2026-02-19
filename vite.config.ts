@@ -63,7 +63,7 @@ export default defineConfig(async () => ({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
-          'vendor-motion': ['motion/react', 'framer-motion'],
+          'vendor-motion': ['motion/react'],
           'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-fs'],
         },
       },

@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useToastStore } from '../store/toastStore';
 import { IconCheck } from './Icons';
 

@@ -1,5 +1,5 @@
 import { useState, useMemo, forwardRef } from 'react';
-import { VirtuosoGrid, Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import { VirtuosoGrid, Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { useNavigationStore } from '../store/navigationStore';
@@ -7,7 +7,7 @@ import { useCoverArt } from '../hooks/useCoverArt';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { IconMusicNote, IconPlay, IconAlbum } from './Icons';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
 
 
@@ -222,7 +222,6 @@ const AlbumItem = ({
     const displayAlbumName = getDisplayText(firstTrack, 'album', displayLanguage);
     const displayArtistName = getDisplayText(firstTrack, 'artist', displayLanguage);
     const coverUrl = useCoverArt(album.cover, firstTrack?.path);
-    console.log(`[AlbumItem] ${album.name}: coverRaw=${album.cover}, url=${coverUrl}`);
 
     return (
         <div

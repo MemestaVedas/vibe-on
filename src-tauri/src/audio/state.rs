@@ -75,23 +75,3 @@ impl Default for PlayerStatus {
         }
     }
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SearchFilter {
-    pub query: String,
-    pub content_type: Option<String>,
-    pub max_results: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UnreleasedTrack {
-    pub video_id: String,
-    pub title: String,
-    pub artist: String,
-    pub duration_secs: f64,
-    pub thumbnail_url: Option<String>,
-    pub content_type: String,
-    pub channel_name: Option<String>,
-    pub view_count: Option<u64>,
-    pub added_at: Option<i64>,
-}

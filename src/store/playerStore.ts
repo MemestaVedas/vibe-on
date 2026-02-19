@@ -730,13 +730,13 @@ export const usePlayerStore = create<PlayerStore>()(
             scanFolder: async (path: string) => {
                 try {
                     set({ isLoading: true, error: null });
+                    const { showToast } = (await import('../store/toastStore')).useToastStore.getState();
+                    showToast('Scanning folder…');
                     const tracks = await invoke<TrackDisplay[]>('init_library', { path });
                     const tracksWithId = tracks.map(t => ({ ...t, id: t.path }));
 
                     set(state => {
                         const newFolders = state.folders.includes(path) ? state.folders : [...state.folders, path];
-
-                        // If queue is empty, set it to library
                         const shouldUpdateQueue = state.queue.length === 0;
 
                         return {
@@ -748,7 +748,10 @@ export const usePlayerStore = create<PlayerStore>()(
                             originalQueue: shouldUpdateQueue ? tracksWithId : state.originalQueue,
                         };
                     });
+                    showToast(`✓ ${tracksWithId.length} tracks imported`);
                 } catch (e) {
+                    const { showToast } = (await import('../store/toastStore')).useToastStore.getState();
+                    showToast(`✗ Import failed: ${String(e)}`);
                     set({ error: String(e), isLoading: false });
                 }
             },
@@ -761,6 +764,8 @@ export const usePlayerStore = create<PlayerStore>()(
                         folders: state.folders.filter(f => f !== path),
                     }));
                     await get().loadLibrary();
+                    const { showToast } = (await import('../store/toastStore')).useToastStore.getState();
+                    showToast('Folder removed');
                 } catch (e) {
                     console.error('Failed to remove folder:', e);
                     set({ error: String(e), isLoading: false });

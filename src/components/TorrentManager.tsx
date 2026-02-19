@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { TorrentBrowser } from './TorrentBrowser';
 import { downloadDir } from '@tauri-apps/api/path';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface TorrentStatus {
     id: number;

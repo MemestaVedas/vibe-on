@@ -19,7 +19,7 @@ import { useToastStore } from './store/toastStore';
 import { PlaylistDialog } from './components/PlaylistDialog';
 import { useMediaSession } from './hooks/useMediaSession';
 import { usePlayerStore } from './store/playerStore';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'motion/react';
 import { useSettingsStore } from './store/settingsStore';
 import { ThemeManager } from './components/ThemeManager';
 import { AmbientBackground } from './components/AmbientBackground';
@@ -32,6 +32,7 @@ import { FavoritesView } from './components/FavoritesView';
 import { RightPanel } from './components/RightPanel';
 import { LyricsPanel } from './components/LyricsPanel';
 import { Equalizer } from './components/Equalizer';
+import { Toast } from './components/Toast';
 
 function App() {
   useMediaSession(); // Initialize System Media Controls
@@ -203,6 +204,7 @@ function App() {
 
       {/* Lyrics Panel Overlay */}
       <LyricsPanel />
+      <Toast />
 
       <AnimatePresence>
         {immersiveMode && (

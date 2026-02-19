@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { usePlaylistStore } from '../store/playlistStore';
-import { IconPlus, IconClose } from './Icons';
 import { useToastStore } from '../store/toastStore';
 
 export function PlaylistDialog() {

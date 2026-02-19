@@ -6,7 +6,7 @@ import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMicrophone, IconPlay } from './Icons';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
 
 interface Artist {

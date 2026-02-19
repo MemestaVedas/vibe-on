@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useMobileStore } from '../store/mobileStore';
 import { useThemeStore } from '../store/themeStore';
 import { IconClose, IconRefresh, IconWifi, IconCheck, IconMobileDevice } from './Icons';

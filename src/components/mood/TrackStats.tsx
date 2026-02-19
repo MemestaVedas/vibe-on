@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { AudioFeatures, KEY_LABELS } from '../../types/mood';
 
 interface TrackStatsProps {

@@ -8,8 +8,7 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 use super::schema::init_db;
-use crate::audio::{TrackInfo};
-use crate::audio::state::UnreleasedTrack;
+use crate::audio::TrackInfo;
 
 pub struct DbAlbum {
     pub name: String,
@@ -501,82 +500,6 @@ impl DatabaseManager {
         self.covers_dir.clone()
     }
 
-    // Unreleased Library Methods
-    pub fn insert_unreleased_track(&self, track: &UnreleasedTrack) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT OR REPLACE INTO unreleased_tracks (video_id, title, artist, duration_secs, thumbnail_url, content_type)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                track.video_id,
-                track.title,
-                track.artist,
-                track.duration_secs,
-                track.thumbnail_url,
-                track.content_type
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn delete_unreleased_track(&self, video_id: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "DELETE FROM unreleased_tracks WHERE video_id = ?1",
-            params![video_id],
-        )?;
-        Ok(())
-    }
-
-    pub fn get_unreleased_tracks(&self) -> Result<Vec<UnreleasedTrack>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT video_id, title, artist, duration_secs, thumbnail_url, content_type, added_at
-             FROM unreleased_tracks
-             ORDER BY added_at DESC",
-        )?;
-
-        let track_iter = stmt.query_map([], |row| {
-            // Parse added_at if needed, but we keep it as timestamp/string?
-            // schema says TIMESTAMP DEFAULT CURRENT_TIMESTAMP which is usually text in sqlite unless configured
-            // Let's assume we don't strictly need precise added_at for now or just grab it
-            let added_at_str: Option<String> = row.get(6).ok();
-            // Simple conversion or ignore
-            let added_at = if let Some(_s) = added_at_str {
-                // parse or just use 0
-                Some(0)
-            } else {
-                None
-            };
-
-            Ok(UnreleasedTrack {
-                video_id: row.get(0)?,
-                title: row.get(1)?,
-                artist: row.get(2).unwrap_or("Unknown".to_string()),
-                duration_secs: row.get(3)?,
-                thumbnail_url: row.get(4).ok(),
-                content_type: row.get(5)?,
-                channel_name: None, // Not stored currently
-                view_count: None,
-                added_at: added_at,
-                // album field doesn't exist in unreleased track struct? Wait, UnreleasedTrack extends TrackInfo in frontend but in Rust it is separate struct
-                // Rust struct above:
-                // pub video_id: String,
-                // pub title: String,
-                // pub artist: String,
-                // pub duration_secs: f64,
-                // pub thumbnail_url: Option<String>,
-                // pub content_type: String, ...
-            })
-        })?;
-
-        let mut tracks = Vec::new();
-        for track in track_iter {
-            tracks.push(track?);
-        }
-        Ok(tracks)
-    }
-
     pub fn remove_folder(&self, path: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         // Delete all tracks where path starts with the folder path
@@ -601,7 +524,7 @@ impl DatabaseManager {
         // Delete all tracks, albums, and unreleased tracks
         conn.execute("DELETE FROM tracks", [])?;
         conn.execute("DELETE FROM albums", [])?;
-        conn.execute("DELETE FROM unreleased_tracks", [])?;
+
         println!("[Database] Tables cleared.");
 
         // Optimize DB file

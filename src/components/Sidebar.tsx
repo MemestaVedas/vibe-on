@@ -2,7 +2,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { WavySeparator } from './WavySeparator';
 import type { AppView } from '../types';
 
