@@ -1,4 +1,4 @@
-import { useEffect, memo } from 'react';
+import { useEffect, memo, useState } from 'react';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -7,6 +7,23 @@ import { WavySeparator } from './WavySeparator';
 import { Virtuoso } from 'react-virtuoso';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { getDisplayText } from '../utils/textUtils';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { PlaylistTrack, TrackDisplay } from '../types';
 
 function formatDuration(seconds: number): string {
@@ -30,21 +47,45 @@ const PlaylistTrackRow = memo(function PlaylistTrackRow({ track, index, isActive
     const displayArtist = getDisplayText(track, 'artist', displayLanguage);
     const displayAlbum = getDisplayText(track, 'album', displayLanguage);
 
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: track.playlist_track_id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
     return (
         <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
             onClick={onClick}
             className={`
-                group grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem_4rem] gap-4 items-center 
+                group grid grid-cols-[2rem_3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem_4rem] gap-4 items-center 
                 px-4 py-3 mx-2 rounded-xl cursor-pointer transition-all duration-200
                 ${isActive
                     ? 'bg-secondary-container/10 text-primary'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'
                 }
+                ${isDragging ? 'shadow-lg z-50' : ''}
             `}
         >
+            <span {...listeners} className="cursor-grab active:cursor-grabbing flex justify-center text-on-surface-variant/50 hover:text-primary transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 3h2v2H9V3zm4 0h2v2h-2V3zM9 7h2v2H9V7zm4 0h2v2h-2V7zm-4 4h2v2H9v-2zm4 0h2v2h-2v-2zm-4 4h2v2H9v-2zm4 0h2v2h-2v-2zm-4 4h2v2H9v-2zm4 0h2v2h-2v-2z" />
+                </svg>
+            </span>
             <span className="flex justify-center font-medium relative w-8">
                 {isActive && isPlaying ? (
-                    <IconPlay size={16} fill="currentColor" /> // Simplified for now
+                    <IconPlay size={16} fill="currentColor" />
                 ) : (
                     <span className="group-hover:hidden text-label-medium">{index + 1}</span>
                 )}
@@ -91,17 +132,47 @@ const PlaylistTrackRow = memo(function PlaylistTrackRow({ track, index, isActive
 
 export function PlaylistView() {
     const { activePlaylistId, setView } = useNavigationStore();
-    const { playlists, currentPlaylistTracks, fetchPlaylistTracks, removeTrackFromPlaylist, renamePlaylist, deletePlaylist, isLoading } = usePlaylistStore();
+    const { playlists, currentPlaylistTracks, fetchPlaylistTracks, removeTrackFromPlaylist, renamePlaylist, deletePlaylist, reorderPlaylistTracks, isLoading } = usePlaylistStore();
     const { playQueue, status } = usePlayerStore();
+    const [localTracks, setLocalTracks] = useState<PlaylistTrack[]>([]);
 
     // Find current playlist object
     const playlist = playlists.find(p => p.id === activePlaylistId);
+
+    // Setup drag and drop sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     useEffect(() => {
         if (activePlaylistId) {
             fetchPlaylistTracks(activePlaylistId);
         }
     }, [activePlaylistId]);
+
+    // Sync local tracks with store
+    useEffect(() => {
+        setLocalTracks(currentPlaylistTracks);
+    }, [currentPlaylistTracks]);
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id && playlist) {
+            const oldIndex = localTracks.findIndex((track) => track.playlist_track_id === active.id);
+            const newIndex = localTracks.findIndex((track) => track.playlist_track_id === over.id);
+
+            const newOrder = arrayMove(localTracks, oldIndex, newIndex);
+            setLocalTracks(newOrder);
+
+            // Persist to backend
+            const trackIds = newOrder.map(t => t.playlist_track_id);
+            await reorderPlaylistTracks(playlist.id, trackIds);
+        }
+    };
 
     if (!playlist) {
         return <div className="p-8 text-center text-on-surface-variant">Playlist not found</div>;
@@ -124,7 +195,7 @@ export function PlaylistView() {
     const handlePlayPlaylist = (index: number) => {
         // We need to play the playlist queue
         // playQueue expects a list of tracks and an index.
-        const queueTracks: TrackDisplay[] = currentPlaylistTracks.map(t => ({
+        const queueTracks: TrackDisplay[] = localTracks.map(t => ({
             ...t,
             id: t.path,
             // Ensure other optional fields from TrackDisplay are present if needed, but strict minimal is id
@@ -150,7 +221,7 @@ export function PlaylistView() {
                             {playlist.name}
                         </h1>
                         <span className="text-body-medium text-on-surface-variant opacity-80">
-                            {currentPlaylistTracks.length} songs
+                            {localTracks.length} songs
                         </span>
                     </div>
                 </div>
@@ -159,7 +230,7 @@ export function PlaylistView() {
                     <button
                         onClick={() => handlePlayPlaylist(0)}
                         className="px-6 py-2.5 bg-primary text-on-primary rounded-full hover:bg-primary/90 font-medium shadow-md flex items-center gap-2 transition-transform active:scale-95"
-                        disabled={currentPlaylistTracks.length === 0}
+                        disabled={localTracks.length === 0}
                     >
                         <IconPlay size={20} fill="currentColor" /> Play
                     </button>
@@ -181,33 +252,44 @@ export function PlaylistView() {
             <div className="flex-1">
                 {isLoading ? (
                     <div className="flex justify-center p-8 text-on-surface-variant animate-pulse">Loading tracks...</div>
-                ) : currentPlaylistTracks.length === 0 ? (
+                ) : localTracks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-48 text-on-surface-variant/60 gap-4">
                         <IconMusicNote size={48} />
                         <p>No tracks in this playlist yet.</p>
                     </div>
                 ) : (
-                    <Virtuoso
-                        style={{ height: '100%' }}
-                        data={currentPlaylistTracks}
-                        itemContent={(index, track) => (
-                            <PlaylistTrackRow
-                                key={`${track.path}-${index}`} // Use index in key as duplicate tracks allowed in playlists often
-                                track={track}
-                                index={index}
-                                isActive={status.track?.path === track.path} // Simple active check, technically should match playlist context if possible
-                                isPlaying={status.state === 'Playing'}
-                                onClick={() => handlePlayPlaylist(index)}
-                                onRemove={(e) => {
-                                    e.stopPropagation();
-                                    removeTrackFromPlaylist(playlist.id, track.playlist_track_id);
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={localTracks.map(t => t.playlist_track_id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <Virtuoso
+                                style={{ height: '100%' }}
+                                data={localTracks}
+                                itemContent={(index, track) => (
+                                    <PlaylistTrackRow
+                                        key={`${track.path}-${index}`}
+                                        track={track}
+                                        index={index}
+                                        isActive={status.track?.path === track.path}
+                                        isPlaying={status.state === 'Playing'}
+                                        onClick={() => handlePlayPlaylist(index)}
+                                        onRemove={(e) => {
+                                            e.stopPropagation();
+                                            removeTrackFromPlaylist(playlist.id, track.playlist_track_id);
+                                        }}
+                                    />
+                                )}
+                                components={{
+                                    Footer: () => <div className="h-32"></div>
                                 }}
                             />
-                        )}
-                        components={{
-                            Footer: () => <div className="h-32"></div>
-                        }}
-                    />
+                        </SortableContext>
+                    </DndContext>
                 )}
             </div>
         </div>

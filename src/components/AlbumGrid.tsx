@@ -45,6 +45,23 @@ const VerySunnyPlayButton = ({ onClick }: { onClick: (e: React.MouseEvent) => vo
 
 // M3 Rounded Square
 const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback: React.ReactNode }) => {
+    // Render a normal <img> when a src is provided to avoid SVG <image> cross-origin
+    // and WebKit limitations on mobile. Use a lightweight CSS-rounded container so
+    // images behave consistently across platforms. Keep the SVG-only path for
+    // placeholder/fallback visuals.
+    if (src) {
+        return (
+            <div className="w-full h-full overflow-hidden rounded-[1.25rem] bg-surface-container-highest">
+                <img
+                    src={src}
+                    alt=""
+                    draggable={false}
+                    className="w-full h-full object-cover"
+                />
+            </div>
+        );
+    }
+
     const uniqueId = useMemo(() => `rounded-square-${Math.random().toString(36).substr(2, 9)}`, []);
 
     return (
@@ -54,22 +71,12 @@ const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback:
                     <path d="M320 172C320 216.72 320 239.08 312.98 256.81C302.81 282.49 282.49 302.81 256.81 312.98C239.08 320 216.72 320 172 320H148C103.28 320 80.9199 320 63.1899 312.98C37.5099 302.81 17.19 282.49 7.02002 256.81C1.95503e-05 239.08 0 216.72 0 172V148C0 103.28 1.95503e-05 80.92 7.02002 63.19C17.19 37.515 37.5099 17.187 63.1899 7.02197C80.9199 -2.71797e-05 103.28 0 148 0H172C216.72 0 239.08 -2.71797e-05 256.81 7.02197C282.49 17.187 302.81 37.515 312.98 63.19C320 80.92 320 103.28 320 148V172Z" />
                 </clipPath>
             </defs>
-            {src ? (
-                <image
-                    href={src}
-                    width="100%"
-                    height="100%"
-                    preserveAspectRatio="xMidYMid slice"
-                    clipPath={`url(#${uniqueId})`}
-                />
-            ) : (
-                <g clipPath={`url(#${uniqueId})`}>
-                    <rect x="0" y="0" width="320" height="320" fill="var(--md-sys-color-surface-container-highest)" />
-                    <g transform="translate(128, 128)">
-                        {fallback}
-                    </g>
+            <g clipPath={`url(#${uniqueId})`}>
+                <rect x="0" y="0" width="320" height="320" fill="var(--md-sys-color-surface-container-highest)" />
+                <g transform="translate(128, 128)">
+                    {fallback}
                 </g>
-            )}
+            </g>
         </svg>
     );
 };

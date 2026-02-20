@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
+import { useMobileStore } from '../store/mobileStore';
 import { SquigglySlider } from './SquigglySlider';
 import { useCurrentCover } from '../hooks/useCurrentCover';
 import { useCoverArt } from '../hooks/useCoverArt';
@@ -11,6 +12,7 @@ import {
 } from './Icons';
 import { getDisplayText } from '../utils/textUtils';
 import { useRipple } from './RippleEffect';
+import { invoke } from '@tauri-apps/api/core';
 
 export function MiniPlayer() {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -19,10 +21,10 @@ export function MiniPlayer() {
         status, resume, pause, nextTrack, prevTrack, seek,
         toggleMiniPlayer, displayLanguage, setVolume,
         refreshStatus, isShuffled, toggleShuffle, toggleFavorite, favorites,
-        library
+        library, audioOutput, setAudioOutput
     } = usePlayerStore();
     const { colors } = useThemeStore();
-    const [activeDevice, setActiveDevice] = useState<'pc' | 'mobile'>('pc');
+    const { connectedDevice } = useMobileStore();
 
     const track = status.track;
 
@@ -50,6 +52,28 @@ export function MiniPlayer() {
         ripple.trigger(e, containerRef.current || undefined);
         if (status.state === 'Playing') pause();
         else resume();
+    };
+
+    const handleDeviceToggle = async (device: 'pc' | 'mobile') => {
+        if (device === 'mobile' && !connectedDevice) {
+            // Can't switch to mobile if no device connected
+            return;
+        }
+
+        try {
+            await setAudioOutput(device);
+
+            // Audio output change should trigger play/pause naturally based on backend state
+            if (device === 'mobile') {
+                await invoke('start_mobile_playback');
+                pause(); // Fallback UI sync
+            } else {
+                await invoke('stop_mobile_playback');
+                resume(); // Fallback UI sync
+            }
+        } catch (e) {
+            console.error('Failed to toggle device:', e);
+        }
     };
 
     const handleWheel = (e: React.WheelEvent) => {
@@ -166,14 +190,17 @@ export function MiniPlayer() {
                     {/* Device Toggle Pill */}
                     <div className="flex items-center bg-black/20 backdrop-blur-md rounded-full p-0.5" data-tauri-drag-region>
                         <button
-                            onClick={() => setActiveDevice('pc')}
-                            className={`p-1.5 rounded-full transition-all ${activeDevice === 'pc' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80'}`}
+                            onClick={() => handleDeviceToggle('pc')}
+                            className={`p-1.5 rounded-full transition-all ${audioOutput === 'desktop' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80'}`}
+                            title="Play on PC"
                         >
                             <IconComputer size={14} />
                         </button>
                         <button
-                            onClick={() => setActiveDevice('mobile')}
-                            className={`p-1.5 rounded-full transition-all ${activeDevice === 'mobile' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80'}`}
+                            onClick={() => handleDeviceToggle('mobile')}
+                            disabled={!connectedDevice}
+                            className={`p-1.5 rounded-full transition-all ${audioOutput === 'mobile' ? 'bg-white/20 text-white shadow-sm' : connectedDevice ? 'text-white/50 hover:text-white/80' : 'text-white/20 cursor-not-allowed'}`}
+                            title={connectedDevice ? `Play on ${connectedDevice.name}` : 'No mobile device connected'}
                         >
                             <IconMobileDevice size={14} />
                         </button>

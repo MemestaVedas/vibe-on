@@ -1384,6 +1384,30 @@ async fn get_p2p_peers(state: State<'_, AppState>) -> Result<Vec<p2p::discovery:
     }
 }
 
+#[tauri::command]
+async fn start_mobile_playback(state: State<'_, AppState>) -> Result<(), String> {
+    // Send command to mobile via server broadcast
+    // This will be handled by the server module's broadcast mechanism
+    // For now, we can use the player's play command which will broadcast to mobile
+    get_or_init_player(&state)?;
+    let mut player_guard = state.player.lock().unwrap();
+    if let Some(ref mut player) = *player_guard {
+        player.resume();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn stop_mobile_playback(state: State<'_, AppState>) -> Result<(), String> {
+    // Send command to stop mobile playback
+    get_or_init_player(&state)?;
+    let player_guard = state.player.lock().unwrap();
+    if let Some(ref player) = *player_guard {
+        player.pause();
+    }
+    Ok(())
+}
+
 // ============================================================================
 // Tauri Commands - Playlist Management
 // ============================================================================
@@ -1481,6 +1505,22 @@ async fn remove_track_from_playlist(
 }
 
 #[tauri::command]
+async fn reorder_playlist_tracks(
+    playlist_id: String,
+    track_ids: Vec<i64>,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+    let db_guard = state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        db.reorder_playlist_tracks(&playlist_id, track_ids).map_err(|e| e.to_string())
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
+#[tauri::command]
 async fn get_playlist_tracks(
     playlist_id: String,
     state: State<'_, AppState>,
@@ -1546,6 +1586,8 @@ pub fn run() {
             get_server_status,
             get_p2p_peers,
             get_local_ip,
+            start_mobile_playback,
+            stop_mobile_playback,
             // Playlist commands
             create_playlist,
             delete_playlist,
@@ -1553,6 +1595,7 @@ pub fn run() {
             get_playlists,
             add_track_to_playlist,
             remove_track_from_playlist,
+            reorder_playlist_tracks,
             get_playlist_tracks,
         ])
         .setup(|_app| {

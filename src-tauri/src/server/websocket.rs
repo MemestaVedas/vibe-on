@@ -68,6 +68,12 @@ pub enum ClientMessage {
     StopMobilePlayback,
     /// Mobile playback position update
     MobilePositionUpdate { position_secs: f64 },
+    /// Get playlists
+    GetPlaylists,
+    /// Get tracks in a playlist
+    GetPlaylistTracks { playlist_id: String },
+    /// Add track to playlist
+    AddToPlaylist { playlist_id: String, path: String },
     /// WebRTC signaling: offer
     WebrtcOffer { target_peer_id: String, sdp: String },
     /// WebRTC signaling: answer
@@ -188,11 +194,34 @@ pub enum ServerMessage {
         from_peer_id: String,
         candidate: String,
     },
+    /// Playlists list response
+    #[serde(rename_all = "camelCase")]
+    Playlists {
+        playlists: Vec<PlaylistResponse>,
+    },
+    /// Playlist tracks response
+    #[serde(rename_all = "camelCase")]
+    PlaylistTracks {
+        #[serde(rename = "playlistId")]
+        playlist_id: String,
+        tracks: Vec<super::routes::TrackDetail>,
+    },
     /// Error message
     #[serde(rename = "Error")]
     Error { message: String },
     /// Pong response
     Pong,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistResponse {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "trackCount")]
+    pub track_count: i32,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 impl From<ServerEvent> for ServerMessage {
@@ -982,6 +1011,114 @@ async fn handle_client_message(
             
             log::info!("📱 Sending library with {} tracks to mobile", tracks.len());
             let _ = reply_tx.send(ServerMessage::Library { tracks }).await;
+        }
+        
+        ClientMessage::GetPlaylists => {
+            log::info!("📱 GetPlaylists request from mobile ({})", client_id);
+            
+            // Fetch all playlists from DB
+            let playlists: Vec<PlaylistResponse> = if let Ok(db_guard) = app_state.db.lock() {
+                if let Some(ref db) = *db_guard {
+                    if let Ok(all_playlists) = db.get_playlists() {
+                        all_playlists.into_iter().map(|p| {
+                            // Get track count for this playlist
+                            let track_count = db.get_playlist_tracks(&p.id)
+                                .map(|tracks| tracks.len() as i32)
+                                .unwrap_or(0);
+                            
+                            PlaylistResponse {
+                                id: p.id,
+                                name: p.name,
+                                track_count,
+                                created_at: p.created_at,
+                                updated_at: p.updated_at,
+                            }
+                        }).collect()
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+            
+            log::info!("📱 Sending {} playlists to mobile", playlists.len());
+            let _ = reply_tx.send(ServerMessage::Playlists { playlists }).await;
+        }
+        
+        ClientMessage::GetPlaylistTracks { playlist_id } => {
+            log::info!("📱 GetPlaylistTracks request for playlist {} from mobile ({})", playlist_id, client_id);
+            
+            // Fetch tracks from playlist
+            let tracks = if let Ok(db_guard) = app_state.db.lock() {
+                if let Some(ref db) = *db_guard {
+                    if let Ok(playlist_tracks) = db.get_playlist_tracks(&playlist_id) {
+                        playlist_tracks.into_iter().map(|t| super::routes::TrackDetail {
+                            path: t.path.clone(),
+                            title: t.title,
+                            artist: t.artist,
+                            album: t.album,
+                            duration_secs: t.duration_secs,
+                            disc_number: t.disc_number,
+                            track_number: t.track_number,
+                            cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                            title_romaji: t.title_romaji,
+                            title_en: t.title_en,
+                            artist_romaji: t.artist_romaji,
+                            artist_en: t.artist_en,
+                            album_romaji: t.album_romaji,
+                            album_en: t.album_en,
+                        }).collect()
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+            
+            log::info!("📱 Sending {} tracks from playlist {} to mobile", tracks.len(), playlist_id);
+            let _ = reply_tx.send(ServerMessage::PlaylistTracks { 
+                playlist_id, 
+                tracks 
+            }).await;
+        }
+        
+        ClientMessage::AddToPlaylist { playlist_id, path } => {
+            log::info!("📱 AddToPlaylist request - playlist: {}, track: {} from mobile ({})", playlist_id, path, client_id);
+            
+            let result = {
+                if let Ok(db_guard) = app_state.db.lock() {
+                    if let Some(ref db) = *db_guard {
+                        db.add_track_to_playlist(&playlist_id, &path)
+                    } else {
+                        log::error!("❌ Database not initialized");
+                        Err(rusqlite::Error::QueryReturnedNoRows)
+                    }
+                } else {
+                    log::error!("❌ Failed to acquire database lock");
+                    Err(rusqlite::Error::QueryReturnedNoRows)
+                }
+            };
+            
+            match result {
+                Ok(_) => {
+                    log::info!("✅ Track added to playlist");
+                    let _ = reply_tx.send(ServerMessage::Error {
+                        message: "ok:track_added".to_string(),
+                    }).await;
+                }
+                Err(e) => {
+                    log::error!("❌ Failed to add track to playlist: {:?}", e);
+                    let _ = reply_tx.send(ServerMessage::Error {
+                        message: format!("Failed to add track: {}", e),
+                    }).await;
+                }
+            }
         }
         
         ClientMessage::Ping => {

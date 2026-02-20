@@ -21,6 +21,7 @@ interface PlaylistState {
     fetchPlaylistTracks: (playlistId: string) => Promise<void>;
     addTrackToPlaylist: (playlistId: string, trackPath: string) => Promise<void>;
     removeTrackFromPlaylist: (playlistId: string, playlistTrackId: number) => Promise<void>;
+    reorderPlaylistTracks: (playlistId: string, trackIds: number[]) => Promise<void>;
 }
 
 export const usePlaylistStore = create<PlaylistState>((set, get) => ({
@@ -111,6 +112,16 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
 
             // Optional: Refetch to be sure of order/state
             // await get().fetchPlaylistTracks(playlistId); 
+        } catch (e) {
+            set({ error: String(e) });
+        }
+    },
+
+    reorderPlaylistTracks: async (playlistId, trackIds) => {
+        try {
+            await invoke('reorder_playlist_tracks', { playlistId, trackIds });
+            // Refetch to get updated order
+            await get().fetchPlaylistTracks(playlistId);
         } catch (e) {
             set({ error: String(e) });
         }

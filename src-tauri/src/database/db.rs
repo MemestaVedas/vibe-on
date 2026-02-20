@@ -682,6 +682,27 @@ impl DatabaseManager {
         Ok(())
     }
 
+    pub fn reorder_playlist_tracks(
+        &self,
+        playlist_id: &str,
+        track_ids: Vec<i64>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        // Update positions based on the new order
+        for (index, track_id) in track_ids.iter().enumerate() {
+            conn.execute(
+                "UPDATE playlist_tracks SET position = ?1 WHERE id = ?2 AND playlist_id = ?3",
+                params![index as i32, track_id, playlist_id],
+            )?;
+        }
+        // Update playlist timestamp
+        conn.execute(
+            "UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            params![playlist_id],
+        )?;
+        Ok(())
+    }
+
     pub fn get_playlist_tracks(&self, playlist_id: &str) -> Result<Vec<TrackInfo>> {
         let conn = self.conn.lock().unwrap();
 

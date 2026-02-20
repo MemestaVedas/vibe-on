@@ -192,7 +192,7 @@ where
     }
 
     fn recalculate_coeffs(&mut self) {
-        let mut coeffs_updated = false;
+        let mut _coeffs_updated = false;
         if let Ok(gains) = self.gains.try_lock() {
             if gains.len() >= 10 {
                 if self.cached_gains.len() < gains.len() {
@@ -203,7 +203,7 @@ where
                     if self.cached_gains[i] != g {
                         println!("[Equalizer] Band {} gain changed to {} dB", i, g);
                         self.cached_gains[i] = g;
-                        coeffs_updated = true;
+                        _coeffs_updated = true;
                     }
                 }
             }
