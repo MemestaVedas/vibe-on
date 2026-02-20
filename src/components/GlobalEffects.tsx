@@ -63,6 +63,17 @@ export function GlobalEffects() {
                         console.log('[Output] Switching to desktop playback');
                     }
                 }),
+
+                listen('mobile-position-update', (event: any) => {
+                    const { position_secs } = event.payload;
+                    const store = usePlayerStore.getState();
+                    if (store.audioOutput === 'mobile') {
+                        // Override local scrub state smoothly directly bypassing setter for speed
+                        usePlayerStore.setState(state => ({
+                            status: { ...state.status, position_secs }
+                        }));
+                    }
+                }),
             ]);
 
             return () => {

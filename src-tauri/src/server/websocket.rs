@@ -463,6 +463,7 @@ async fn handle_client_message(
                     }
                 }
             }
+            sync_discord_for_mobile(state, &app_state).await;
             // Send acknowledgment
             let _ = reply_tx.send(ServerMessage::Error {
                 message: "ok:play".to_string(),
@@ -479,6 +480,7 @@ async fn handle_client_message(
                     }
                 }
             }
+            sync_discord_for_mobile(state, &app_state).await;
             // Send acknowledgment
             let _ = reply_tx.send(ServerMessage::Error {
                 message: "ok:pause".to_string(),
@@ -495,6 +497,7 @@ async fn handle_client_message(
                     }
                 }
             }
+            sync_discord_for_mobile(state, &app_state).await;
             // Send acknowledgment
             let _ = reply_tx.send(ServerMessage::Error {
                 message: "ok:resume".to_string(),
@@ -579,6 +582,7 @@ async fn handle_client_message(
                     }
                 }
             }
+            sync_discord_for_mobile(state, &app_state).await;
             // Send acknowledgment
             let _ = reply_tx.send(ServerMessage::Error {
                 message: "ok:seek".to_string(),
@@ -816,15 +820,11 @@ async fn handle_client_message(
             }
             log::info!("🔊 Active output set to: mobile");
 
-            // Mute PC playback but keep it running for sync
+            // Pause PC playback so mobile assumes independent control
             if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
-                    let _ = player.set_mute(true);
-                    // Ensure it is playing if it was paused? 
-                    // Ideally we sync state first. For now, assume user pressed play on mobile.
-                    // If mobile says "start playback", we essentially want the PC to "play silently".
-                    let _ = player.resume(); 
-                    log::info!("🔇 PC playback muted and resumed for mobile streaming");
+                    let _ = player.pause();
+                    log::info!("⏸️ PC playback paused for mobile streaming");
                 }
             }
             
@@ -962,8 +962,10 @@ async fn handle_client_message(
         
         ClientMessage::MobilePositionUpdate { position_secs } => {
             log::debug!("📱 Mobile position update: {:.2}s", position_secs);
-            // Sync position with mobile for consistent state
-            // Could update PC's internal tracking if needed
+            // Sync position with React frontend
+            let _ = state.app_handle.emit("mobile-position-update", serde_json::json!({
+                "position_secs": position_secs
+            }));
         }
         
         ClientMessage::StopStreamToMobile => {
@@ -1278,6 +1280,7 @@ async fn play_track_internal(
         }).await;
     }
 
+    sync_discord_for_mobile(state, &app_state).await;
     send_current_status_internal(state, &app_state, &reply_tx).await;
 }
 
@@ -1422,4 +1425,50 @@ fn local_ip() -> Option<String> {
     let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
     socket.local_addr().ok().map(|addr| addr.ip().to_string())
+}
+
+/// Helper function to push immediate internal updates to Discord Rich Presence 
+/// natively when commanded from the mobile application.
+pub async fn sync_discord_for_mobile(
+    _state: &Arc<ServerState>,
+    app_state: &tauri::State<'_, crate::AppState>,
+) {
+    let status = {
+        if let Ok(player_guard) = app_state.player.lock() {
+            if let Some(ref player) = *player_guard {
+                player.get_status()
+            } else { return; }
+        } else { return; }
+    };
+    
+    if let Some(track) = status.track {
+        let cover_url = app_state.current_cover_url.lock().unwrap().clone();
+        
+        if status.state == crate::audio::PlayerState::Playing {
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+            let position = status.position_secs as i64;
+            let start = now - position;
+            let end = now + (track.duration_secs as i64 - position);
+            
+            let _ = app_state.discord.set_activity(
+                &track.title,
+                &track.artist,
+                Some(start),
+                Some(end),
+                cover_url,
+                Some(track.album)
+            );
+        } else {
+            let _ = app_state.discord.set_activity(
+                &format!("(Paused) {}", track.title),
+                &track.artist,
+                None,
+                None,
+                cover_url,
+                Some(track.album)
+            );
+        }
+    } else {
+        let _ = app_state.discord.clear_activity();
+    }
 }
