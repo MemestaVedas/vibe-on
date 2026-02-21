@@ -595,15 +595,18 @@ async fn init_library(
     // 3. Batch insert into database
     let db_guard = state.db.lock().unwrap();
     if let Some(ref db) = *db_guard {
+        let total_tracks = tracks.len();
         let mut inserted_count = 0;
-        for track in &tracks {
+        for mut track in tracks {
+            // Normalize path for DB
+            track.path = track.path.replace("\\", "/");
             // Insert without cover data initially (covers loaded lazily on demand)
             match db.insert_track(&track, None) {
                 Ok(_) => inserted_count += 1,
                 Err(e) => eprintln!("[Library] Failed to insert track {}: {}", track.path, e),
             }
         }
-        println!("[Library] Successfully inserted {}/{} tracks.", inserted_count, tracks.len());
+        println!("[Library] Successfully inserted {}/{} tracks.", inserted_count, total_tracks);
         
         db.get_all_tracks().map_err(|e| e.to_string())
     } else {
@@ -755,7 +758,7 @@ fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8
 
     Ok((
         TrackInfo {
-            path: path.to_string_lossy().to_string(),
+            path: path.to_string_lossy().to_string().replace("\\", "/"),
             title,
             artist,
             album,
@@ -844,12 +847,12 @@ fn get_track_metadata_helper_fast(path_str: &str) -> Result<TrackInfo, String> {
     }
 
     Ok(TrackInfo {
-        path: path.to_string_lossy().to_string(),
+        path: path.to_string_lossy().to_string().replace("\\", "/"),
         title,
         artist,
         album,
         duration_secs,
-        cover_image: cover_image_path, // Now populated if external cover exists
+        cover_image: cover_image_path.map(|p| p.replace("\\", "/")), // Normalize external cover path too
         disc_number,
         track_number,
         title_romaji: None,

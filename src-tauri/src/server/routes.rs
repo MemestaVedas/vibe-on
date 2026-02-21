@@ -759,7 +759,8 @@ pub async fn get_cover(
             log::error!("❌ Failed to decode cover path: {}", path);
             StatusCode::BAD_REQUEST
         })?
-        .to_string();
+        .to_string()
+        .replace("\\", "/");
     
     log::info!("🖼️ Cover request for: {}", track_path);
     
@@ -769,10 +770,17 @@ pub async fn get_cover(
         let db_guard = app_state.db.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         if let Some(ref db) = *db_guard {
             // 1. Check if it's a direct filename request (cached cover)
+            // A direct filename should NOT contain slashes and should NOT be an absolute path.
+            let is_filename_only = !track_path.contains('/') && !track_path.contains(':');
             let covers_dir = db.get_covers_dir();
-            let potential_cached_path = covers_dir.join(&track_path);
-            if potential_cached_path.exists() && potential_cached_path.is_file() {
-                Some(potential_cached_path)
+            
+            if is_filename_only {
+                let potential_cached_path = covers_dir.join(&track_path);
+                if potential_cached_path.exists() && potential_cached_path.is_file() {
+                    Some(potential_cached_path)
+                } else {
+                    None
+                }
             } else {
                 // 2. Look up track in DB
                 match db.get_track(&track_path) {
@@ -904,7 +912,8 @@ pub async fn stream_audio_file(
     // Decode the path
     let track_path = urlencoding::decode(&encoded_path)
         .map_err(|_| StatusCode::BAD_REQUEST)?
-        .to_string();
+        .to_string()
+        .replace("\\", "/");
         
     log::info!("📱 Streaming request for: {}", track_path);
     

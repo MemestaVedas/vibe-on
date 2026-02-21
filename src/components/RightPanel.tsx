@@ -7,6 +7,7 @@ import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
 import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart } from './Icons';
+import { M3CircleImage } from './ShapeComponents';
 import { MarqueeText } from './MarqueeText';
 import { SquigglySlider } from './SquigglySlider';
 import { Virtuoso } from 'react-virtuoso';
@@ -455,20 +456,17 @@ export const QueueItem = memo(function QueueItem({ track, isActive, onClick, dis
             `}
         >
             {/* Tiny Art */}
-            <div className={`
-                w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-surface-container-highest relative
-                ${isActive ? 'shadow-sm' : ''}
-            `}>
+            <div className="w-10 h-10 shrink-0 relative">
                 {coverUrl ? (
-                    <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                    <M3CircleImage src={coverUrl} fallback={<IconMusicNote size={16} />} />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-full h-full flex items-center justify-center bg-surface-container-highest rounded-full">
                         <IconMusicNote size={16} className="opacity-50" />
                     </div>
                 )}
 
                 {/* Hover Play Overlay */}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
                     <IconPlay size={16} className="text-white fill-white" />
                 </div>
             </div>

@@ -4,6 +4,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMicrophone, IconPlay } from './Icons';
+import { M3CircleImage } from './ShapeComponents';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { motion } from 'motion/react';

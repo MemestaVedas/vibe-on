@@ -7,6 +7,7 @@ import { useCoverArt } from '../hooks/useCoverArt';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { IconMusicNote, IconPlay, IconAlbum } from './Icons';
+import { M3CircleImage } from './ShapeComponents';
 import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
 

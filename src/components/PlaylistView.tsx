@@ -4,6 +4,7 @@ import { useNavigationStore } from '../store/navigationStore';
 import { usePlayerStore } from '../store/playerStore';
 import { IconMusicNote, IconPlay, IconTrash } from './Icons';
 import { WavySeparator } from './WavySeparator';
+import { M3CircleImage } from './ShapeComponents';
 import { Virtuoso } from 'react-virtuoso';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { getDisplayText } from '../utils/textUtils';
@@ -95,11 +96,11 @@ const PlaylistTrackRow = memo(function PlaylistTrackRow({ track, index, isActive
             </span>
 
             <span className="flex items-center gap-4 min-w-0">
-                <div className="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-surface-container shadow-sm">
+                <div className="w-12 h-12 shrink-0">
                     {coverUrl ? (
-                        <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                        <M3CircleImage src={coverUrl} fallback={<IconMusicNote size={16} />} />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-surface-container-high/50">
+                        <div className="w-full h-full flex items-center justify-center bg-surface-container-high/50 rounded-full">
                             <IconMusicNote size={16} />
                         </div>
                     )}

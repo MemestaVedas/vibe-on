@@ -4,6 +4,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMusicNote, IconPlay, IconHeart, IconPlus, IconPause } from './Icons';
 import { WavySeparator } from './WavySeparator';
+import { M3CircleImage } from './ShapeComponents';
 import { ContextMenu } from './ContextMenu';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
@@ -71,11 +72,11 @@ const TrackRow = memo(function TrackRow({ track, index, isActive, isPlaying, onC
             </span>
 
             <span className="flex items-center gap-4 min-w-0">
-                <div className="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-surface-container shadow-sm group-hover:scale-110 transition-transform duration-300">
+                <div className="w-12 h-12 shrink-0 group-hover:scale-110 transition-transform duration-300">
                     {coverUrl ? (
-                        <img src={coverUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                        <M3CircleImage src={coverUrl} fallback={<IconMusicNote size={16} />} />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-surface-container-high/50">
+                        <div className="w-full h-full flex items-center justify-center bg-surface-container-high/50 rounded-full">
                             <IconMusicNote size={16} />
                         </div>
                     )}

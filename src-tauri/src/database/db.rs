@@ -86,6 +86,8 @@ impl DatabaseManager {
             Some("".to_string())
         };
 
+        let normalized_path = track.path.replace("\\", "/");
+
         // Insert into tracks
         conn.execute(
             "INSERT OR REPLACE INTO tracks (
@@ -94,7 +96,7 @@ impl DatabaseManager {
             ) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
-                track.path,
+                normalized_path,
                 track.title,
                 track.artist,
                 track.album,
@@ -174,9 +176,11 @@ impl DatabaseManager {
         cover_filename: &str,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        let normalized_album = album.replace("\\", "/");
+        let normalized_artist = artist.replace("\\", "/");
         conn.execute(
             "UPDATE albums SET cover_image_path = ?1 WHERE name = ?2 AND artist = ?3",
-            params![cover_filename, album, artist],
+            params![cover_filename, normalized_album, normalized_artist],
         )?;
         Ok(())
     }
@@ -275,6 +279,7 @@ impl DatabaseManager {
     pub fn get_track(&self, path: &str) -> Result<Option<TrackInfo>> {
         let conn = self.conn.lock().unwrap();
 
+        let normalized_path = path.replace("\\", "/");
         let mut stmt = conn.prepare(
             "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
              t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
@@ -283,7 +288,7 @@ impl DatabaseManager {
              WHERE t.path = ?1",
         )?;
 
-        let mut rows = stmt.query_map(params![path], |row| {
+        let mut rows = stmt.query_map(params![normalized_path], |row| {
             let cover_filename: Option<String> = row.get(5)?;
             Ok(TrackInfo {
                 path: row.get(0)?,
@@ -509,9 +514,10 @@ impl DatabaseManager {
         // Actually, tracks.path is absolute. folder path is absolute.
         // Ideally we should normalize separators.
         // For simple usage: LIKE ? || '%'
+        let normalized_path = path.replace("\\", "/");
         conn.execute(
             "DELETE FROM tracks WHERE path LIKE ?1 || '%'",
-            params![path],
+            params![normalized_path],
         )?;
         Ok(())
     }
@@ -682,11 +688,7 @@ impl DatabaseManager {
         Ok(())
     }
 
-    pub fn reorder_playlist_tracks(
-        &self,
-        playlist_id: &str,
-        track_ids: Vec<i64>,
-    ) -> Result<()> {
+    pub fn reorder_playlist_tracks(&self, playlist_id: &str, track_ids: Vec<i64>) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         // Update positions based on the new order
         for (index, track_id) in track_ids.iter().enumerate() {
