@@ -74,6 +74,10 @@ pub enum ClientMessage {
     GetPlaylistTracks { playlist_id: String },
     /// Add track to playlist
     AddToPlaylist { playlist_id: String, path: String },
+    /// Remove track from playlist
+    RemoveFromPlaylist { playlist_id: String, playlist_track_id: i64 },
+    /// Reorder playlist tracks
+    ReorderPlaylistTracks { playlist_id: String, track_ids: Vec<i64> },
     /// WebRTC signaling: offer
     WebrtcOffer { target_peer_id: String, sdp: String },
     /// WebRTC signaling: answer
@@ -142,6 +146,8 @@ pub enum ServerMessage {
         track_path: String,
         has_synced: bool,
         synced_lyrics: Option<String>,
+        #[serde(rename = "syncedLyricsRomaji")]
+        synced_lyrics_romaji: Option<String>,
         plain_lyrics: Option<String>,
         instrumental: bool,
     },
@@ -252,8 +258,8 @@ impl From<ServerEvent> for ServerMessage {
             ServerEvent::QueueUpdate { tracks, current_index } => {
                 ServerMessage::QueueUpdate { queue: tracks, current_index }
             }
-            ServerEvent::Lyrics { track_path, has_synced, synced_lyrics, plain_lyrics, instrumental } => {
-                ServerMessage::Lyrics { track_path, has_synced, synced_lyrics, plain_lyrics, instrumental }
+            ServerEvent::Lyrics { track_path, has_synced, synced_lyrics, synced_lyrics_romaji, plain_lyrics, instrumental } => {
+                ServerMessage::Lyrics { track_path, has_synced, synced_lyrics, synced_lyrics_romaji, plain_lyrics, instrumental }
             }
             ServerEvent::HandoffPrepare { sample, url } => {
                 ServerMessage::HandoffPrepare { sample, url }
@@ -447,6 +453,30 @@ async fn handle_client_message(
 
             // Send current status immediately
             send_current_status_internal(state, &app_state, &reply_tx).await;
+            
+            // Send current queue immediately
+            let (tracks, index) = {
+                let queue = app_state.queue.lock().unwrap();
+                let index = *app_state.current_queue_index.lock().unwrap();
+                (
+                    queue.iter().map(|t| super::TrackSummary {
+                        path: t.path.clone(),
+                        title: t.title.clone(),
+                        artist: t.artist.clone(),
+                        album: t.album.clone(),
+                        duration_secs: t.duration_secs,
+                        cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                        title_romaji: t.title_romaji.clone(),
+                        title_en: t.title_en.clone(),
+                        artist_romaji: t.artist_romaji.clone(),
+                        artist_en: t.artist_en.clone(),
+                        album_romaji: t.album_romaji.clone(),
+                        album_en: t.album_en.clone(),
+                    }).collect::<Vec<_>>(),
+                    index
+                )
+            };
+            let _ = reply_tx.send(ServerMessage::QueueUpdate { queue: tracks, current_index: index as i32 }).await;
         }
         
         ClientMessage::GetStatus => {
@@ -925,9 +955,14 @@ async fn handle_client_message(
                     if let Some(lrc) = crate::lyrics_fetcher::find_local_lrc(&path) {
                         println!("[Lyrics] Found local file!");
                         let _ = reply_tx.blocking_send(ServerMessage::Lyrics {
-                            track_path: path,
+                            track_path: path.clone(),
                             has_synced: lrc.synced_lyrics.is_some(),
-                            synced_lyrics: lrc.synced_lyrics,
+                            synced_lyrics: lrc.synced_lyrics.clone(),
+                            synced_lyrics_romaji: lrc.synced_lyrics.as_ref().and_then(|t| {
+                                if crate::lyrics_transliteration::has_japanese(t) {
+                                    Some(crate::lyrics_transliteration::to_romaji(t))
+                                } else { None }
+                            }),
                             plain_lyrics: lrc.plain_lyrics,
                             instrumental: lrc.instrumental.unwrap_or(false),
                         });
@@ -940,7 +975,12 @@ async fn handle_client_message(
                              let _ = reply_tx.blocking_send(ServerMessage::Lyrics {
                                 track_path: path,
                                 has_synced: lyrics.synced_lyrics.is_some(),
-                                synced_lyrics: lyrics.synced_lyrics,
+                                synced_lyrics: lyrics.synced_lyrics.clone(),
+                                synced_lyrics_romaji: lyrics.synced_lyrics.as_ref().and_then(|t| {
+                                    if crate::lyrics_transliteration::has_japanese(t) {
+                                        Some(crate::lyrics_transliteration::to_romaji(t))
+                                    } else { None }
+                                }),
                                 plain_lyrics: lyrics.plain_lyrics,
                                 instrumental: lyrics.instrumental.unwrap_or(false),
                             });
@@ -1000,6 +1040,7 @@ async fn handle_client_message(
                             artist_en: t.artist_en,
                             album_romaji: t.album_romaji,
                             album_en: t.album_en,
+                            playlist_track_id: t.playlist_track_id,
                         }).collect()
                     } else {
                         Vec::new()
@@ -1072,6 +1113,7 @@ async fn handle_client_message(
                             artist_en: t.artist_en,
                             album_romaji: t.album_romaji,
                             album_en: t.album_en,
+                            playlist_track_id: t.playlist_track_id,
                         }).collect()
                     } else {
                         Vec::new()
@@ -1120,6 +1162,42 @@ async fn handle_client_message(
                         message: format!("Failed to add track: {}", e),
                     }).await;
                 }
+            }
+        }
+        
+        ClientMessage::RemoveFromPlaylist { playlist_id, playlist_track_id } => {
+            log::info!("📱 RemoveFromPlaylist request - playlist: {}, track_id: {} from mobile ({})", playlist_id, playlist_track_id, client_id);
+            
+            let success = {
+                if let Ok(db_guard) = app_state.db.lock() {
+                    if let Some(ref db) = *db_guard {
+                        db.remove_track_from_playlist(&playlist_id, playlist_track_id).is_ok()
+                    } else { false }
+                } else { false }
+            };
+            
+            if success {
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "ok:track_removed".to_string(),
+                }).await;
+            }
+        }
+        
+        ClientMessage::ReorderPlaylistTracks { playlist_id, track_ids } => {
+            log::info!("📱 ReorderPlaylistTracks request - playlist: {} from mobile ({})", playlist_id, client_id);
+            
+            let success = {
+                if let Ok(db_guard) = app_state.db.lock() {
+                    if let Some(ref db) = *db_guard {
+                        db.reorder_playlist_tracks(&playlist_id, track_ids).is_ok()
+                    } else { false }
+                } else { false }
+            };
+            
+            if success {
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "ok:tracks_reordered".to_string(),
+                }).await;
             }
         }
         

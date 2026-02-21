@@ -78,6 +78,8 @@ pub struct TrackDetail {
     pub album_romaji: Option<String>,
     #[serde(rename = "albumEn")]
     pub album_en: Option<String>,
+    #[serde(rename = "playlistTrackId", skip_serializing_if = "Option::is_none")]
+    pub playlist_track_id: Option<i64>,
 }
 
 /// Album info
@@ -271,6 +273,7 @@ pub async fn get_playback_state(
                     artist_en: t.artist_en.clone(),
                     album_romaji: t.album_romaji.clone(),
                     album_en: t.album_en.clone(),
+                    playlist_track_id: t.playlist_track_id,
                 });
                 
                 (is_playing, track, position, duration, volume)
@@ -350,6 +353,7 @@ pub async fn get_library(
             artist_en: t.artist_en,
             album_romaji: t.album_romaji,
             album_en: t.album_en,
+            playlist_track_id: t.playlist_track_id,
         })
         .collect();
     
@@ -398,6 +402,7 @@ pub async fn search_library(
             artist_en: t.artist_en.clone(),
             album_romaji: t.album_romaji.clone(),
             album_en: t.album_en.clone(),
+            playlist_track_id: t.playlist_track_id,
         })
         .collect();
     
@@ -507,6 +512,7 @@ pub async fn get_album_detail(
             artist_en: t.artist_en,
             album_romaji: t.album_romaji,
             album_en: t.album_en,
+            playlist_track_id: t.playlist_track_id,
         })
         .collect();
     
@@ -585,6 +591,7 @@ pub async fn get_artist_detail(
             artist_en: t.artist_en.clone(),
             album_romaji: t.album_romaji.clone(),
             album_en: t.album_en.clone(),
+            playlist_track_id: t.playlist_track_id,
         })
         .collect();
     

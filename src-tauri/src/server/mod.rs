@@ -136,6 +136,8 @@ pub enum ServerEvent {
         has_synced: bool,
         #[serde(rename = "syncedLyrics")]
         synced_lyrics: Option<String>,
+        #[serde(rename = "syncedLyricsRomaji")]
+        synced_lyrics_romaji: Option<String>,
         #[serde(rename = "plainLyrics")]
         plain_lyrics: Option<String>,
         instrumental: bool,
