@@ -54,7 +54,7 @@ export function MiniPlayer() {
         else resume();
     };
 
-    const handleDeviceToggle = async (device: 'pc' | 'mobile') => {
+    const handleDeviceToggle = async (device: 'desktop' | 'mobile') => {
         if (device === 'mobile' && !connectedDevice) {
             // Can't switch to mobile if no device connected
             return;
@@ -190,7 +190,7 @@ export function MiniPlayer() {
                     {/* Device Toggle Pill */}
                     <div className="flex items-center bg-black/20 backdrop-blur-md rounded-full p-0.5" data-tauri-drag-region>
                         <button
-                            onClick={() => handleDeviceToggle('pc')}
+                            onClick={() => handleDeviceToggle('desktop')}
                             className={`p-1.5 rounded-full transition-all ${audioOutput === 'desktop' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80'}`}
                             title="Play on PC"
                         >
