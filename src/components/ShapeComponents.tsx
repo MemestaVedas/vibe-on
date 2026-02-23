@@ -67,3 +67,39 @@ export const M3StadiumImage = ({ src, fallback }: { src: string | null, fallback
         </svg>
     );
 };
+
+// M3 Rounded Square (Squircle) for Albums
+export const M3SquircleImage = ({ src, fallback }: { src: string | null, fallback: React.ReactNode }) => {
+    const id = useMemo(() => `squircle-${Math.random().toString(36).substr(2, 9)}`, []);
+
+    return (
+        <div className="w-full h-full relative">
+            {/* SVG mask definition */}
+            <svg width="0" height="0" className="absolute">
+                <defs>
+                    <clipPath id={id} clipPathUnits="objectBoundingBox">
+                        <path d="M1,0.538 C1,0.677,1,0.747,0.978,0.803 C0.946,0.883,0.883,0.946,0.803,0.978 C0.747,1,0.677,1,0.538,1 H0.463 C0.323,1,0.253,1,0.197,0.978 C0.117,0.946,0.054,0.883,0.022,0.803 C0,0.747,0,0.677,0,0.538 V0.463 C0,0.323,0,0.253,0.022,0.197 C0.054,0.117,0.117,0.054,0.197,0.022 C0.253,0,0.323,0,0.463,0 H0.538 C0.677,0,0.747,0,0.803,0.022 C0.883,0.054,0.946,0.117,0.978,0.197 C1,0.253,1,0.323,1,0.463 V0.538" />
+                    </clipPath>
+                </defs>
+            </svg>
+
+            <div
+                className="w-full h-full bg-surface-container-highest overflow-hidden"
+                style={{ clipPath: `url(#${id})` }}
+            >
+                {src ? (
+                    <img
+                        src={src}
+                        alt=""
+                        draggable={false}
+                        className="w-full h-full object-cover"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center opacity-40">
+                        {fallback}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};

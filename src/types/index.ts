@@ -62,4 +62,4 @@ export interface PlaylistTrack extends TrackInfo {
   playlist_track_id: number;
 }
 
-export type AppView = 'tracks' | 'albums' | 'artists' | 'settings' | 'favorites' | 'statistics' | 'torrents' | 'playlist';
+export type AppView = 'home' | 'tracks' | 'albums' | 'artists' | 'settings' | 'favorites' | 'statistics' | 'torrents' | 'playlist';

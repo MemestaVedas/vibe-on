@@ -104,7 +104,7 @@
     }
 
     .glass-panel {
-        @apply bg-white/5 backdrop-blur-xl border border-white/10;
+        @apply bg-surface-container-high border-outline-variant;
     }
 
     .animate-scanline {

@@ -4,11 +4,12 @@ import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { IconMicrophone, IconPlay } from './Icons';
-import { M3CircleImage } from './ShapeComponents';
+
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
+import { WavySeparator, FilledWavySeparator } from './WavySeparator';
 
 interface Artist {
     name: string;
@@ -72,7 +73,7 @@ const GridList = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'
     <div
         ref={ref}
         {...props}
-        className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 p-6 content-start"
+        className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 p-6 pt-14 content-start"
         style={{ ...style, width: '100%' }}
     >
         {children}
@@ -242,7 +243,6 @@ const ArtistItem = ({
     );
 };
 
-import { WavySeparator } from './WavySeparator';
 import { VerticalWavySeparator } from './VerticalWavySeparator';
 
 // Helper Type for Display Items
@@ -332,7 +332,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
         <div className="h-full relative isolate bg-surface">
             {/* Sticky Header Overlay */}
             <div
-                className={`absolute top-0 left-0 right-0 h-20 bg-surface-container/95 backdrop-blur-md z-50 flex items-center px-6 gap-4 border-b border-surface-container-highest transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                className={`absolute top-0 left-0 right-0 h-20 bg-surface z-50 flex items-center px-6 gap-4 border-b border-surface-container-highest transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             >
                 <button
                     onClick={onBack}
@@ -358,39 +358,44 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                 onScroll={handleScroll}
                 className="h-full overflow-y-auto no-scrollbar relative"
             >
-                {/* Header */}
-                <div className="p-8 pb-6 flex gap-8 items-end bg-surface-container-low">
-                    <div className="w-40 h-40 shrink-0 shadow-elevation-2">
-                        <M3ArchImage
-                            src={coverUrl}
-                            fallback={<IconMicrophone size={56} />}
-                        />
+                {/* Header Container */}
+                <div className="flex flex-col w-full relative z-10">
+                    <div className="pt-14 px-10 pb-8 flex gap-8 items-end bg-surface-container shrink-0">
+                        <div className="w-56 h-56 shrink-0 pointer-events-auto">
+                            <M3ArchImage
+                                src={coverUrl}
+                                fallback={<IconMicrophone size={56} />}
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-4 min-w-0 flex-1 mb-2">
+                            <div>
+                                <div className="text-label-large font-medium text-on-surface-variant uppercase tracking-widest mb-2">Artist</div>
+                                <h1 className="text-display-medium font-bold text-on-surface tracking-tight text-wrap leading-tight">{displayArtistName}</h1>
+                            </div>
+
+                            <div className="text-headline-small text-on-surface-variant">
+                                {artist.albumCount} {artist.albumCount === 1 ? 'Album' : 'Albums'} • {artist.tracks.length} Songs
+                            </div>
+
+                            <div className="flex gap-4 mt-2">
+                                <button
+                                    onClick={() => playQueue(sortedTracks, 0)}
+                                    className="h-12 px-8 bg-primary text-on-primary rounded-full font-bold hover:bg-primary/90 flex items-center gap-2 shadow-elevation-1 transition-transform active:scale-95 text-title-medium pointer-events-auto"
+                                >
+                                    <IconPlay size={24} fill="currentColor" /> Play Artist
+                                </button>
+                                <button
+                                    onClick={onBack}
+                                    className="h-12 px-8 border border-outline rounded-full text-on-surface font-bold hover:bg-surface-container-high transition-colors text-title-medium bg-surface pointer-events-auto"
+                                >
+                                    Back
+                                </button>
+                            </div>
+                        </div>
                     </div>
-
-                    <div className="flex flex-col gap-3 min-w-0 flex-1 mb-1">
-                        <div>
-                            <div className="text-label-medium font-medium text-on-surface-variant uppercase tracking-wider mb-1">Artist</div>
-                            <h1 className="text-display-small font-bold text-on-surface tracking-tight text-wrap leading-tight">{displayArtistName}</h1>
-                        </div>
-
-                        <div className="text-title-medium text-on-surface-variant">
-                            {artist.albumCount} {artist.albumCount === 1 ? 'Album' : 'Albums'} • {artist.tracks.length} Songs
-                        </div>
-
-                        <div className="flex gap-3 mt-1">
-                            <button
-                                onClick={() => playQueue(sortedTracks, 0)}
-                                className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-elevation-1 transition-transform active:scale-95"
-                            >
-                                <IconPlay size={20} fill="currentColor" /> Play Artist
-                            </button>
-                            <button
-                                onClick={onBack}
-                                className="h-10 px-6 border border-outline rounded-full text-on-surface font-medium hover:bg-surface-container-high transition-colors"
-                            >
-                                Back
-                            </button>
-                        </div>
+                    <div className="w-full relative pointer-events-none">
+                        <FilledWavySeparator color="var(--md-sys-color-surface-container)" className="drop-shadow-sm -mt-[1px]" />
                     </div>
                 </div>
 

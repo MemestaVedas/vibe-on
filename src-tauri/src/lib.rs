@@ -1282,6 +1282,7 @@ async fn resume_torrent(id: usize, state: State<'_, AppState>) -> Result<(), Str
     }
 }
 
+#[tauri::command]
 async fn search_torrents(
     query: String,
     sort_by: Option<String>,
@@ -1584,6 +1585,7 @@ pub fn run() {
             delete_torrent,
             pause_torrent,
             resume_torrent,
+            search_torrents,
             start_mobile_server,
             stop_mobile_server,
             get_server_status,

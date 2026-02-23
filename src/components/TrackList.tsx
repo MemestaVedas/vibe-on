@@ -2,7 +2,7 @@ import { useMemo, useState, memo, useCallback } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
-import { IconMusicNote, IconPlay, IconHeart, IconPlus, IconPause } from './Icons';
+import { IconMusicNote, IconPlay, IconHeart, IconPlus, IconPause, IconAlbum } from './Icons';
 import { WavySeparator } from './WavySeparator';
 import { M3CircleImage } from './ShapeComponents';
 import { ContextMenu } from './ContextMenu';
@@ -217,7 +217,7 @@ export function TrackList() {
     }
 
     return (
-        <div className="flex flex-col h-full bg-surface">
+        <div className="flex flex-col h-full bg-surface pt-10">
             {/* Header - Non-sticky */}
             <div className="grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_4rem] gap-4 px-6 bg-surface">
                 <span className="py-3 text-center text-label-large font-medium text-on-surface-variant">#</span>
@@ -236,15 +236,50 @@ export function TrackList() {
                     data={filteredLibrary}
                     overscan={1200}
                     itemContent={(index, track) => {
-                        // Check for album change
                         const prevTrack = index > 0 ? filteredLibrary[index - 1] : null;
-                        const showSeparator = prevTrack && prevTrack.album !== track.album;
+
+                        const parseAlbum = (albumName: string, discNum: number | null | undefined) => {
+                            const regex = /^(.*?)(?:\\|\/|\s-\s|\s*[\(\[]\s*|\s+-\s+)(?:Disc|CD)\s*(\d+)(.*)$/i;
+                            const match = albumName.match(regex);
+
+                            let base = albumName.trim();
+                            let parsedDisc = discNum || 1;
+                            let subtitle = '';
+
+                            if (match && match[1]) {
+                                base = match[1].trim();
+                                parsedDisc = parseInt(match[2], 10);
+                                let sub = match[3] || '';
+                                sub = sub.replace(/^[-:\s]+/, '');
+                                sub = sub.replace(/[\)\]\s]+$/, '');
+                                subtitle = sub;
+                            }
+
+                            return { base, parsedDisc, subtitle };
+                        };
+
+                        const curr = parseAlbum(track.album, track.disc_number);
+                        const prev = prevTrack ? parseAlbum(prevTrack.album, prevTrack.disc_number) : null;
+
+                        const isAlbumChange = !prev || prev.base !== curr.base;
+                        const isDiscChange = isAlbumChange
+                            ? (curr.parsedDisc > 1 || curr.subtitle !== '')
+                            : (prev.parsedDisc !== curr.parsedDisc || prev.subtitle !== curr.subtitle);
 
                         return (
                             <div key={track.id}>
-                                {showSeparator && (
+                                {isAlbumChange && (
                                     <div className="px-6">
-                                        <WavySeparator label={track.album} color="var(--md-sys-color-primary)" />
+                                        <WavySeparator label={curr.base} color="var(--md-sys-color-primary)" />
+                                    </div>
+                                )}
+                                {isDiscChange && (
+                                    <div className="flex items-center gap-4 py-4 px-6 mt-2">
+                                        <IconAlbum size={20} className="text-primary" />
+                                        <span className="text-title-medium font-bold text-primary">
+                                            Disc {curr.parsedDisc} {curr.subtitle ? `- ${curr.subtitle}` : ''}
+                                        </span>
+                                        <div className="h-px flex-1 bg-surface-container-highest"></div>
                                     </div>
                                 )}
                                 <TrackRow

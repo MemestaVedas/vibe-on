@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 interface WavySeparatorProps {
-    label: string;
+    label?: string;
     color?: string; // CSS color string (default: current text color or primary)
 }
 
@@ -44,11 +44,11 @@ function WavePattern({ color }: { color: string }) {
     return (
         <svg width="100%" height="100%" preserveAspectRatio="none">
             <defs>
-                <pattern id={patternId} x="0" y="0" width="40" height="12" patternUnits="userSpaceOnUse">
-                    {/* Sine wave: Start mid (6), go up, then down. Width 40. */}
-                    {/* M 0 6 Q 10 1 20 6 T 40 6 */}
+                <pattern id={patternId} x="0" y="0" width="24" height="12" patternUnits="userSpaceOnUse">
+                    {/* Sine wave: Start mid (6), go up, then down. Width 24. */}
+                    {/* M 0 6 Q 6 3 12 6 T 24 6 */}
                     <path
-                        d="M 0 6 Q 10 1 20 6 T 40 6"
+                        d="M 0 6 Q 6 3 12 6 T 24 6"
                         fill="none"
                         stroke={color}
                         strokeWidth="1.5"
@@ -57,6 +57,27 @@ function WavePattern({ color }: { color: string }) {
                 </pattern>
             </defs>
             <rect x="0" y="0" width="100%" height="100%" fill={`url(#${patternId})`} />
+        </svg>
+    );
+}
+
+export function FilledWavySeparator({ color = "var(--md-sys-color-surface-container)", className = "" }: { color?: string, className?: string }) {
+    const patternId = useMemo(() => `wave-pattern-filled-${Math.random().toString(36).substr(2, 9)}`, []);
+
+    return (
+        <svg width="100%" height="32" preserveAspectRatio="none" className={`block w-full ${className}`}>
+            <defs>
+                <pattern id={patternId} x="0" y="0" width="72" height="32" patternUnits="userSpaceOnUse">
+                    {/* Flat top at y=0, solid down to y=16
+                        Wave starts at 16. Goes down to 32, then up to 16. Width 72.
+                    */}
+                    <path
+                        d="M 0 0 L 0 20 Q 18 32 36 20 T 72 20 L 72 0 Z"
+                        fill={color}
+                    />
+                </pattern>
+            </defs>
+            <rect x="0" y="0" width="100%" height="32" fill={`url(#${patternId})`} />
         </svg>
     );
 }

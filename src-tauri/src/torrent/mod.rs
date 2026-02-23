@@ -20,52 +20,16 @@ const AUDIO_EXTENSIONS: &[&str] = &[
     "mp3", "flac", "wav", "aac", "ogg", "m4a", "wma", "aiff", "alac", "opus",
 ];
 
-/// Public trackers for better peer discovery - extensive list for maximum connectivity
+/// Public trackers for better peer discovery - reduced for faster initialization
 const PUBLIC_TRACKERS: &[&str] = &[
-    // Most reliable UDP trackers
     "udp://tracker.opentrackr.org:1337/announce",
-    "udp://open.stealth.si:80/announce",
+    "udp://open.demonii.com:1337/announce",
     "udp://tracker.openbittorrent.com:6969/announce",
+    "http://tracker.openbittorrent.com:80/announce",
     "udp://exodus.desync.com:6969/announce",
     "udp://tracker.torrent.eu.org:451/announce",
-    "udp://tracker.moeking.me:6969/announce",
     "udp://explodie.org:6969/announce",
-    "udp://opentracker.i2p.rocks:6969/announce",
-    "udp://tracker.tiny-vps.com:6969/announce",
-    "udp://p4p.arenabg.com:1337/announce",
-    "udp://tracker.theoks.net:6969/announce",
-    "udp://open.demonii.com:1337/announce",
-    "udp://tracker.pomf.se:80/announce",
-    "udp://tracker.coppersurfer.tk:6969/announce",
-    "udp://tracker.leechers-paradise.org:6969/announce",
-    "udp://tracker.internetwarriors.net:1337/announce",
-    "udp://tracker.cyberia.is:6969/announce",
-    "udp://9.rarbg.com:2810/announce",
-    "udp://9.rarbg.me:2710/announce",
-    "udp://9.rarbg.to:2710/announce",
-    "udp://tracker.ds.is:6969/announce",
-    "udp://retracker.lanta-net.ru:2710/announce",
-    "udp://tracker.dler.org:6969/announce",
-    "udp://tracker.0x.tf:6969/announce",
-    "udp://bt.oiyo.tk:6969/announce",
-    "udp://tracker.monitorit4.me:6969/announce",
-    "udp://tracker.zer0day.to:1337/announce",
-    "udp://tracker.filemail.com:6969/announce",
-    "udp://ipv4.tracker.harry.lu:80/announce",
-    "udp://tracker.justseed.it:1337/announce",
-    // Reliable HTTP/HTTPS trackers as fallback
-    "http://tracker.openbittorrent.com:80/announce",
-    "http://tracker.opentrackr.org:1337/announce",
     "https://tracker.gbitt.info:443/announce",
-    "https://tracker.imgoingto.icu:443/announce",
-    "https://tracker.lilithraws.org:443/announce",
-    "http://tracker.ipv6tracker.ru:80/announce",
-    "http://nyaa.tracker.wf:7777/announce",
-    "http://tracker.files.fm:6969/announce",
-    // DHT Bootstrap nodes (some clients use them as trackers)
-    "udp://router.bittorrent.com:6881/announce",
-    "udp://router.utorrent.com:6881/announce",
-    "udp://dht.transmissionbt.com:6881/announce",
 ];
 
 // ============================================================================
@@ -155,7 +119,7 @@ impl TorrentManager {
 
         let options = SessionOptions {
             disable_dht: false,                    // DHT enabled for peer discovery
-            disable_dht_persistence: false,         // Enable DHT persistence across restarts
+            disable_dht_persistence: true,         // Disable DHT persistence to prevent initialization errors
             persistence: None,                      // We handle torrent persistence ourselves in vibe_torrents.json
             listen_port_range: Some(6881..6999),   // Wide port range
             enable_upnp_port_forwarding: true,     // NAT traversal

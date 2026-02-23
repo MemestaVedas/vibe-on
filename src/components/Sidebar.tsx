@@ -14,6 +14,7 @@ import {
     IconDownload,
     IconHeart,
     IconStats,
+    IconMusicNote,
 } from './Icons';
 
 interface SidebarProps {
@@ -74,6 +75,13 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                 <div className={`flex flex-col gap-1 ${isCollapsed ? 'items-center w-full' : ''}`}>
                     <NavItem
                         icon={<IconHome size={28} />}
+                        label="Home"
+                        active={view === 'home'}
+                        onClick={() => onViewChange('home')}
+                        collapsed={isCollapsed}
+                    />
+                    <NavItem
+                        icon={<IconMusicNote size={28} />}
                         label="Songs"
                         active={view === 'tracks'}
                         onClick={() => onViewChange('tracks')}

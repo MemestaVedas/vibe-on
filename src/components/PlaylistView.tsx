@@ -4,7 +4,7 @@ import { useNavigationStore } from '../store/navigationStore';
 import { usePlayerStore } from '../store/playerStore';
 import { IconMusicNote, IconPlay, IconTrash } from './Icons';
 import { WavySeparator } from './WavySeparator';
-import { M3CircleImage } from './ShapeComponents';
+import { M3CircleImage, M3SquircleImage } from './ShapeComponents';
 import { Virtuoso } from 'react-virtuoso';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { getDisplayText } from '../utils/textUtils';
@@ -209,8 +209,11 @@ export function PlaylistView() {
             {/* Header */}
             <div className="px-8 py-6 flex items-end justify-between bg-surface-container-low/50">
                 <div className="flex items-center gap-6">
-                    <div className="w-32 h-32 rounded-2xl bg-secondary-container flex items-center justify-center shadow-lg">
-                        <IconMusicNote size={48} className="text-on-secondary-container" />
+                    <div className="w-32 h-32 shadow-lg">
+                        <M3SquircleImage
+                            src={null}
+                            fallback={<IconMusicNote size={48} className="text-on-secondary-container" />}
+                        />
                     </div>
                     <div className="flex flex-col gap-2">
                         <span className="text-label-medium text-on-surface-variant uppercase tracking-wider">Playlist</span>

@@ -636,7 +636,7 @@ function VerticalSquiggly({ isLeft }: { isLeft?: boolean }) {
 
 function ImmersiveLoader() {
     return (
-        <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-3xl flex items-center justify-center bg-noise">
+        <div className="absolute inset-0 z-[110] bg-black flex items-center justify-center bg-noise">
             <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         </div>
     );
@@ -644,7 +644,7 @@ function ImmersiveLoader() {
 
 function ImmersiveError({ error, onClear }: any) {
     return (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[110] bg-red-600/90 backdrop-blur-xl text-white px-8 py-4 rounded-2xl brutalist-shadow flex items-center gap-4 font-black uppercase tracking-tighter">
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[110] bg-error text-on-error px-8 py-4 rounded-2xl shadow-elevation-3 flex items-center gap-4 font-black uppercase tracking-tighter">
             <span className="text-sm">ERR_SYSTEM_FAILURE: {error}</span>
             <button onClick={onClear} className="opacity-40 hover:opacity-100 transition-opacity p-2">
                 <svg viewBox="0 0 280 280" width={20} height={20} fill="currentColor">

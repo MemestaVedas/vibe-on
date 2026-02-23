@@ -176,7 +176,7 @@ export function MiniPlayer() {
                 className={`absolute inset-0 z-50 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${showVolume ? 'opacity-100' : 'opacity-0'}`}
                 style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
             >
-                <div className="bg-black/40 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center gap-2 text-white">
+                <div className="bg-surface-container-highest p-4 rounded-2xl flex flex-col items-center gap-2 text-on-surface">
                     <IconVolume size={32} />
                     <span className="text-xl font-bold">{Math.round(status.volume * 100)}%</span>
                 </div>
@@ -188,7 +188,7 @@ export function MiniPlayer() {
                 {/* Top Row: Device Toggle & Fullscreen */}
                 <div className="flex items-center justify-between" data-tauri-drag-region>
                     {/* Device Toggle Pill */}
-                    <div className="flex items-center bg-black/20 backdrop-blur-md rounded-full p-0.5" data-tauri-drag-region>
+                    <div className="flex items-center bg-surface-container rounded-full p-0.5" data-tauri-drag-region>
                         <button
                             onClick={() => handleDeviceToggle('desktop')}
                             className={`p-1.5 rounded-full transition-all ${audioOutput === 'desktop' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80'}`}
@@ -209,7 +209,7 @@ export function MiniPlayer() {
                     {/* Fullscreen / Expand Button */}
                     <button
                         onClick={toggleMiniPlayer}
-                        className="p-1.5 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-colors"
+                        className="p-1.5 bg-surface-container rounded-full text-white hover:bg-surface-container-high transition-colors"
                     >
                         <IconFullscreen size={14} />
                     </button>

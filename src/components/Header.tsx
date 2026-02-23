@@ -6,27 +6,17 @@ interface HeaderProps {
 }
 
 export function Header({ view }: HeaderProps) {
-    // For tracks view, show minimal header (search is in TitleBar now)
-    if (view === 'tracks') {
-        return <header data-tauri-drag-region className="h-4"></header>;
+
+
+    // For views that have their own immersive layouts, we don't render a static positioned header
+    // that takes up flex space. We just render an absolute drag region to allow window dragging.
+    // This removes the blank gap that caused the "square outline" inside the rounded window corners.
+    const immersiveViews = ['albums', 'artists', 'tracks', 'statistics', 'favorites', 'playlist', 'home'];
+    if (immersiveViews.includes(view)) {
+        return <header data-tauri-drag-region className="absolute top-0 left-0 right-0 h-10 z-[100]"></header>;
     }
 
-    // For albums/artists views, show title (search is in TitleBar now)
-    if (view === 'albums' || view === 'artists') {
-        return (
-            <header data-tauri-drag-region className="px-6 py-4">
-                <h2 data-tauri-drag-region className="text-headline-small font-semibold">
-                    {view === 'albums' ? 'Albums' : 'Artists'}
-                </h2>
-            </header>
-        );
-    }
 
-    // For settings, just show title
-    // Statistics and Favorites have their own large headers, so hide this one
-    if (view === 'statistics' || view === 'favorites' || view === 'playlist') {
-        return <header data-tauri-drag-region className="h-4"></header>;
-    }
 
     return (
         <header data-tauri-drag-region className="px-6 py-4">

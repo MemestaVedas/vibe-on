@@ -692,7 +692,7 @@ function TrackStatsModal({ track, onClose }: { track: any; onClose: () => void }
 
     if (isLoading) {
         return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose}>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 pointer-events-auto" onClick={onClose}>
                 <div className="flex flex-col items-center gap-4 pointer-events-none">
                     <div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full" />
                     <p className="text-white text-body-medium">Analyzing audio features...</p>
@@ -703,7 +703,7 @@ function TrackStatsModal({ track, onClose }: { track: any; onClose: () => void }
 
     if (error || !features) {
         return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose}>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 pointer-events-auto" onClick={onClose}>
                 <div className="flex flex-col items-center gap-4 bg-surface-container rounded-2xl p-6 max-w-md mx-4 pointer-events-auto">
                     <p className="text-error text-body-large font-medium">Analysis Failed</p>
                     <p className="text-on-surface-variant text-body-medium text-center">{error || 'Could not load audio features'}</p>

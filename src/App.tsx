@@ -8,6 +8,7 @@ const StatisticsPage = lazy(() => import('./components/StatisticsPage').then(m =
 const TorrentManager = lazy(() => import('./components/TorrentManager').then(m => ({ default: m.TorrentManager })));
 import { ImmersiveView } from './components/ImmersiveView';
 import { PlaylistView } from './components/PlaylistView';
+import { HomeView } from './components/HomeView';
 import { SkeletonAlbumGrid, SkeletonTrackList } from './components/Skeleton';
 
 
@@ -156,6 +157,7 @@ function App() {
 
             {/* Scrollable Content Container */}
             <div className="flex-1 overflow-hidden relative"> {/* Edge-to-edge: content flows behind pill */}
+              {view === 'home' && <HomeView />}
               {view === 'tracks' && <TrackList />}
               {view === 'albums' && <AlbumGrid />}
               {view === 'artists' && <ArtistList />}

@@ -272,7 +272,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                                                         initial={{ opacity: 0, y: 10 }}
                                                         animate={{ opacity: 1, y: 0 }}
                                                         exit={{ opacity: 0, y: -10 }}
-                                                        className="absolute inset-0 z-20 flex items-center justify-center backdrop-blur-sm"
+                                                        className="absolute inset-0 z-20 flex items-center justify-center"
                                                         style={{ backgroundColor: `${colors.primary}90` }}
                                                     >
                                                         <div className="flex flex-col items-center gap-1 text-white">

@@ -133,7 +133,7 @@ export function TorrentManager() {
             {/* Delete Confirmation Modal */}
             <AnimatePresence>
                 {deleteConfirmId !== null && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                    <div className="absolute inset-0 bg-black/40 z-50 flex items-center justify-center p-6">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}

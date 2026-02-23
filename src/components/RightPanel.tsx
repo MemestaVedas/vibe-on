@@ -236,7 +236,7 @@ export function RightPanel() {
                                     {displayAlbum && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleArtClick(); }}
-                                            className="p-3 bg-white/20 hover:bg-white/30 rounded-full text-white backdrop-blur-md transition-all scale-90 hover:scale-100 pointer-events-auto"
+                                            className="p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all scale-90 hover:scale-100 pointer-events-auto"
                                             title="Go to Album"
                                         >
                                             <IconAlbum size={28} />
@@ -250,7 +250,7 @@ export function RightPanel() {
                                                 e.stopPropagation();
                                                 toggleFavorite(trackPath);
                                             }}
-                                            className="p-3 bg-white/20 hover:bg-white/30 rounded-full text-white backdrop-blur-md transition-all scale-90 hover:scale-100 cursor-pointer pointer-events-auto border-none outline-none flex items-center justify-center"
+                                            className="p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all scale-90 hover:scale-100 cursor-pointer pointer-events-auto border-none outline-none flex items-center justify-center"
                                             title={favorites.has(trackPath) ? "Remove from Favorites" : "Add to Favorites"}
                                         >
                                             <AnimatePresence mode="wait">

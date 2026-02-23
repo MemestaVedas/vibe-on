@@ -7,9 +7,10 @@ import { useCoverArt } from '../hooks/useCoverArt';
 import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { IconMusicNote, IconPlay, IconAlbum } from './Icons';
-import { M3CircleImage } from './ShapeComponents';
+import { M3SquircleImage } from './ShapeComponents';
 import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
+import { FilledWavySeparator } from './WavySeparator';
 
 
 interface Album {
@@ -44,50 +45,13 @@ const VerySunnyPlayButton = ({ onClick }: { onClick: (e: React.MouseEvent) => vo
     );
 };
 
-// M3 Rounded Square
-const M3RoundedSquareImage = ({ src, fallback }: { src: string | null, fallback: React.ReactNode }) => {
-    // Render a normal <img> when a src is provided to avoid SVG <image> cross-origin
-    // and WebKit limitations on mobile. Use a lightweight CSS-rounded container so
-    // images behave consistently across platforms. Keep the SVG-only path for
-    // placeholder/fallback visuals.
-    if (src) {
-        return (
-            <div className="w-full h-full overflow-hidden rounded-[1.25rem] bg-surface-container-highest">
-                <img
-                    src={src}
-                    alt=""
-                    draggable={false}
-                    className="w-full h-full object-cover"
-                />
-            </div>
-        );
-    }
-
-    const uniqueId = useMemo(() => `rounded-square-${Math.random().toString(36).substr(2, 9)}`, []);
-
-    return (
-        <svg viewBox="0 0 320 320" className="w-full h-full">
-            <defs>
-                <clipPath id={uniqueId}>
-                    <path d="M320 172C320 216.72 320 239.08 312.98 256.81C302.81 282.49 282.49 302.81 256.81 312.98C239.08 320 216.72 320 172 320H148C103.28 320 80.9199 320 63.1899 312.98C37.5099 302.81 17.19 282.49 7.02002 256.81C1.95503e-05 239.08 0 216.72 0 172V148C0 103.28 1.95503e-05 80.92 7.02002 63.19C17.19 37.515 37.5099 17.187 63.1899 7.02197C80.9199 -2.71797e-05 103.28 0 148 0H172C216.72 0 239.08 -2.71797e-05 256.81 7.02197C282.49 17.187 302.81 37.515 312.98 63.19C320 80.92 320 103.28 320 148V172Z" />
-                </clipPath>
-            </defs>
-            <g clipPath={`url(#${uniqueId})`}>
-                <rect x="0" y="0" width="320" height="320" fill="var(--md-sys-color-surface-container-highest)" />
-                <g transform="translate(128, 128)">
-                    {fallback}
-                </g>
-            </g>
-        </svg>
-    );
-};
 
 // Virtuoso Custom Components
 const GridList = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(({ style, children, ...props }, ref) => (
     <div
         ref={ref}
         {...props}
-        className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-6 p-8 content-start"
+        className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-6 p-8 pt-14 content-start"
         style={{ ...style, width: '100%' }}
     >
         {children}
@@ -110,7 +74,9 @@ export function AlbumGrid() {
 
         // Regex to normalize album names by stripping "Disc X", "CD X" suffixes
         const normalizeAlbumName = (name: string) => {
-            return name.replace(/\s*[\(\[]?(?:Disc|CD)\s*\d+[\)\]]?\s*$/i, "").trim();
+            const regex = /^(.*?)(?:\\|\/|\s-\s|\s*[\(\[]\s*|\s+-\s+)(?:Disc|CD)\s*\d+.*$/i;
+            const match = name.match(regex);
+            return match && match[1] ? match[1].trim() : name.trim();
         };
 
         library.forEach(track => {
@@ -241,7 +207,7 @@ const AlbumItem = ({
                     layoutId={`cover-art-${album.name}-${album.artist}`}
                     className="w-full h-full"
                 >
-                    <M3RoundedSquareImage
+                    <M3SquircleImage
                         src={coverUrl}
                         fallback={<IconMusicNote size={64} />}
                     />
@@ -345,7 +311,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
         <div className="h-full relative isolate bg-surface">
             {/* Sticky Header Overlay */}
             <div
-                className={`absolute top-0 left-0 right-0 h-20 bg-surface-container/95 backdrop-blur-md z-50 flex items-center px-6 gap-4 border-b border-surface-container-highest transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                className={`absolute top-0 left-0 right-0 h-20 bg-surface z-50 flex items-center px-6 gap-4 border-b border-surface-container-highest transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             >
                 <button
                     onClick={onBack}
@@ -379,39 +345,44 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                 context={{ displayLanguage }}
                 components={{
                     Header: () => (
-                        <div className="p-8 pb-4 flex gap-8 items-end bg-surface-container-low shrink-0 mb-2">
-                            <div className="w-48 h-48 shrink-0 shadow-elevation-2">
-                                <M3RoundedSquareImage
-                                    src={coverUrl}
-                                    fallback={<IconMusicNote size={64} />}
-                                />
+                        <div className="flex flex-col w-full relative z-10">
+                            <div className="pt-14 px-10 pb-8 flex gap-8 items-end shrink-0 bg-surface-container">
+                                <div className="w-56 h-56 shrink-0 pointer-events-auto">
+                                    <M3SquircleImage
+                                        src={coverUrl}
+                                        fallback={<IconMusicNote size={64} />}
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-3 mb-1 min-w-0 flex-1">
+                                    <div>
+                                        <div className="text-label-medium font-medium text-on-surface-variant uppercase tracking-wider mb-1">Album</div>
+                                        <h1 className="text-display-small font-bold text-on-surface tracking-tight text-wrap leading-tight">{album.name}</h1>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-title-medium">
+                                        <span className="font-semibold text-primary">{album.artist}</span>
+                                        <span className="text-on-surface-variant">• {album.tracks.length} tracks</span>
+                                    </div>
+
+                                    <div className="flex gap-4 mt-2">
+                                        <button
+                                            onClick={() => playQueue(sortedTracks, 0)}
+                                            className="h-12 px-8 bg-primary text-on-primary rounded-full font-bold hover:bg-primary/90 flex items-center gap-2 shadow-elevation-1 transition-transform active:scale-95 text-title-medium pointer-events-auto"
+                                        >
+                                            <IconPlay size={22} fill="currentColor" /> Play
+                                        </button>
+                                        <button
+                                            onClick={onBack}
+                                            className="h-12 px-8 border border-outline rounded-full text-on-surface font-bold hover:bg-surface-container-high transition-colors text-title-medium bg-surface pointer-events-auto"
+                                        >
+                                            Back
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-
-                            <div className="flex flex-col gap-3 mb-1 min-w-0 flex-1">
-                                <div>
-                                    <div className="text-label-medium font-medium text-on-surface-variant uppercase tracking-wider mb-1">Album</div>
-                                    <h1 className="text-display-small font-bold text-on-surface tracking-tight text-wrap leading-tight">{album.name}</h1>
-                                </div>
-
-                                <div className="flex items-center gap-3 text-title-medium">
-                                    <span className="font-semibold text-primary">{album.artist}</span>
-                                    <span className="text-on-surface-variant">• {album.tracks.length} tracks</span>
-                                </div>
-
-                                <div className="flex gap-3 mt-1">
-                                    <button
-                                        onClick={() => playQueue(sortedTracks, 0)}
-                                        className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-elevation-1 transition-transform active:scale-95 text-body-large"
-                                    >
-                                        <IconPlay size={20} fill="currentColor" /> Play
-                                    </button>
-                                    <button
-                                        onClick={onBack}
-                                        className="h-10 px-6 border border-outline rounded-full text-on-surface font-medium hover:bg-surface-container-high transition-colors text-body-large"
-                                    >
-                                        Back
-                                    </button>
-                                </div>
+                            <div className="w-full relative pointer-events-none">
+                                <FilledWavySeparator color="var(--md-sys-color-surface-container)" className="drop-shadow-sm -mt-[1px]" />
                             </div>
                         </div>
                     ),

@@ -34,7 +34,7 @@ interface NavigationState {
 export const useNavigationStore = create<NavigationState>()(
     persist(
         (set) => ({
-            view: 'tracks',
+            view: 'home',
             selectedAlbumKey: null,
             selectedArtistName: null,
             activePlaylistId: null,
