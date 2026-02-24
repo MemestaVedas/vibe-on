@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -239,6 +240,47 @@ fn has_lyrics(resp: &LyricsResponse) -> bool {
     resp.synced_lyrics.is_some() || resp.plain_lyrics.is_some()
 }
 
+fn get_json_with_retry<T: DeserializeOwned>(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    label: &str,
+) -> Option<T> {
+    let delays_ms = [200u64, 500u64, 1000u64];
+    let mut attempt = 0usize;
+
+    loop {
+        attempt += 1;
+        let response = client.get(url).send();
+        match response {
+            Ok(resp) => {
+                let status = resp.status();
+                if status.is_success() {
+                    match resp.json::<T>() {
+                        Ok(json) => return Some(json),
+                        Err(e) => {
+                            println!("[Lyrics] {} JSON parse failed (attempt {}): {}", label, attempt, e);
+                        }
+                    }
+                } else {
+                    let code = status.as_u16();
+                    let body = resp.text().unwrap_or_else(|_| "<failed to read body>".to_string());
+                    println!("[Lyrics] {} HTTP {} (attempt {}): {}", label, code, attempt, body);
+                }
+            }
+            Err(e) => {
+                println!("[Lyrics] {} request failed (attempt {}): {}", label, attempt, e);
+            }
+        }
+
+        if attempt > delays_ms.len() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(delays_ms[attempt - 1]));
+    }
+
+    None
+}
+
 fn try_exact_match(
     client: &reqwest::blocking::Client,
     artist: &str,
@@ -253,17 +295,7 @@ fn try_exact_match(
     );
     println!("[Lyrics] → exact: {} - {}", artist, track);
 
-    client
-        .get(&url)
-        .send()
-        .ok()
-        .and_then(|r| {
-            if r.status().is_success() {
-                r.json::<LyricsResponse>().ok()
-            } else {
-                None
-            }
-        })
+    get_json_with_retry::<LyricsResponse>(client, &url, "exact")
         .filter(has_lyrics)
 }
 
@@ -279,17 +311,7 @@ fn try_artist_track_search(
     );
     println!("[Lyrics] → search: {} - {}", artist, track);
 
-    client
-        .get(&url)
-        .send()
-        .ok()
-        .and_then(|r| {
-            if r.status().is_success() {
-                r.json::<Vec<LyricsResponse>>().ok()
-            } else {
-                None
-            }
-        })
+    get_json_with_retry::<Vec<LyricsResponse>>(client, &url, "search")
         .and_then(|results| {
             results
                 .iter()
@@ -306,17 +328,7 @@ fn try_generic_search(client: &reqwest::blocking::Client, query: &str) -> Option
     );
     println!("[Lyrics] → query: {}", query);
 
-    client
-        .get(&url)
-        .send()
-        .ok()
-        .and_then(|r| {
-            if r.status().is_success() {
-                r.json::<Vec<LyricsResponse>>().ok()
-            } else {
-                None
-            }
-        })
+    get_json_with_retry::<Vec<LyricsResponse>>(client, &url, "query")
         .and_then(|results| {
             results
                 .iter()

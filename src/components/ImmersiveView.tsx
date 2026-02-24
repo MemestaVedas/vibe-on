@@ -5,7 +5,7 @@ import { useLyricsStore } from '../store/lyricsStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
 import { useThemeStore, ThemeColors } from '../store/themeStore';
-import { IconPlay, IconPause, IconNext, IconPrevious, IconMusicNote, IconShuffle, IconHeart, IconQueue, IconLyrics } from './Icons';
+import { IconPlay, IconPause, IconNext, IconPrevious, IconMusicNote, IconShuffle, IconHeart, IconQueue, IconLyrics, IconClose, IconTrash } from './Icons';
 import { formatTime } from '../utils/formatTime';
 import { SquigglySlider } from './SquigglySlider';
 import { Virtuoso } from 'react-virtuoso';
@@ -28,6 +28,7 @@ export function ImmersiveView() {
     const activeState = usePlayerStore(s => s.status.state);
     const isShuffled = usePlayerStore(s => s.isShuffled);
     const queue = usePlayerStore(s => s.queue);
+    const setQueue = usePlayerStore(s => s.setQueue);
     const library = usePlayerStore(s => s.library);
     const displayLanguage = usePlayerStore(s => s.displayLanguage);
     const error = usePlayerStore(s => s.error);
@@ -154,6 +155,19 @@ export function ImmersiveView() {
                         colors={colors}
                         onClose={() => setShowQueue(false)}
                         displayLanguage={displayLanguage}
+                        onMove={(from: number, to: number) => {
+                            if (from === to || from < 0 || to < 0 || from >= queue.length || to >= queue.length) return;
+                            const nextQueue = [...queue];
+                            const [moved] = nextQueue.splice(from, 1);
+                            nextQueue.splice(to, 0, moved);
+                            setQueue(nextQueue);
+                        }}
+                        onRemove={(index: number) => {
+                            if (index < 0 || index >= queue.length) return;
+                            const nextQueue = queue.filter((_, i) => i !== index);
+                            setQueue(nextQueue);
+                        }}
+                        onClear={() => setQueue([])}
                     />
                 </motion.div>
 
@@ -293,8 +307,9 @@ export function ImmersiveView() {
 //  SUB-COMPONENTS (SHARP 2D)
 // ─────────────────────────────────────────────────────────
 
-function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose, displayLanguage }: any) {
+function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose, displayLanguage, onMove, onRemove, onClear }: any) {
     const virtuosoRef = useRef<any>(null);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
 
     // Auto-scroll to active track when it changes or when queue opens
     useEffect(() => {
@@ -328,14 +343,23 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
                         Next <span className="text-primary opacity-50" style={{ color: colors.primary }}>_UP</span>
                     </h2>
                 </div>
-                <button
-                    onClick={onClose}
-                    className="w-10 h-10 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
-                >
-                    <svg viewBox="0 0 280 280" width={20} height={20} fill="currentColor">
-                        <path d="M178.73 6.2068C238.87 -19.9132 299.91 41.1269 273.79 101.267L269.47 111.207C261.5 129.577 261.5 150.417 269.47 168.787L273.79 178.727C299.91 238.867 238.87 299.907 178.73 273.787L168.79 269.467C150.42 261.497 129.58 261.497 111.21 269.467L101.27 273.787C41.1281 299.907 -19.9139 238.867 6.20706 178.727L10.5261 168.787C18.5011 150.417 18.5011 129.577 10.5261 111.207L6.20706 101.267C-19.9139 41.1269 41.1281 -19.9132 101.27 6.2068L111.21 10.5269C129.58 18.4969 150.42 18.4969 168.79 10.5269L178.73 6.2068Z" />
-                    </svg>
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={onClear}
+                        className="px-3 py-2 rounded-full bg-white/10 text-white/70 hover:text-white transition-colors text-xs uppercase tracking-widest"
+                        title="Clear Queue"
+                    >
+                        <IconTrash size={16} />
+                    </button>
+                    <button
+                        onClick={onClose}
+                        className="w-10 h-10 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+                    >
+                        <svg viewBox="0 0 280 280" width={20} height={20} fill="currentColor">
+                            <path d="M178.73 6.2068C238.87 -19.9132 299.91 41.1269 273.79 101.267L269.47 111.207C261.5 129.577 261.5 150.417 269.47 168.787L273.79 178.727C299.91 238.867 238.87 299.907 178.73 273.787L168.79 269.467C150.42 261.497 129.58 261.497 111.21 269.467L101.27 273.787C41.1281 299.907 -19.9139 238.867 6.20706 178.727L10.5261 168.787C18.5011 150.417 18.5011 129.577 10.5261 111.207L6.20706 101.267C-19.9139 41.1269 41.1281 -19.9132 101.27 6.2068L111.21 10.5269C129.58 18.4969 150.42 18.4969 168.79 10.5269L178.73 6.2068Z" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 relative z-10 px-2">
@@ -361,10 +385,22 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
                                     animate={{ opacity: 1, x: 0 }}
                                     whileHover={{ x: 6, scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
+                                    draggable
+                                    onDragStart={(event) => {
+                                        event.dataTransfer.effectAllowed = 'move';
+                                        setDragIndex(i);
+                                    }}
+                                    onDragOver={(event) => event.preventDefault()}
+                                    onDrop={(event) => {
+                                        event.preventDefault();
+                                        if (dragIndex !== null) onMove(dragIndex, i);
+                                        setDragIndex(null);
+                                    }}
+                                    onDragEnd={() => setDragIndex(null)}
                                     className={`group p-3 rounded-full flex items-center gap-4 cursor-pointer transition-all border relative ${isActive
                                         ? 'shadow-[0_0_20px_rgba(0,0,0,0.3)] border-white/20'
                                         : 'border-transparent hover:border-white/10 hover:bg-white/5'
-                                        }`}
+                                        } ${dragIndex === i ? 'ring-2 ring-white/30' : ''}`}
                                     style={{
                                         backgroundColor: isActive ? colors.primary : 'rgba(255,255,255,0.02)',
                                         color: isActive ? colors.onPrimary : colors.onSurface
@@ -386,6 +422,20 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
                                         <p className={`text-base font-semibold uppercase tracking-widest opacity-40 truncate`}>
                                             {displayArtist}
                                         </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                onRemove(i);
+                                            }}
+                                            className="p-2 rounded-full hover:bg-white/10"
+                                            title="Remove from Queue"
+                                        >
+                                            <IconClose size={16} />
+                                        </button>
+                                        <span className="text-white/40 cursor-grab select-none">≡</span>
                                     </div>
 
                                     {isActive && (

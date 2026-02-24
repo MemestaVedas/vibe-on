@@ -6,7 +6,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
-import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart } from './Icons';
+import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart, IconShuffle, IconRepeat, IconTrash, IconClose } from './Icons';
 import { M3CircleImage } from './ShapeComponents';
 import { MarqueeText } from './MarqueeText';
 import { SquigglySlider } from './SquigglySlider';
@@ -21,6 +21,11 @@ export function RightPanel() {
     const positionSecs = usePlayerStore(s => s.status.position_secs);
     const playerState = usePlayerStore(s => s.status.state);
     const queue = usePlayerStore(s => s.queue);
+    const setQueue = usePlayerStore(s => s.setQueue);
+    const toggleShuffle = usePlayerStore(s => s.toggleShuffle);
+    const cycleRepeatMode = usePlayerStore(s => s.cycleRepeatMode);
+    const repeatMode = usePlayerStore(s => s.repeatMode);
+    const isShuffled = usePlayerStore(s => s.isShuffled);
     const library = usePlayerStore(s => s.library);
     const displayLanguage = usePlayerStore(s => s.displayLanguage);
     const playFile = usePlayerStore(s => s.playFile);
@@ -98,6 +103,22 @@ export function RightPanel() {
         usePlayerStore.getState().seek(val);
     }, []);
 
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+    const moveQueueItem = useCallback((from: number, to: number) => {
+        if (from === to || from < 0 || to < 0 || from >= queue.length || to >= queue.length) return;
+        const nextQueue = [...queue];
+        const [moved] = nextQueue.splice(from, 1);
+        nextQueue.splice(to, 0, moved);
+        setQueue(nextQueue);
+    }, [queue, setQueue]);
+
+    const removeQueueItem = useCallback((index: number) => {
+        if (index < 0 || index >= queue.length) return;
+        const nextQueue = queue.filter((_, i) => i !== index);
+        setQueue(nextQueue);
+    }, [queue, setQueue]);
+
     // Memoize queue item renderer for Virtuoso
     const renderQueueItem = useCallback((index: number) => {
         const t = queue[index];
@@ -105,13 +126,18 @@ export function RightPanel() {
         return (
             <QueueItem
                 key={`${t.path}-${index}`}
+                index={index}
                 track={t}
                 displayLanguage={displayLanguage}
                 isActive={!!(trackPath && t.path === trackPath)}
                 onClick={() => playFile(t.path)}
+                onRemove={() => removeQueueItem(index)}
+                onMove={moveQueueItem}
+                dragIndex={dragIndex}
+                setDragIndex={setDragIndex}
             />
         );
-    }, [queue, trackPath, playFile, displayLanguage]);
+    }, [queue, trackPath, playFile, displayLanguage, removeQueueItem, moveQueueItem, dragIndex]);
 
     return (
         <div className="h-full flex flex-col overflow-hidden bg-surface-container rounded-[2rem] relative z-20">
@@ -410,6 +436,32 @@ export function RightPanel() {
                                             </button>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-2 px-1 mb-3">
+                                        <div className="flex items-center gap-1 bg-surface-container rounded-full p-1">
+                                            <button
+                                                onClick={toggleShuffle}
+                                                className={`p-2 rounded-full transition-colors ${isShuffled ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'}`}
+                                                title="Shuffle"
+                                            >
+                                                <IconShuffle size={16} />
+                                            </button>
+                                            <button
+                                                onClick={cycleRepeatMode}
+                                                className={`p-2 rounded-full transition-colors ${repeatMode !== 'off' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'}`}
+                                                title="Repeat"
+                                            >
+                                                <IconRepeat size={16} mode={repeatMode} />
+                                            </button>
+                                        </div>
+                                        <button
+                                            onClick={() => setQueue([])}
+                                            className="ml-auto flex items-center gap-2 px-3 py-2 rounded-full bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors"
+                                            title="Clear Queue"
+                                        >
+                                            <IconTrash size={16} />
+                                            <span className="text-label-small">Clear</span>
+                                        </button>
+                                    </div>
                                     <div className="flex-1 min-h-0">
                                         {queue.length === 0 ? (
                                             <div className="p-4 rounded-xl bg-surface-container-high/50 text-center">
@@ -434,25 +486,58 @@ export function RightPanel() {
     );
 }
 
-export const QueueItem = memo(function QueueItem({ track, isActive, onClick, displayLanguage }: {
+export const QueueItem = memo(function QueueItem({
+    track,
+    isActive,
+    onClick,
+    displayLanguage,
+    index,
+    onRemove,
+    onMove,
+    dragIndex,
+    setDragIndex
+}: {
     track: TrackDisplay;
     isActive: boolean;
     onClick?: () => void;
     displayLanguage: any;
+    index: number;
+    onRemove: () => void;
+    onMove: (from: number, to: number) => void;
+    dragIndex: number | null;
+    setDragIndex: (value: number | null) => void;
 }) {
     const coverUrl = useCoverArt(track.cover_image, track.path);
     const displayTitle = getDisplayText(track, 'title', displayLanguage);
     const displayArtist = getDisplayText(track, 'artist', displayLanguage);
+    const isDragging = dragIndex === index;
 
     return (
         <button
             onClick={onClick}
+            draggable
+            onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move';
+                setDragIndex(index);
+            }}
+            onDragOver={(event) => {
+                event.preventDefault();
+            }}
+            onDrop={(event) => {
+                event.preventDefault();
+                if (dragIndex !== null) {
+                    onMove(dragIndex, index);
+                }
+                setDragIndex(null);
+            }}
+            onDragEnd={() => setDragIndex(null)}
             className={`
                 group flex items-center gap-3 p-2 rounded-xl text-left transition-all duration-200 w-full
                 ${isActive
                     ? 'bg-secondary-container text-on-secondary-container'
                     : 'hover:bg-surface-container-high text-on-surface'
                 }
+                ${isDragging ? 'ring-2 ring-primary/40' : ''}
             `}
         >
             {/* Tiny Art */}
@@ -478,6 +563,20 @@ export const QueueItem = memo(function QueueItem({ track, isActive, onClick, dis
                 <span className={`text-label-small truncate ${isActive ? 'text-on-secondary-container/80' : 'text-on-surface-variant'}`}>
                     {displayArtist}
                 </span>
+            </div>
+
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onRemove();
+                    }}
+                    className="p-1 rounded-full hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface"
+                    title="Remove from Queue"
+                >
+                    <IconClose size={14} />
+                </button>
+                <span className="text-on-surface-variant/60 cursor-grab select-none" title="Drag to reorder">≡</span>
             </div>
 
             {/* Playing Indicator */}
