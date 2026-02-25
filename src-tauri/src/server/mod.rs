@@ -172,6 +172,11 @@ pub enum ServerEvent {
         from_peer_id: String,
         candidate: String,
     },
+    /// Playback stats updated
+    #[serde(rename_all = "camelCase")]
+    StatsUpdated {
+        timestamp: i64,
+    },
 }
 
 /// Track summary for queue updates
@@ -344,6 +349,7 @@ pub async fn start_server(
         .route("/api/artists/:name", get(get_artist_detail))
         .route("/api/lyrics/*path", get(get_lyrics))
         .route("/api/stats", get(get_stats))
+        .route("/api/stats/events", get(get_stats_events))
         // Cover art
         .route("/cover/*path", get(get_cover))
         // Audio streaming

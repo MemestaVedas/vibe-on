@@ -195,6 +195,15 @@ pub struct StreamParams {
     pub start: Option<u64>,
 }
 
+/// Stats events query params
+#[derive(Debug, Deserialize)]
+pub struct StatsEventsParams {
+    #[serde(rename = "startMs")]
+    pub start_ms: Option<i64>,
+    #[serde(rename = "endMs")]
+    pub end_ms: Option<i64>,
+}
+
 /// Stream range params for HTTP Range requests
 #[derive(Debug, Deserialize)]
 pub struct RangeParams {
@@ -747,6 +756,16 @@ pub async fn get_stats(
         total_artists,
         total_duration_hours,
     }))
+}
+
+pub async fn get_stats_events(
+    State(state): State<Arc<ServerState>>,
+    Query(params): Query<StatsEventsParams>,
+) -> Result<Json<Vec<crate::stats::PlaybackEvent>>, StatusCode> {
+    let app_state = state.app_state();
+    crate::stats::load_stats_events(&app_state, &state.app_handle, params.start_ms, params.end_ms)
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// Get cover art for a track

@@ -212,6 +212,11 @@ pub enum ServerMessage {
         playlist_id: String,
         tracks: Vec<super::routes::TrackDetail>,
     },
+    /// Playback stats updated
+    #[serde(rename_all = "camelCase")]
+    StatsUpdated {
+        timestamp: i64,
+    },
     /// Error message
     #[serde(rename = "Error")]
     Error { message: String },
@@ -274,6 +279,9 @@ impl From<ServerEvent> for ServerMessage {
             }
             ServerEvent::IceCandidate { from_peer_id, candidate } => {
                 ServerMessage::ICECandidate { from_peer_id, candidate }
+            }
+            ServerEvent::StatsUpdated { timestamp } => {
+                ServerMessage::StatsUpdated { timestamp }
             }
             ServerEvent::Error { message } => ServerMessage::Error { message },
             ServerEvent::Pong => ServerMessage::Pong,
@@ -842,6 +850,16 @@ async fn handle_client_message(
         
         ClientMessage::StartMobilePlayback => {
             log::info!("📱 StartMobilePlayback command from mobile ({})", client_id);
+
+            // Finalize any active desktop session before switching output
+            if let Ok(mut tracker) = app_state.stats_tracker.lock() {
+                let now_ms = crate::stats::current_time_ms();
+                if let Some(event) = tracker.update_desktop(None, 0.0, false, now_ms) {
+                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
+                    state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
+                    let _ = state.app_handle.emit("stats-updated", ());
+                }
+            }
             
             // Set active output to mobile
             {
@@ -900,6 +918,16 @@ async fn handle_client_message(
         
         ClientMessage::StopMobilePlayback => {
             log::info!("📱 StopMobilePlayback command from mobile ({})", client_id);
+
+            // Finalize any active mobile session
+            if let Ok(mut tracker) = app_state.stats_tracker.lock() {
+                let now_ms = crate::stats::current_time_ms();
+                if let Some(event) = tracker.stop_mobile(now_ms) {
+                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
+                    state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
+                    let _ = state.app_handle.emit("stats-updated", ());
+                }
+            }
             
             // Set active output to desktop
             {
@@ -1002,6 +1030,22 @@ async fn handle_client_message(
         
         ClientMessage::MobilePositionUpdate { position_secs } => {
             log::debug!("📱 Mobile position update: {:.2}s", position_secs);
+            if let Ok(mut tracker) = app_state.stats_tracker.lock() {
+                let now_ms = crate::stats::current_time_ms();
+                let song_id = if let Ok(player_guard) = app_state.player.lock() {
+                    player_guard
+                        .as_ref()
+                        .and_then(|player| player.get_status().track.map(|track| track.path))
+                } else {
+                    None
+                };
+
+                if let Some(event) = tracker.update_mobile_position(song_id, position_secs, now_ms) {
+                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
+                    state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
+                    let _ = state.app_handle.emit("stats-updated", ());
+                }
+            }
             // Sync position with React frontend
             let _ = state.app_handle.emit("mobile-position-update", serde_json::json!({
                 "position_secs": position_secs

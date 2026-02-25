@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { motion } from 'motion/react';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import type { PlaybackEvent } from '../types';
 import {
     IconMusicNote,
     IconStats,
@@ -112,11 +115,40 @@ interface TopTrack {
 }
 
 export function StatisticsPage() {
-    const { library, favorites, playCounts } = usePlayerStore();
+    const { library, favorites } = usePlayerStore();
     const { colors } = useThemeStore();
     const { setView } = useNavigationStore();
+    const [events, setEvents] = useState<PlaybackEvent[]>([]);
 
-    // Calculate statistics from playCounts (persistent) rather than history (recent only)
+    useEffect(() => {
+        let unlisten: (() => void) | undefined;
+        const load = async () => {
+            try {
+                const payload = await invoke<PlaybackEvent[]>('get_stats_events', {
+                    startMs: null,
+                    endMs: null
+                });
+                setEvents(payload || []);
+            } catch (e) {
+                console.error('[StatisticsPage] Failed to load stats events:', e);
+            }
+        };
+
+        load();
+        listen('stats-updated', () => {
+            load();
+        }).then(unsub => {
+            unlisten = unsub;
+        });
+
+        return () => {
+            if (unlisten) {
+                unlisten();
+            }
+        };
+    }, []);
+
+    // Calculate statistics from playback events stored on PC
     const stats = useMemo(() => {
         const artistPlayCounts = new Map<string, number>();
         const albumPlayCounts = new Map<string, { title: string; artist: string; playCount: number; coverPath?: string | null; trackPath?: string }>();
@@ -125,42 +157,46 @@ export function StatisticsPage() {
 
         const topTracks: TopTrack[] = [];
 
-        // Iterate through library to find play counts
-        library.forEach(track => {
-            const count = playCounts[track.path] || 0;
-            if (count > 0) {
-                totalPlays += count;
-                totalPlayTime += track.duration_secs * count;
+        const libraryByPath = new Map(library.map(track => [track.path, track]));
 
-                // Track artist plays
-                artistPlayCounts.set(track.artist, (artistPlayCounts.get(track.artist) || 0) + count);
+        const playCountByPath = new Map<string, number>();
+        events.forEach(event => {
+            const track = libraryByPath.get(event.songId);
+            if (!track) return;
+            const count = (playCountByPath.get(track.path) || 0) + 1;
+            playCountByPath.set(track.path, count);
+            totalPlays += 1;
+            totalPlayTime += event.durationMs / 1000;
 
-                // Track album plays
-                if (track.album) {
-                    const albumKey = `${track.album}-${track.artist}`;
-                    const currentAlbum = albumPlayCounts.get(albumKey) || {
-                        title: track.album,
-                        artist: track.artist,
-                        playCount: 0,
-                        coverPath: track.cover_image,
-                        trackPath: track.path
-                    };
-                    currentAlbum.playCount += count;
-                    // Update coverPath/trackPath if it was null/undefined
-                    if (!currentAlbum.coverPath && track.cover_image) {
-                        currentAlbum.coverPath = track.cover_image;
-                        currentAlbum.trackPath = track.path;
-                    }
-                    albumPlayCounts.set(albumKey, currentAlbum);
-                }
+            artistPlayCounts.set(track.artist, (artistPlayCounts.get(track.artist) || 0) + 1);
 
-                topTracks.push({
-                    path: track.path,
-                    title: track.title,
+            if (track.album) {
+                const albumKey = `${track.album}-${track.artist}`;
+                const currentAlbum = albumPlayCounts.get(albumKey) || {
+                    title: track.album,
                     artist: track.artist,
-                    playCount: count
-                });
+                    playCount: 0,
+                    coverPath: track.cover_image,
+                    trackPath: track.path
+                };
+                currentAlbum.playCount += 1;
+                if (!currentAlbum.coverPath && track.cover_image) {
+                    currentAlbum.coverPath = track.cover_image;
+                    currentAlbum.trackPath = track.path;
+                }
+                albumPlayCounts.set(albumKey, currentAlbum);
             }
+        });
+
+        playCountByPath.forEach((count, path) => {
+            const track = libraryByPath.get(path);
+            if (!track) return;
+            topTracks.push({
+                path: track.path,
+                title: track.title,
+                artist: track.artist,
+                playCount: count
+            });
         });
 
         // Sort Top Tracks
@@ -186,7 +222,7 @@ export function StatisticsPage() {
             topArtists: topArtists.slice(0, 5),
             topAlbums: topAlbums.slice(0, 5)
         };
-    }, [library, favorites, playCounts]);
+    }, [library, favorites, events]);
 
     const formatDuration = (secs: number) => {
         const hours = Math.floor(secs / 3600);

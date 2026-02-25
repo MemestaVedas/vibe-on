@@ -1,4 +1,5 @@
 mod audio;
+mod stats;
 mod cover_fetcher;
 mod database;
 mod discord_rpc;
@@ -58,6 +59,8 @@ pub struct AppState {
     pub current_queue_index: Arc<Mutex<usize>>,
     pub shuffle: Arc<Mutex<bool>>,
     pub repeat_mode: Arc<Mutex<String>>, // "off", "one", "all"
+    pub stats_store: Arc<Mutex<Option<stats::StatsStore>>>,
+    pub stats_tracker: Arc<Mutex<stats::StatsTracker>>,
 }
 
 impl Default for AppState {
@@ -78,6 +81,8 @@ impl Default for AppState {
             current_queue_index: Arc::new(Mutex::new(0)),
             shuffle: Arc::new(Mutex::new(false)),
             repeat_mode: Arc::new(Mutex::new("off".to_string())),
+            stats_store: Arc::new(Mutex::new(None)),
+            stats_tracker: Arc::new(Mutex::new(stats::StatsTracker::default())),
         }
     }
 }
@@ -473,6 +478,16 @@ fn get_player_state(state: State<AppState>) -> PlayerStatus {
     } else {
         PlayerStatus::default()
     }
+}
+
+#[tauri::command]
+fn get_stats_events(
+    start_ms: Option<i64>,
+    end_ms: Option<i64>,
+    state: State<AppState>,
+    app_handle: AppHandle,
+) -> Result<Vec<stats::PlaybackEvent>, String> {
+    stats::load_stats_events(&state, &app_handle, start_ms, end_ms)
 }
 
 
@@ -1548,6 +1563,51 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+                loop {
+                    interval.tick().await;
+                    let state = app_handle.state::<AppState>();
+                    let (song_id, position_secs, is_playing) = {
+                        if let Ok(player_guard) = state.player.lock() {
+                            if let Some(ref player) = *player_guard {
+                                let status = player.get_status();
+                                let is_playing = status.state == audio::PlayerState::Playing;
+                                let position = status.position_secs;
+                                let song_id = status.track.map(|track| track.path);
+                                (song_id, position, is_playing)
+                            } else {
+                                (None, 0.0, false)
+                            }
+                        } else {
+                            (None, 0.0, false)
+                        }
+                    };
+
+                    let now_ms = stats::current_time_ms();
+                    let maybe_event = {
+                        if let Ok(mut tracker) = state.stats_tracker.lock() {
+                            tracker.update_desktop(
+                                song_id,
+                                position_secs,
+                                is_playing,
+                                now_ms,
+                            )
+                        } else {
+                            None
+                        }
+                    };
+
+                    if let Some(event) = maybe_event {
+                        let _ = stats::record_stats_event(&state, &app_handle, event);
+                        let _ = app_handle.emit("stats-updated", ());
+                    }
+                }
+            });
+            Ok(())
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -1565,6 +1625,7 @@ pub fn run() {
             set_reverb,
             set_speed,
             get_player_state,
+            get_stats_events,
             scan_music_folder,
             get_track_metadata,
             init_library,

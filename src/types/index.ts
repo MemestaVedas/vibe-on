@@ -62,4 +62,13 @@ export interface PlaylistTrack extends TrackInfo {
   playlist_track_id: number;
 }
 
+export interface PlaybackEvent {
+  songId: string;
+  timestamp: number;
+  durationMs: number;
+  startTimestamp?: number | null;
+  endTimestamp?: number | null;
+  output?: 'desktop' | 'mobile' | string;
+}
+
 export type AppView = 'home' | 'tracks' | 'albums' | 'artists' | 'settings' | 'favorites' | 'statistics' | 'torrents' | 'playlist';
