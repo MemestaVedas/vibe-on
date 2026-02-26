@@ -182,10 +182,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                         <div className="px-4 py-2 flex items-center justify-between">
                             <span className="text-label-large text-on-surface-variant font-medium">Playlists</span>
                             <button
-                                onClick={() => {
-                                    const name = prompt("Enter playlist name:");
-                                    if (name) usePlaylistStore.getState().createPlaylist(name);
-                                }}
+                                onClick={() => usePlaylistStore.getState().openCreateWizard()}
                                 className="p-1 hover:bg-surface-container-high rounded-full text-on-surface-variant"
                                 title="Create Playlist"
                             >

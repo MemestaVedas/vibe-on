@@ -8,13 +8,16 @@ interface PlaylistState {
     isLoading: boolean;
     error: string | null;
     isCreateDialogOpen: boolean;
+    isCreateWizardOpen: boolean;
     pendingTrackToAdd: string | null;
     openCreateDialog: (trackPath?: string) => void;
     closeCreateDialog: () => void;
+    openCreateWizard: () => void;
+    closeCreateWizard: () => void;
     recentlyAddedToPlaylist: string | null;
 
     fetchPlaylists: () => Promise<void>;
-    createPlaylist: (name: string) => Promise<string | null>;
+    createPlaylist: (name: string, songPaths?: string[], customization?: any) => Promise<string | null>;
     deletePlaylist: (id: string) => Promise<void>;
     renamePlaylist: (id: string, newName: string) => Promise<void>;
 
@@ -32,9 +35,12 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
     recentlyAddedToPlaylist: null,
 
     isCreateDialogOpen: false,
+    isCreateWizardOpen: false,
     pendingTrackToAdd: null,
     openCreateDialog: (trackPath) => set({ isCreateDialogOpen: true, pendingTrackToAdd: trackPath || null }),
     closeCreateDialog: () => set({ isCreateDialogOpen: false, pendingTrackToAdd: null }),
+    openCreateWizard: () => set({ isCreateWizardOpen: true }),
+    closeCreateWizard: () => set({ isCreateWizardOpen: false }),
 
     fetchPlaylists: async () => {
         set({ isLoading: true, error: null });
@@ -46,10 +52,31 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
         }
     },
 
-    createPlaylist: async (name) => {
+    createPlaylist: async (name, songPaths = [], customization = {}) => {
         try {
-            const id = await invoke<string>('create_playlist', { name });
-            // Optimistic update or refetch? Refetch is safer for timestamps.
+            const payload: any = { name };
+            
+            // Add songs if provided
+            if (songPaths && songPaths.length > 0) {
+                payload.songs = songPaths;
+            }
+            
+            // Add customization if provided
+            if (customization) {
+                payload.customizationType = customization.type || 'default';
+                
+                if (customization.type === 'image' && customization.imageUri) {
+                    payload.imageUri = customization.imageUri;
+                } else if (customization.type === 'icon') {
+                    payload.color = customization.color;
+                    payload.iconName = customization.iconName;
+                } else if (customization.type === 'default' && customization.color) {
+                    payload.color = customization.color;
+                }
+            }
+            
+            const id = await invoke<string>('create_playlist', payload);
+            // Refetch to get updated state with customizations
             await get().fetchPlaylists();
             return id;
         } catch (e) {

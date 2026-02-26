@@ -513,7 +513,7 @@ export const QueueItem = memo(function QueueItem({
     const isDragging = dragIndex === index;
 
     return (
-        <button
+        <div
             onClick={onClick}
             draggable
             onDragStart={(event) => {
@@ -531,8 +531,10 @@ export const QueueItem = memo(function QueueItem({
                 setDragIndex(null);
             }}
             onDragEnd={() => setDragIndex(null)}
+            role="button"
+            tabIndex={0}
             className={`
-                group flex items-center gap-3 p-2 rounded-xl text-left transition-all duration-200 w-full
+                group flex items-center gap-3 p-2 rounded-xl text-left transition-all duration-200 w-full cursor-pointer
                 ${isActive
                     ? 'bg-secondary-container text-on-secondary-container'
                     : 'hover:bg-surface-container-high text-on-surface'
@@ -583,6 +585,6 @@ export const QueueItem = memo(function QueueItem({
             {isActive && (
                 <div className="w-2 h-2 rounded-full bg-primary shrink-0 mr-2" />
             )}
-        </button>
+        </div>
     );
 });

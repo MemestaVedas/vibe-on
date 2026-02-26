@@ -34,6 +34,8 @@ import { RightPanel } from './components/RightPanel';
 import { LyricsPanel } from './components/LyricsPanel';
 import { Equalizer } from './components/Equalizer';
 import { Toast } from './components/Toast';
+import { PlaylistCreationWizard } from './components/PlaylistCreationWizard';
+import { usePlaylistStore } from './store/playlistStore';
 
 function App() {
   useMediaSession(); // Initialize System Media Controls
@@ -50,6 +52,10 @@ function App() {
   );
 
   const { view, setView, isRightPanelOpen, setRightPanelOpen, isRightPanelCollapsed, setLeftSidebarCollapsed } = useNavigationStore();
+  
+  // Playlist wizard state
+  const { isCreateWizardOpen, closeCreateWizard, createPlaylist } = usePlaylistStore();
+  const library = usePlayerStore(s => s.library);
 
   useEffect(() => {
     const handleResize = () => {
@@ -134,6 +140,12 @@ function App() {
       <GlobalEffects />
       <ThemeManager />
       <PlaylistDialog />
+      <PlaylistCreationWizard 
+        isOpen={isCreateWizardOpen}
+        allSongs={library}
+        onCreatePlaylist={createPlaylist}
+        onClose={closeCreateWizard}
+      />
       {expandedArtMode === 'background' && <AmbientBackground />}
       <TitleBar />
 
