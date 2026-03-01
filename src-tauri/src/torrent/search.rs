@@ -13,6 +13,12 @@ pub struct SearchResult {
     pub url: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TorrentDetails {
+    pub description_html: String,
+    pub files_html: String,
+}
+
 pub async fn search_nyaa(
     query: String,
     sort_by: Option<String>,
@@ -22,7 +28,7 @@ pub async fn search_nyaa(
     let order = sort_order.unwrap_or_else(|| "desc".to_string()); // "desc", "asc"
 
     let url = format!(
-        "https://nyaa.si/?f=0&c=0_0&q={}&s={}&o={}",
+        "https://nyaa.si/?f=0&c=2_0&q={}&s={}&o={}",
         urlencoding::encode(&query),
         sort,
         order
@@ -115,10 +121,57 @@ pub async fn search_nyaa(
             leechers,
             magnet,
             date: date.trim().to_string(),
-            category: "Anime".to_string(),
+            category: "Audio".to_string(),
             url: full_url,
         });
     }
 
     Ok(results)
+}
+
+pub async fn get_nyaa_details(url: String) -> Result<TorrentDetails, String> {
+    let client = reqwest::Client::new();
+    let res = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch torrent info: {}", e))?;
+
+    if !res.status().is_success() {
+        return Err(format!("Nyaa returned status: {}", res.status()));
+    }
+
+    let html = res
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let document = Html::parse_document(&html);
+
+    let desc_selector = Selector::parse("#torrent-description").unwrap();
+    let mut description_html = document
+        .select(&desc_selector)
+        .next()
+        .map(|el| el.inner_html())
+        .unwrap_or_else(|| "<p>No description found.</p>".to_string());
+
+    // Normalize relative URLs in description
+    description_html = description_html.replace("src=\"/", "src=\"https://nyaa.si/");
+    description_html = description_html.replace("href=\"/", "href=\"https://nyaa.si/");
+
+    let files_selector = Selector::parse(".torrent-file-list").unwrap();
+    let mut files_html = document
+        .select(&files_selector)
+        .next()
+        .map(|el| el.inner_html())
+        .unwrap_or_else(|| "<p>No files found.</p>".to_string());
+
+    // Normalize relative URLs in files list
+    files_html = files_html.replace("src=\"/", "src=\"https://nyaa.si/");
+    files_html = files_html.replace("href=\"/", "href=\"https://nyaa.si/");
+
+    Ok(TorrentDetails {
+        description_html,
+        files_html,
+    })
 }

@@ -1306,6 +1306,13 @@ async fn search_torrents(
     torrent::search::search_nyaa(query, sort_by, sort_order).await
 }
 
+#[tauri::command]
+async fn get_torrent_details(
+    url: String,
+) -> Result<torrent::search::TorrentDetails, String> {
+    torrent::search::get_nyaa_details(url).await
+}
+
 // ============================================================================
 // Mobile Companion Server Commands
 // ============================================================================
@@ -1647,6 +1654,7 @@ pub fn run() {
             pause_torrent,
             resume_torrent,
             search_torrents,
+            get_torrent_details,
             start_mobile_server,
             stop_mobile_server,
             get_server_status,

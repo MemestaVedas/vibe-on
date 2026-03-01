@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'motion/react';
+import { TorrentDetailsModal } from './TorrentDetailsModal';
 
-interface SearchResult {
+export interface SearchResult {
     title: string;
     size: string;
     seeds: number;
@@ -26,6 +27,11 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
     const [sortBy, setSortBy] = useState<'seeders' | 'size' | 'id' | 'downloads'>('seeders');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
+    const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+    const [details, setDetails] = useState<{ description_html: string, files_html: string } | null>(null);
+    const [detailsLoading, setDetailsLoading] = useState(false);
+    const [detailsError, setDetailsError] = useState<string | null>(null);
+
     const handleSearch = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (!query.trim()) return;
@@ -46,6 +52,25 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
             setError(String(err));
         } finally {
             setIsSearching(false);
+        }
+    };
+
+    const handleResultClick = async (result: SearchResult) => {
+        setSelectedResult(result);
+        setDetails(null);
+        setDetailsError(null);
+        setDetailsLoading(true);
+
+        try {
+            const data = await invoke<{ description_html: string, files_html: string }>('get_torrent_details', {
+                url: result.url
+            });
+            setDetails(data);
+        } catch (err) {
+            console.error(err);
+            setDetailsError(String(err));
+        } finally {
+            setDetailsLoading(false);
         }
     };
 
@@ -131,7 +156,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                         <svg className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        <p>Search for anime or music</p>
+                        <p>Search for music or audio</p>
                     </div>
                 )}
 
@@ -142,7 +167,8 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className="p-4 bg-surface-container-high rounded-xl hover:bg-surface-container-highest transition-colors group flex flex-col gap-2"
+                            className="p-4 bg-surface-container-high rounded-xl hover:bg-surface-container-highest transition-colors group flex flex-col gap-2 cursor-pointer"
+                            onClick={() => handleResultClick(result)}
                         >
                             <div className="flex justify-between items-start gap-4">
                                 <div className="flex-1 min-w-0">
@@ -156,7 +182,10 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                                     </h3>
                                 </div>
                                 <button
-                                    onClick={() => onSelectMagnet(result.magnet)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onSelectMagnet(result.magnet);
+                                    }}
                                     className="shrink-0 px-4 py-2 bg-primary/10 text-primary text-sm font-bold rounded-xl hover:bg-primary hover:text-on-primary transition-colors"
                                 >
                                     Download
@@ -188,6 +217,22 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                     ))}
                 </AnimatePresence>
             </div>
+
+            <AnimatePresence>
+                {selectedResult && (
+                    <TorrentDetailsModal
+                        torrent={selectedResult}
+                        details={details}
+                        isLoading={detailsLoading}
+                        error={detailsError}
+                        onClose={() => setSelectedResult(null)}
+                        onDownload={() => {
+                            onSelectMagnet(selectedResult.magnet);
+                            setSelectedResult(null);
+                        }}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 }
