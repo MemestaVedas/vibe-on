@@ -834,6 +834,14 @@ async fn handle_client_message(
                 }
             };
             
+            let local_ip = determine_accessible_ip().unwrap_or_else(|| {
+                log::warn!("⚠️ Failed to determine local IP - defaulting to 127.0.0.1");
+                "127.0.0.1".to_string()
+            });
+            let port = state.config.port;
+            let encoded_path = urlencoding::encode(&track_path.clone().unwrap_or_default()).to_string();
+            let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
+            log::info!("🌐 Generated stream URL with IP: {} ({})", local_ip, url);
             log::info!("[Stream] Mobile client requesting stream for: {:?}", track_path);
             state.broadcast(ServerEvent::HandoffPrepare { sample, url });
         }
@@ -878,6 +886,7 @@ async fn handle_client_message(
             
             // Get current track info and send stream URL to mobile
             let (track_path, position, stream_url) = {
+                log::info!("🔍 Attempting to generate stream URL for mobile playback...");
                 let player_guard = app_state.player.lock().ok();
                 match player_guard.as_ref().and_then(|p| p.as_ref()) {
                     Some(player) => {
@@ -885,10 +894,18 @@ async fn handle_client_message(
                         match status.track {
                             Some(track) => {
                                 let position = status.position_secs;
-                                let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
+                                log::info!("📀 Current track: {} (position: {:.2}s)", track.path, position);
+                                // Try to determine accessible IP address for the mobile client
+                                let local_ip = determine_accessible_ip().unwrap_or_else(|| {
+                                    log::warn!("⚠️ Failed to determine local IP - defaulting to 127.0.0.1");
+                                    log::info!("💡 TIP: If mobile can't connect, check that PC and mobile are on the same WiFi network");
+                                    "127.0.0.1".to_string()
+                                });
                                 let port = state.config.port;
                                 let encoded_path = urlencoding::encode(&track.path).to_string();
                                 let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
+                                log::info!("🌐 Generated stream URL: {}", url);
+                                log::info!("✅ Stream URL ready for mobile client (IP: {}, Port: {})", local_ip, port);
                                 (Some(track.path), position, url)
                             }
                             None => (None, 0.0, String::new())
@@ -1391,10 +1408,14 @@ async fn play_track_internal(
     }
 
     if is_mobile {
-        let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
+        let local_ip = determine_accessible_ip().unwrap_or_else(|| {
+            log::warn!("⚠️ Failed to determine local IP - defaulting to 127.0.0.1");
+            "127.0.0.1".to_string()
+        });
         let port = state.config.port;
         let encoded_path = urlencoding::encode(&path).to_string();
         let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
+        log::info!("🌐 Generated stream URL with IP: {} ({})", local_ip, url);
         
         let _ = reply_tx.send(ServerMessage::HandoffPrepare { 
             sample: 0,
@@ -1547,6 +1568,29 @@ fn local_ip() -> Option<String> {
     let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
     socket.local_addr().ok().map(|addr| addr.ip().to_string())
+}
+
+/// Determine the best local IP address accessible to mobile clients
+/// Tries multiple methods to find a valid LAN IP
+fn determine_accessible_ip() -> Option<String> {
+    use std::net::UdpSocket;
+    
+    // Method 1: Try UDP socket to Google DNS (most reliable for finding default route IP)
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = socket.local_addr() {
+                let ip_str = addr.ip().to_string();
+                // Verify it's not a loopback or link-local address
+                if !addr.ip().is_loopback() && !ip_str.starts_with("169.254.") {
+                    log::info!("✅ Determined local IP via UDP socket: {}", ip_str);
+                    return Some(ip_str);
+                }
+            }
+        }
+    }
+    
+    log::warn!("❌ Could not determine local IP address accessible to mobile clients - may need manual IP configuration");
+    None
 }
 
 /// Helper function to push immediate internal updates to Discord Rich Presence 
