@@ -1,15 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  IconMusicNote as music,
-  IconHeart as heart,
-  IconSettings as palette,
-  IconSearch as search,
-  IconClose as x,
-  IconCheck as check,
-  IconNext as chevronRight,
-  IconAlbum as imageIcon,
-  IconDownload as upload,
+  IconMusicNote as Music,
+  IconHeart as Heart,
+  IconSettings as Palette,
+  IconSearch as Search,
+  IconClose as X,
+  IconCheck as Check,
+  IconNext as ChevronRight,
+  IconDownload as Upload,
 } from './Icons';
 import { TrackInfo } from '../types';
 
@@ -25,7 +24,7 @@ export interface PlaylistCustomization {
 interface PlaylistCreationWizardProps {
   isOpen: boolean;
   allSongs: TrackInfo[];
-  onCreatePlaylist: (name: string, songPaths: string[], customization: PlaylistCustomization) => Promise<void>;
+  onCreatePlaylist: (name: string, songPaths?: string[], customization?: any) => Promise<string | null>;
   onClose: () => void;
 }
 
@@ -38,9 +37,9 @@ const PLAYLIST_COLORS = [
 ];
 
 const PLAYLIST_ICONS = [
-  { name: 'MusicNote', icon: music },
-  { name: 'Heart', icon: heart },
-  { name: 'Palette', icon: palette },
+  { name: 'MusicNote', icon: Music },
+  { name: 'Heart', icon: Heart },
+  { name: 'Palette', icon: Palette },
   // Add more icons as needed
 ];
 
@@ -51,7 +50,6 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
   const [customization, setCustomization] = useState<PlaylistCustomization>({ type: 'default' });
   const [searchQuery, setSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,7 +61,6 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedImageFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
@@ -169,7 +166,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                 onClick={handleBack}
                 className="p-2 hover:bg-primary/10 rounded-full transition-colors text-on-surface"
               >
-                {currentStep === 0 ? <x size={24} /> : <chevronRight size={24} className="rotate-180" />}
+                {currentStep === 0 ? <X size={24} /> : <ChevronRight size={24} className="rotate-180" />}
               </button>
             </div>
 
@@ -204,15 +201,14 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                         Appearance
                       </label>
                       <div className="flex gap-2 mb-4">
-                        {(['default', 'image', 'icon'] as PlaylistCustomizationType[]).map((type, i) => (
+                        {(['default', 'image', 'icon'] as PlaylistCustomizationType[]).map((type) => (
                           <button
                             key={type}
                             onClick={() => setCustomization(prev => ({ ...prev, type }))}
-                            className={`px-4 py-2 rounded-full font-medium transition-all ${ 
-                              customization.type === type
-                                ? 'bg-primary text-on-primary'
-                                : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest/80'
-                            }`}
+                            className={`px-4 py-2 rounded-full font-medium transition-all ${customization.type === type
+                              ? 'bg-primary text-on-primary'
+                              : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest/80'
+                              }`}
                           >
                             {type.charAt(0).toUpperCase() + type.slice(1)}
                           </button>
@@ -255,7 +251,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                   >
                     {/* Search */}
                     <div className="relative">
-                      <search className="absolute left-4 top-4 text-on-surface-variant" size={20} />
+                      <Search className="absolute left-4 top-4 text-on-surface-variant" size={20} />
                       <input
                         type="text"
                         value={searchQuery}
@@ -268,7 +264,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                           onClick={() => setSearchQuery('')}
                           className="absolute right-3 top-3 p-1 hover:bg-primary/10 rounded-full"
                         >
-                          <x size={18} />
+                          <X size={18} />
                         </button>
                       )}
                     </div>
@@ -277,7 +273,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {filteredSongs.length === 0 ? (
                         <div className="text-center py-8 text-on-surface-variant">
-                          <music size={32} className="mx-auto mb-2 opacity-50" />
+                          <Music size={32} className="mx-auto mb-2 opacity-50" />
                           <p>No songs found</p>
                         </div>
                       ) : (
@@ -285,20 +281,18 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                           <button
                             key={song.path}
                             onClick={() => toggleSongSelection(song.path)}
-                            className={`w-full p-3 rounded-xl text-left transition-all flex items-start gap-3 ${ 
-                              selectedSongs.has(song.path)
-                                ? 'bg-primary/20 border-2 border-primary'
-                                : 'bg-surface-container-highest border-2 border-outline-variant/20 hover:bg-surface-container-highest/80'
-                            }`}
+                            className={`w-full p-3 rounded-xl text-left transition-all flex items-start gap-3 ${selectedSongs.has(song.path)
+                              ? 'bg-primary/20 border-2 border-primary'
+                              : 'bg-surface-container-highest border-2 border-outline-variant/20 hover:bg-surface-container-highest/80'
+                              }`}
                           >
                             <div className="flex-shrink-0 w-5 h-5 mt-1.5">
-                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${ 
-                                selectedSongs.has(song.path)
-                                  ? 'bg-primary border-primary'
-                                  : 'border-outline-variant/50'
-                              }`}>
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectedSongs.has(song.path)
+                                ? 'bg-primary border-primary'
+                                : 'border-outline-variant/50'
+                                }`}>
                                 {selectedSongs.has(song.path) && (
-                                  <check size={16} className="text-on-primary" strokeWidth={3} />
+                                  <Check size={16} className="text-on-primary" strokeWidth={3} />
                                 )}
                               </div>
                             </div>
@@ -330,11 +324,10 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
               <button
                 onClick={handleSubmit}
                 disabled={currentStep === 0 ? !playlistName.trim() : selectedSongs.size === 0 || isSubmitting}
-                className={`h-12 px-6 rounded-full text-label-large font-medium text-on-primary flex items-center gap-2 transition-all ${ 
-                  (currentStep === 0 ? !playlistName.trim() : selectedSongs.size === 0 || isSubmitting)
-                    ? 'bg-primary/50 cursor-not-allowed'
-                    : 'bg-primary hover:bg-primary/90 shadow-elevation-3'
-                }`}
+                className={`h-12 px-6 rounded-full text-label-large font-medium text-on-primary flex items-center gap-2 transition-all ${(currentStep === 0 ? !playlistName.trim() : selectedSongs.size === 0 || isSubmitting)
+                  ? 'bg-primary/50 cursor-not-allowed'
+                  : 'bg-primary hover:bg-primary/90 shadow-elevation-3'
+                  }`}
               >
                 {isSubmitting ? (
                   <>
@@ -344,7 +337,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                 ) : (
                   <>
                     {currentStep === 0 ? 'Next' : 'Create'}
-                    <chevronRight size={20} />
+                    <ChevronRight size={20} />
                   </>
                 )}
               </button>
@@ -356,8 +349,8 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
   );
 }
 
-function PlaylistColorPalette({ selectedColor, onSelectColor }: { 
-  selectedColor?: string; 
+function PlaylistColorPalette({ selectedColor, onSelectColor }: {
+  selectedColor?: string;
   onSelectColor: (color: string) => void;
 }) {
   return (
@@ -368,11 +361,10 @@ function PlaylistColorPalette({ selectedColor, onSelectColor }: {
           <button
             key={color}
             onClick={() => onSelectColor(color)}
-            className={`w-12 h-12 rounded-xl transition-all ring-2 ring-offset-2 ring-offset-surface-container ${ 
-              selectedColor === color
-                ? 'ring-primary ring-offset-2 shadow-lg'
-                : 'ring-transparent hover:ring-primary/30'
-            }`}
+            className={`w-12 h-12 rounded-xl transition-all ring-2 ring-offset-2 ring-offset-surface-container ${selectedColor === color
+              ? 'ring-primary ring-offset-2 shadow-lg'
+              : 'ring-transparent hover:ring-primary/30'
+              }`}
             style={{ backgroundColor: color }}
           />
         ))}
@@ -381,14 +373,14 @@ function PlaylistColorPalette({ selectedColor, onSelectColor }: {
   );
 }
 
-function PlaylistImageUploader({ 
-  preview, 
-  onImageSelect, 
-  fileInputRef 
-}: { 
-  preview: string | null; 
+function PlaylistImageUploader({
+  preview,
+  onImageSelect,
+  fileInputRef
+}: {
+  preview: string | null;
   onImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="space-y-4">
@@ -399,7 +391,7 @@ function PlaylistImageUploader({
         onChange={onImageSelect}
         className="hidden"
       />
-      
+
       {preview ? (
         <div className="flex items-center gap-4">
           <img
@@ -419,7 +411,7 @@ function PlaylistImageUploader({
           onClick={() => fileInputRef.current?.click()}
           className="w-full h-32 rounded-xl border-2 border-dashed border-outline-variant flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:border-primary hover:bg-primary/5 transition-all"
         >
-          <upload size={24} />
+          <Upload size={24} />
           <div className="text-center">
             <p className="text-label-large font-medium">Select an image</p>
             <p className="text-body-small">Drag and drop or click to browse</p>
@@ -430,14 +422,14 @@ function PlaylistImageUploader({
   );
 }
 
-function PlaylistIconCustomizer({ 
-  selectedIcon, 
-  selectedColor, 
-  onIconSelect, 
-  onColorSelect 
-}: { 
-  selectedIcon: string; 
-  selectedColor?: string; 
+function PlaylistIconCustomizer({
+  selectedIcon,
+  selectedColor,
+  onIconSelect,
+  onColorSelect
+}: {
+  selectedIcon: string;
+  selectedColor?: string;
   onIconSelect: (iconName: string) => void;
   onColorSelect: (color: string) => void;
 }) {
@@ -457,11 +449,10 @@ function PlaylistIconCustomizer({
             <button
               key={name}
               onClick={() => onIconSelect(name)}
-              className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ring-2 ring-offset-2 ring-offset-surface-container ${ 
-                selectedIcon === name
-                  ? 'ring-primary bg-primary/20 text-primary'
-                  : 'ring-transparent bg-surface-container-highest text-on-surface-variant hover:bg-primary/10'
-              }`}
+              className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ring-2 ring-offset-2 ring-offset-surface-container ${selectedIcon === name
+                ? 'ring-primary bg-primary/20 text-primary'
+                : 'ring-transparent bg-surface-container-highest text-on-surface-variant hover:bg-primary/10'
+                }`}
             >
               <Icon size={24} />
             </button>

@@ -386,7 +386,7 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
                                     whileHover={{ x: 6, scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     draggable
-                                    onDragStart={(event) => {
+                                    onDragStart={(event: any) => {
                                         event.dataTransfer.effectAllowed = 'move';
                                         setDragIndex(i);
                                     }}
