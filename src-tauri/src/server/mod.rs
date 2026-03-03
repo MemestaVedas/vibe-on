@@ -209,6 +209,7 @@ pub struct TrackSummary {
 pub struct ConnectedClient {
     pub id: String,
     pub name: String,
+    pub remote_ip: String,
     pub connected_at: std::time::Instant,
 }
 
@@ -388,7 +389,7 @@ pub async fn start_server(
     
     // Start server with graceful shutdown
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
+    axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(async move {
             let _ = shutdown_rx.recv().await;
             println!("[Server] Graceful shutdown signal received");

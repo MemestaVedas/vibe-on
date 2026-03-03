@@ -5,10 +5,11 @@ use std::sync::Arc;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        State, WebSocketUpgrade,
+        ConnectInfo, State, WebSocketUpgrade,
     },
     response::Response,
 };
+use std::net::SocketAddr;
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
@@ -299,7 +300,8 @@ pub async fn websocket_handler(
 
 /// Handle a WebSocket connection
 async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
-    log::info!("🔌 New WebSocket connection established");
+    let remote_ip = "unknown".to_string();
+    log::info!("🔌 New WebSocket connection from {}", remote_ip);
     println!("[WebSocket] New connection!");
     
     let (mut sender, mut receiver) = socket.split();
@@ -380,7 +382,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(client_msg) => {
                         log::info!("📱 Parsed ClientMessage: {:?}", client_msg);
-                        handle_client_message(&state, &client_id, client_msg, &reply_tx).await;
+                        handle_client_message(&state, &client_id, &remote_ip, client_msg, &reply_tx).await;
                     }
                     Err(e) => {
                         log::warn!("❌ Invalid WebSocket message: {}", e);
@@ -421,6 +423,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
 async fn handle_client_message(
     state: &Arc<ServerState>,
     client_id: &str,
+    client_ip: &str,
     msg: ClientMessage,
     reply_tx: &tokio::sync::mpsc::Sender<ServerMessage>,
 ) {
@@ -434,6 +437,7 @@ async fn handle_client_message(
             let client = ConnectedClient {
                 id: client_id.to_string(),
                 name: client_name.clone(),
+                remote_ip: client_ip.to_string(),
                 connected_at: std::time::Instant::now(),
             };
             state.clients.write().await.push(client);
@@ -1575,21 +1579,35 @@ fn local_ip() -> Option<String> {
 fn determine_accessible_ip() -> Option<String> {
     use std::net::UdpSocket;
     
-    // Method 1: Try UDP socket to Google DNS (most reliable for finding default route IP)
+    // Method 1: Try UDP socket to Google DNS (best for finding default route IP)
     if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
         if socket.connect("8.8.8.8:80").is_ok() {
             if let Ok(addr) = socket.local_addr() {
                 let ip_str = addr.ip().to_string();
-                // Verify it's not a loopback or link-local address
                 if !addr.ip().is_loopback() && !ip_str.starts_with("169.254.") {
-                    log::info!("✅ Determined local IP via UDP socket: {}", ip_str);
+                    log::info!("✅ Determined local IP via UDP route: {}", ip_str);
                     return Some(ip_str);
                 }
             }
         }
     }
     
-    log::warn!("❌ Could not determine local IP address accessible to mobile clients - may need manual IP configuration");
+    // Method 2: Use if_addrs (list all interfaces and pick the first non-loopback LAN IP)
+    if let Ok(ifaces) = if_addrs::get_if_addrs() {
+        // Prefer common LAN ranges: 192.168.x.x, 10.x.x.x, 172.16-31.x.x
+        for iface in &ifaces {
+            let addr = iface.addr.ip();
+            if addr.is_ipv4() && !addr.is_loopback() {
+                let ip_str = addr.to_string();
+                if !ip_str.starts_with("169.254.") {
+                    log::info!("✅ Determined local IP via interface list: {}", ip_str);
+                    return Some(ip_str);
+                }
+            }
+        }
+    }
+    
+    log::warn!("❌ Could not determine LAN IP - falling back to loopback (mobile might fail)");
     None
 }
 
