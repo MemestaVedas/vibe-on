@@ -1009,7 +1009,7 @@ async fn handle_client_message(
                             synced_lyrics: lrc.synced_lyrics.clone(),
                             synced_lyrics_romaji: lrc.synced_lyrics.as_ref().and_then(|t| {
                                 if crate::lyrics_transliteration::has_japanese(t) {
-                                    Some(crate::lyrics_transliteration::to_romaji(t))
+                                    Some(crate::lyrics_transliteration::transliterate_lyrics(t))
                                 } else { None }
                             }),
                             plain_lyrics: lrc.plain_lyrics,
