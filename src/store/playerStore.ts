@@ -871,13 +871,19 @@ export const usePlayerStore = create<PlayerStore>()(
                 set(state => ({ immersiveMode: !state.immersiveMode }));
             },
             setAudioOutput: async (output) => {
+                const previousOutput = get().audioOutput;
                 set({ audioOutput: output });
-                // Notify mobile via WebSocket about output change
                 try {
-                    await emit('output-changed', { output });
-                    console.log(`[PlayerStore] Audio output changed to: ${output}`);
+                    if (output === 'mobile') {
+                        await invoke('start_mobile_playback');
+                    } else {
+                        await invoke('stop_mobile_playback');
+                    }
+                    console.log(`[PlayerStore] Audio output switched to: ${output}`);
                 } catch (e) {
-                    console.error('[PlayerStore] Failed to notify output change:', e);
+                    console.error('[PlayerStore] Failed to switch audio output:', e);
+                    // Revert on failure
+                    set({ audioOutput: previousOutput });
                 }
             },
             playRandomAlbum: async () => {

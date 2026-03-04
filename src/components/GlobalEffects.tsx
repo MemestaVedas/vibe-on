@@ -56,11 +56,15 @@ export function GlobalEffects() {
                     const { output } = event.payload;
                     const playerStore = usePlayerStore.getState();
 
+                    // Sync audioOutput state so UI toggle reflects reality
+                    usePlayerStore.setState({ audioOutput: output });
+
                     if (output === 'mobile') {
                         console.log('[Output] Switching to mobile playback');
                         playerStore.pause();
                     } else if (output === 'desktop') {
                         console.log('[Output] Switching to desktop playback');
+                        playerStore.refreshStatus();
                     }
                 }),
 

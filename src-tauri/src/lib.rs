@@ -1411,26 +1411,46 @@ async fn get_p2p_peers(state: State<'_, AppState>) -> Result<Vec<p2p::discovery:
 }
 
 #[tauri::command]
-async fn start_mobile_playback(state: State<'_, AppState>) -> Result<(), String> {
-    // Send command to mobile via server broadcast
-    // This will be handled by the server module's broadcast mechanism
-    // For now, we can use the player's play command which will broadcast to mobile
+async fn start_mobile_playback(state: State<'_, AppState>, app_handle: AppHandle) -> Result<(), String> {
+    log::info!("🖥️→📱 Desktop requested output switch to mobile");
+    
+    // Mute and pause PC playback
     get_or_init_player(&state)?;
-    let mut player_guard = state.player.lock().unwrap();
-    if let Some(ref mut player) = *player_guard {
-        player.resume();
+    if let Ok(mut player_guard) = state.player.lock() {
+        if let Some(ref mut player) = *player_guard {
+            let _ = player.set_mute(true);
+            player.pause();
+            log::info!("🔇 PC playback muted and paused for mobile handoff");
+        }
     }
+    
+    // Emit output-changed event so frontend UI updates + WS server's GlobalEffects picks it up
+    let _ = app_handle.emit("output-changed", serde_json::json!({
+        "output": "mobile"
+    }));
+    
     Ok(())
 }
 
 #[tauri::command]
-async fn stop_mobile_playback(state: State<'_, AppState>) -> Result<(), String> {
-    // Send command to stop mobile playback
+async fn stop_mobile_playback(state: State<'_, AppState>, app_handle: AppHandle) -> Result<(), String> {
+    log::info!("📱→🖥️ Desktop requested output switch back to desktop");
+    
+    // Unmute and resume PC playback
     get_or_init_player(&state)?;
-    let player_guard = state.player.lock().unwrap();
-    if let Some(ref player) = *player_guard {
-        player.pause();
+    if let Ok(mut player_guard) = state.player.lock() {
+        if let Some(ref mut player) = *player_guard {
+            let _ = player.set_mute(false);
+            let _ = player.resume();
+            log::info!("▶️ PC playback unmuted and resumed");
+        }
     }
+    
+    // Emit output-changed event for frontend
+    let _ = app_handle.emit("output-changed", serde_json::json!({
+        "output": "desktop"
+    }));
+    
     Ok(())
 }
 

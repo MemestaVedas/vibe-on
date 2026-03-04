@@ -168,11 +168,10 @@ pub enum ServerMessage {
         tracks: Vec<super::routes::TrackDetail>,
     },
     /// Queue update
-    #[serde(rename = "QueueUpdate")]
     #[serde(rename_all = "camelCase")]
     QueueUpdate {
         queue: Vec<super::TrackSummary>,
-        #[serde(rename = "current_index")]
+        #[serde(rename = "currentIndex")]
         current_index: i32,
     },
     /// WebRTC signaling relay
@@ -957,11 +956,12 @@ async fn handle_client_message(
             }
             log::info!("🔊 Active output set to: desktop");
 
-            // Unmute PC playback
+            // Unmute and resume PC playback
             if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
                     let _ = player.set_mute(false);
-                    log::info!("🔈 PC playback unmuted");
+                    let _ = player.resume();
+                    log::info!("▶️ PC playback unmuted and resumed");
                 }
             }
             state.broadcast(ServerEvent::StreamStopped);
@@ -1077,7 +1077,7 @@ async fn handle_client_message(
             // Resume desktop playback
             if let Ok(mut player_guard) = app_state.player.lock() {
                 if let Some(ref mut player) = *player_guard {
-                    player.resume();
+                    let _ = player.resume();
                 }
             }
             state.broadcast(ServerEvent::StreamStopped);
@@ -1412,6 +1412,9 @@ async fn play_track_internal(
     }
 
     if is_mobile {
+        // Signal mobile to stop current stream before sending new one
+        let _ = reply_tx.send(ServerMessage::StreamStopped).await;
+        
         let local_ip = determine_accessible_ip().unwrap_or_else(|| {
             log::warn!("⚠️ Failed to determine local IP - defaulting to 127.0.0.1");
             "127.0.0.1".to_string()
