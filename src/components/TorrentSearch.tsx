@@ -1,7 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'motion/react';
 import { TorrentDetailsModal } from './TorrentDetailsModal';
+
+function TorrentThumbnail({ url }: { url: string }) {
+    const [imgUrl, setImgUrl] = useState<string | null>(null);
+    const [hasAttempted, setHasAttempted] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!containerRef.current || hasAttempted) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                setHasAttempted(true);
+                observer.disconnect();
+                
+                invoke<{ description_html: string }>('get_torrent_details', { url })
+                    .then(data => {
+                        const div = document.createElement('div');
+                        div.innerHTML = data.description_html;
+                        const firstImg = div.querySelector('img');
+                        if (firstImg?.src) {
+                            setImgUrl(firstImg.src);
+                        } else {
+                            const match = /!\[.*?\]\((.*?)\)/.exec(data.description_html);
+                            if (match?.[1]) setImgUrl(match[1]);
+                        }
+                    })
+                    .catch(() => {});
+            }
+        });
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, [url, hasAttempted]);
+
+    return (
+        <div ref={containerRef} className="w-14 h-14 shrink-0 bg-surface-container-highest rounded-lg overflow-hidden flex items-center justify-center">
+            {imgUrl ? (
+                <img src={imgUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+            ) : (
+                <svg className="w-6 h-6 text-on-surface-variant/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            )}
+        </div>
+    );
+}
 
 export interface SearchResult {
     title: string;
@@ -24,6 +70,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
     const [isSearching, setIsSearching] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const [category, setCategory] = useState<'audio' | 'all'>('audio');
     const [sortBy, setSortBy] = useState<'seeders' | 'size' | 'id' | 'downloads'>('seeders');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
@@ -43,6 +90,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
         try {
             const data = await invoke<SearchResult[]>('search_torrents', {
                 query,
+                category,
                 sortBy,
                 sortOrder
             });
@@ -96,8 +144,22 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                     </button>
                 </form>
 
-                {/* Sort Controls */}
+                {/* Controls Bar */}
                 <div className="flex items-center gap-3 overflow-x-auto pb-4 pt-1 px-1 scrollbar-none">
+                    <div className="flex items-center gap-2 pr-4 border-r border-surface-variant/30 shrink-0">
+                        <select
+                            value={category}
+                            onChange={(e) => {
+                                setCategory(e.target.value as 'audio' | 'all');
+                                if (query.trim()) setTimeout(() => handleSearch(), 0);
+                            }}
+                            className="bg-surface-container-high text-on-surface text-sm font-bold px-3 py-2 rounded-xl border-none outline-none cursor-pointer"
+                        >
+                            <option value="audio">Music/Audio</option>
+                            <option value="all">Everything</option>
+                        </select>
+                    </div>
+                
                     <span className="text-sm font-medium text-on-surface-variant shrink-0 mr-1">Sort by:</span>
                     {(['seeders', 'date', 'size', 'downloads'] as const).map((key) => {
                         // Map UI label to value
@@ -171,6 +233,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                             onClick={() => handleResultClick(result)}
                         >
                             <div className="flex justify-between items-start gap-4">
+                                <TorrentThumbnail url={result.url} />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold uppercase tracking-wide">

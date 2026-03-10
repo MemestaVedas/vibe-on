@@ -21,14 +21,21 @@ pub struct TorrentDetails {
 
 pub async fn search_nyaa(
     query: String,
+    category: Option<String>,
     sort_by: Option<String>,
     sort_order: Option<String>,
 ) -> Result<Vec<SearchResult>, String> {
     let sort = sort_by.unwrap_or_default(); // "seeders", "size", "id", "downloads"
     let order = sort_order.unwrap_or_else(|| "desc".to_string()); // "desc", "asc"
+    let cat_param = match category.as_deref() {
+        Some("all") => "0_0",
+        Some("audio") => "2_0",
+        _ => "2_0",
+    };
 
     let url = format!(
-        "https://nyaa.si/?f=0&c=2_0&q={}&s={}&o={}",
+        "https://nyaa.si/?f=0&c={}&q={}&s={}&o={}",
+        cat_param,
         urlencoding::encode(&query),
         sort,
         order

@@ -1300,10 +1300,11 @@ async fn resume_torrent(id: usize, state: State<'_, AppState>) -> Result<(), Str
 #[tauri::command]
 async fn search_torrents(
     query: String,
+    category: Option<String>,
     sort_by: Option<String>,
     sort_order: Option<String>,
 ) -> Result<Vec<torrent::search::SearchResult>, String> {
-    torrent::search::search_nyaa(query, sort_by, sort_order).await
+    torrent::search::search_nyaa(query, category, sort_by, sort_order).await
 }
 
 #[tauri::command]
