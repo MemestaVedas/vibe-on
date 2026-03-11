@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { downloadDir } from '@tauri-apps/api/path';
 import { TorrentSearch } from './TorrentSearch';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface TorrentFile {
     index: number;
@@ -287,159 +288,193 @@ export function TorrentBrowser({ onAdded }: Props) {
                 </div>
             )}
 
-            {step === 'selection' && (
-                <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="space-y-6 h-full flex flex-col">
-                        {/* Torrent Name */}
-                        <div className="space-y-1 shrink-0">
-                            <label className="text-sm font-medium text-on-surface-variant">Torrent</label>
-                            <p className="text-on-surface font-medium truncate" title={torrentName}>{torrentName}</p>
-                        </div>
-
-                        {/* Path Selection */}
-                        <div className="space-y-2 shrink-0">
-                            <label className="text-sm font-medium text-on-surface-variant">Download Location</label>
-                            <div className="flex gap-2">
-                                <input
-                                    readOnly
-                                    value={downloadPath}
-                                    className="flex-1 px-4 py-2 rounded-xl bg-surface-container-high text-on-surface text-sm border-none outline-none opacity-80"
-                                />
-                                <button
-                                    onClick={handleBrowsePath}
-                                    className="px-4 py-2 bg-surface-container-highest text-on-surface rounded-xl hover:bg-surface-container-high transition-colors text-sm font-medium"
-                                >
-                                    Browse
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* M3 Expressive File List */}
-                        <div className="space-y-3 flex-1 flex flex-col min-h-0">
-                            <div className="flex justify-between items-end shrink-0 px-2">
-                                <div>
-                                    <label className="text-title-small font-bold text-on-surface">
-                                        Files to Download
-                                    </label>
-                                    <p className="text-body-small text-on-surface-variant">
-                                        {selectedIndices.length} of {files.length} selected
-                                        {audioFileCount > 0 && (
-                                            <span className="ml-2 text-primary font-medium">• {selectedAudioCount} audio files</span>
-                                        )}
-                                    </p>
-                                </div>
-                                <div className="flex gap-3">
-                                    {audioFileCount > 0 && audioFileCount < files.length && (
+            <AnimatePresence>
+                {step === 'selection' && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setStep('input')}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative flex flex-col w-full max-w-4xl max-h-[90vh] bg-surface rounded-2xl shadow-2xl overflow-hidden border border-white/10"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Selection Content */}
+                            <div className="flex-1 flex flex-col overflow-hidden">
+                                <div className="p-6 h-full flex flex-col">
+                                    {/* Header with Back Button */}
+                                    <div className="flex items-center justify-between mb-6 shrink-0">
                                         <button
-                                            onClick={() => setSelectedIndices(files.filter(f => f.is_audio).map(f => f.index))}
-                                            className="px-3 py-1.5 rounded-lg text-label-large font-medium text-primary hover:bg-primary/10 transition-colors"
+                                            onClick={() => setStep('input')}
+                                            className="text-sm font-bold text-primary hover:underline flex items-center gap-1"
                                         >
-                                            Audio Only
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                                            </svg>
+                                            Change Selection
                                         </button>
-                                    )}
-                                    <button
-                                        onClick={() => {
-                                            if (selectedIndices.length === files.length) setSelectedIndices([]);
-                                            else setSelectedIndices(files.map(f => f.index));
-                                        }}
-                                        className="px-3 py-1.5 rounded-lg text-label-large font-medium text-primary hover:bg-primary/10 transition-colors"
-                                    >
-                                        {selectedIndices.length === files.length ? 'Deselect All' : 'Select All'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto rounded-[2rem] bg-surface-container-low p-3 no-scrollbar">
-                                {files.map((file) => {
-                                    const isSelected = selectedIndices.includes(file.index);
-                                    return (
-                                        <div
-                                            key={file.index}
-                                            onClick={() => {
-                                                if (isSelected) setSelectedIndices(selectedIndices.filter(i => i !== file.index));
-                                                else setSelectedIndices([...selectedIndices, file.index]);
-                                            }}
-                                            className={`
-                                                group flex items-center gap-4 p-4 mb-2 last:mb-0 rounded-[1.25rem] border transition-all duration-200 cursor-pointer
-                                                ${isSelected
-                                                    ? 'bg-secondary-container border-transparent'
-                                                    : 'bg-surface-container hover:bg-surface-container-high border-transparent'
-                                                }
-                                            `}
+                                        <button
+                                            onClick={() => setStep('input')}
+                                            className="p-2 text-on-surface-variant hover:text-on-surface rounded-full hover:bg-surface-variant/50 transition-colors"
                                         >
-                                            {/* Custom Checkbox */}
-                                            <div className={`
-                                                w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors
-                                                ${isSelected
-                                                    ? 'bg-primary border-primary'
-                                                    : 'border-outline group-hover:border-primary'
-                                                }
-                                            `}>
-                                                {isSelected && (
-                                                    <svg className="w-4 h-4 text-on-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                )}
-                                            </div>
+                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
 
-                                            {/* File Icon */}
-                                            <div className={`
-                                                w-10 h-10 rounded-xl flex items-center justify-center shrink-0
-                                                ${isSelected
-                                                    ? 'bg-primary/20 text-primary-dark'
-                                                    : 'bg-surface-container-highest text-on-surface-variant'
-                                                }
-                                            `}>
-                                                {file.is_audio ? (
-                                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                                                    </svg>
-                                                ) : (
-                                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                                    </svg>
-                                                )}
-                                            </div>
+                                    {/* Torrent Name */}
+                                    <div className="mb-6 shrink-0">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/60 block mb-1">Torrent</label>
+                                        <p className="text-xl font-bold text-on-surface truncate" title={torrentName}>{torrentName}</p>
+                                    </div>
 
-                                            {/* Metadata */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className={`text-body-large font-medium truncate ${isSelected ? 'text-on-secondary-container' : 'text-on-surface'}`}>
-                                                    {file.name}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0">
+                                        {/* Left Column: List */}
+                                        <div className="flex flex-col min-h-0">
+                                            <div className="flex justify-between items-end mb-3 px-2">
+                                                <div>
+                                                    <label className="text-sm font-bold text-on-surface">Files to Download</label>
+                                                    <p className="text-xs text-on-surface-variant">
+                                                        {selectedIndices.length} of {files.length} selected
+                                                        {audioFileCount > 0 && (
+                                                            <span className="ml-2 text-primary font-medium">• {selectedAudioCount} audio</span>
+                                                        )}
+                                                    </p>
                                                 </div>
-                                                <div className="flex items-center gap-2 text-label-medium text-on-surface-variant/80">
-                                                    <span>{formatSize(file.size)}</span>
-                                                    {file.is_audio && (
-                                                        <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
-                                                            Audio
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (selectedIndices.length === files.length) setSelectedIndices([]);
+                                                            else setSelectedIndices(files.map(f => f.index));
+                                                        }}
+                                                        className="text-xs font-bold text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-colors"
+                                                    >
+                                                        {selectedIndices.length === files.length ? 'Deselect All' : 'Select All'}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-1 overflow-y-auto rounded-2xl bg-surface-container-low p-2 no-scrollbar border border-outline-variant/10">
+                                                {files.map((file) => {
+                                                    const isSelected = selectedIndices.includes(file.index);
+                                                    return (
+                                                        <div
+                                                            key={file.index}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (isSelected) setSelectedIndices(selectedIndices.filter(i => i !== file.index));
+                                                                else setSelectedIndices([...selectedIndices, file.index]);
+                                                            }}
+                                                            className={`
+                                                                group flex items-center gap-3 p-3 mb-1.5 last:mb-0 rounded-xl border transition-all duration-200 cursor-pointer
+                                                                ${isSelected
+                                                                    ? 'bg-secondary-container/30 border-secondary-container/50'
+                                                                    : 'bg-transparent hover:bg-surface-container border-transparent'
+                                                                }
+                                                            `}
+                                                        >
+                                                            <div className={`
+                                                                w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors shrink-0
+                                                                ${isSelected ? 'bg-primary border-primary' : 'border-outline group-hover:border-primary'}
+                                                            `}>
+                                                                {isSelected && (
+                                                                    <svg className="w-3.5 h-3.5 text-on-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className={`text-sm font-medium truncate ${isSelected ? 'text-on-secondary-container' : 'text-on-surface'}`}>
+                                                                    {file.name}
+                                                                </div>
+                                                                <div className="text-[11px] text-on-surface-variant flex gap-2">
+                                                                    <span>{formatSize(file.size)}</span>
+                                                                    {file.is_audio && <span className="text-primary font-bold">AUDIO</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Right Column: Options & Path */}
+                                        <div className="flex flex-col gap-6">
+                                            <div className="space-y-3 p-4 bg-surface-container-high rounded-2xl border border-outline-variant/10">
+                                                <label className="text-sm font-bold text-on-surface block">Download Settings</label>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-medium text-on-surface-variant">Destination Path</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            readOnly
+                                                            value={downloadPath}
+                                                            className="flex-1 px-3 py-2 rounded-xl bg-surface-container text-on-surface text-xs border-none outline-none opacity-80"
+                                                        />
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleBrowsePath(); }}
+                                                            className="px-3 py-2 bg-surface-container-highest text-on-surface rounded-xl hover:bg-primary hover:text-on-primary transition-all text-xs font-bold"
+                                                        >
+                                                            Browse
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-4 mt-4 border-t border-outline-variant/20">
+                                                    <div className="flex justify-between items-center text-sm font-medium mb-4">
+                                                        <span className="text-on-surface-variant">Total Selected Size</span>
+                                                        <span className="text-on-surface font-bold text-lg">
+                                                            {formatSize(files.filter(f => selectedIndices.includes(f.index)).reduce((acc, f) => acc + f.size, 0))}
                                                         </span>
-                                                    )}
+                                                    </div>
+
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleStartDownload(); }}
+                                                        disabled={selectedIndices.length === 0 || isStarting}
+                                                        className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg shadow-primary/20"
+                                                    >
+                                                        {isStarting ? (
+                                                            <>
+                                                                <div className="w-5 h-5 border-3 border-on-primary border-t-transparent rounded-full animate-spin" />
+                                                                Starting Download...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                </svg>
+                                                                Start Download
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-auto p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                                                <div className="flex gap-3 text-primary text-sm leading-snug">
+                                                    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    <p>
+                                                        Your download will be added to the queue Background processing is active.
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
-                                    );
-                                })}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <div className="flex justify-end pt-4">
-                            <button
-                                onClick={handleStartDownload}
-                                disabled={selectedIndices.length === 0 || isStarting}
-                                className="px-6 py-2 bg-primary text-on-primary rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {isStarting ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin" />
-                                        Starting...
-                                    </>
-                                ) : (
-                                    'Start Download'
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {error && (
                 <div className="mt-4 p-3 bg-error/10 text-error text-sm rounded-lg border border-error/10 shrink-0">

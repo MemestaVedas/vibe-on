@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { TorrentBrowser } from './TorrentBrowser';
 import { downloadDir } from '@tauri-apps/api/path';
 import { motion, AnimatePresence } from 'motion/react';
+import { TorrentWavyProgress } from './TorrentWavyProgress';
 
 interface TorrentStatus {
     id: number;
@@ -33,8 +34,7 @@ export function TorrentManager() {
 
     const handleDownloadAdded = () => {
         fetchTorrents();
-        // Switch to downloads tab to see progress
-        setActiveTab('downloads');
+        // Removed: setActiveTab('downloads'); - Keep user on the current tab
     };
 
     useEffect(() => {
@@ -291,12 +291,11 @@ export function TorrentManager() {
                                                 </div>
 
                                                 {/* Progress Bar */}
-                                                <div className="h-3 bg-surface-container-highest rounded-full overflow-hidden mb-2">
-                                                    <div
-                                                        className={`h-full transition-all duration-500 ${t.state === 'Finished' ? 'bg-green-500' :
-                                                            t.error ? 'bg-error' : 'bg-primary'
-                                                            }`}
-                                                        style={{ width: `${t.progress * 100}%` }}
+                                                <div className="mb-2">
+                                                    <TorrentWavyProgress
+                                                        progress={t.progress}
+                                                        isActive={t.state === 'Downloading' && t.download_speed > 0}
+                                                        accentColor={t.state === 'Finished' ? 'var(--green-500)' : t.error ? 'var(--error)' : 'var(--primary)'}
                                                     />
                                                 </div>
 
