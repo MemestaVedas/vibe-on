@@ -77,6 +77,16 @@ pub enum ClientMessage {
     RemoveFromPlaylist { playlist_id: String, playlist_track_id: i64 },
     ReorderPlaylistTracks { playlist_id: String, track_ids: Vec<i64> },
 
+    // Stats sync (mobile → PC)
+    ReportPlaybackEvent {
+        song_id: String,
+        timestamp: i64,
+        duration_ms: i64,
+        start_timestamp: Option<i64>,
+        end_timestamp: Option<i64>,
+        output: Option<String>,
+    },
+
     // Keepalive
     Ping,
 }
@@ -637,7 +647,7 @@ async fn handle_client_message(
             if let Ok(mut tracker) = app_state.stats_tracker.lock() {
                 let now_ms = crate::stats::current_time_ms();
                 if let Some(event) = tracker.stop_mobile(now_ms) {
-                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
+                    let _ = crate::stats::record_stats_event(&app_state, event);
                     state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
                     let _ = state.app_handle.emit("stats-updated", ());
                 }
@@ -670,7 +680,7 @@ async fn handle_client_message(
                     g.as_ref().and_then(|p| p.get_status().track.map(|t| t.path))
                 });
                 if let Some(event) = tracker.update_mobile_position(song_id, position_secs, now_ms) {
-                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
+                    let _ = crate::stats::record_stats_event(&app_state, event);
                     state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
                     let _ = state.app_handle.emit("stats-updated", ());
                 }
@@ -731,6 +741,32 @@ async fn handle_client_message(
         // ── Keepalive ────────────────────────────────────────────────────
         ClientMessage::Ping => {
             let _ = reply_tx.send(ServerMessage::Pong).await;
+        }
+
+        // ── Stats sync (mobile → PC) ────────────────────────────────────
+        ClientMessage::ReportPlaybackEvent {
+            song_id,
+            timestamp,
+            duration_ms,
+            start_timestamp,
+            end_timestamp,
+            output,
+        } => {
+            let event = crate::stats::PlaybackEvent {
+                song_id,
+                timestamp,
+                duration_ms,
+                start_timestamp,
+                end_timestamp,
+                output: output.unwrap_or_else(|| "mobile".to_string()),
+            };
+            if let Err(e) = crate::stats::record_stats_event(&app_state, event) {
+                log::warn!("Failed to record mobile playback event: {e}");
+            } else {
+                let now = crate::stats::current_time_ms();
+                state.broadcast(ServerEvent::StatsUpdated { timestamp: now });
+                let _ = state.app_handle.emit("stats-updated", ());
+            }
         }
     }
 }
@@ -1127,7 +1163,7 @@ async fn finalize_desktop_stats(
     if let Ok(mut tracker) = app_state.stats_tracker.lock() {
         let now_ms = crate::stats::current_time_ms();
         if let Some(event) = tracker.update_desktop(None, 0.0, false, now_ms) {
-            let _ = crate::stats::record_stats_event(app_state, &state.app_handle, event);
+            let _ = crate::stats::record_stats_event(app_state, event);
             state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
             let _ = state.app_handle.emit("stats-updated", ());
         }

@@ -45,6 +45,20 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist_id ON playlist_tracks(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_position ON playlist_tracks(position);
+
+CREATE TABLE IF NOT EXISTS playback_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    song_id TEXT NOT NULL,
+    timestamp_ms INTEGER NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    start_ms INTEGER,
+    end_ms INTEGER,
+    output TEXT NOT NULL DEFAULT 'desktop',
+    UNIQUE(song_id, timestamp_ms, duration_ms)
+);
+
+CREATE INDEX IF NOT EXISTS idx_playback_events_song ON playback_events(song_id);
+CREATE INDEX IF NOT EXISTS idx_playback_events_ts ON playback_events(timestamp_ms);
 "#;
 
 pub fn init_db(conn: &Connection) -> Result<()> {

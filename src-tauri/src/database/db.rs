@@ -777,6 +777,145 @@ impl DatabaseManager {
         }
         Ok(tracks)
     }
+
+    // ========================================================================
+    // Playback Events / Analytics
+    // ========================================================================
+
+    pub fn insert_playback_event(&self, event: &crate::stats::PlaybackEvent) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|_| "db lock poisoned".to_string())?;
+        conn.execute(
+            "INSERT OR IGNORE INTO playback_events (song_id, timestamp_ms, duration_ms, start_ms, end_ms, output)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                event.song_id,
+                event.timestamp,
+                event.duration_ms,
+                event.start_timestamp,
+                event.end_timestamp,
+                event.output,
+            ],
+        )
+        .map_err(|e| format!("insert playback event: {e}"))?;
+        Ok(())
+    }
+
+    pub fn load_playback_events(
+        &self,
+        start_ms: Option<i64>,
+        end_ms: Option<i64>,
+    ) -> Result<Vec<crate::stats::PlaybackEvent>, String> {
+        let conn = self.conn.lock().map_err(|_| "db lock poisoned".to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT song_id, timestamp_ms, duration_ms, start_ms, end_ms, output
+                 FROM playback_events
+                 WHERE timestamp_ms >= ?1 AND timestamp_ms <= ?2
+                 ORDER BY timestamp_ms DESC",
+            )
+            .map_err(|e| format!("prepare: {e}"))?;
+        let start = start_ms.unwrap_or(0);
+        let end = end_ms.unwrap_or(i64::MAX);
+        let rows = stmt
+            .query_map(rusqlite::params![start, end], |row| {
+                Ok(crate::stats::PlaybackEvent {
+                    song_id: row.get(0)?,
+                    timestamp: row.get(1)?,
+                    duration_ms: row.get(2)?,
+                    start_timestamp: row.get(3)?,
+                    end_timestamp: row.get(4)?,
+                    output: row.get(5)?,
+                })
+            })
+            .map_err(|e| format!("query: {e}"))?;
+        let mut events = Vec::new();
+        for r in rows {
+            events.push(r.map_err(|e| format!("row: {e}"))?);
+        }
+        Ok(events)
+    }
+
+    /// Top tracks by play count, with total listen time and last-played timestamp.
+    pub fn get_top_tracks(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<crate::stats::TrackAnalytics>, String> {
+        let conn = self.conn.lock().map_err(|_| "db lock poisoned".to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT song_id,
+                        COUNT(*) AS play_count,
+                        SUM(duration_ms) AS total_listen_ms,
+                        MAX(timestamp_ms) AS last_played_ms
+                 FROM playback_events
+                 GROUP BY song_id
+                 ORDER BY play_count DESC, total_listen_ms DESC
+                 LIMIT ?1",
+            )
+            .map_err(|e| format!("prepare: {e}"))?;
+        let rows = stmt
+            .query_map(rusqlite::params![limit as i64], |row| {
+                Ok(crate::stats::TrackAnalytics {
+                    song_id: row.get(0)?,
+                    play_count: row.get(1)?,
+                    total_listen_ms: row.get(2)?,
+                    last_played_ms: row.get(3)?,
+                    avg_listen_pct: 0.0, // filled in below if track duration available
+                })
+            })
+            .map_err(|e| format!("query: {e}"))?;
+        let mut out = Vec::new();
+        for r in rows {
+            let mut a = r.map_err(|e| format!("row: {e}"))?;
+            // Try to compute avg listen percentage from track duration
+            if let Ok(Some(dur)) = conn.query_row(
+                "SELECT duration_secs FROM tracks WHERE path = ?1",
+                rusqlite::params![a.song_id],
+                |row| row.get::<_, Option<f64>>(0),
+            ) {
+                if dur > 0.0 && a.play_count > 0 {
+                    let avg_ms = a.total_listen_ms as f64 / a.play_count as f64;
+                    a.avg_listen_pct = (avg_ms / (dur * 1000.0) * 100.0).min(100.0);
+                }
+            }
+            out.push(a);
+        }
+        Ok(out)
+    }
+
+    /// Most recently played tracks (unique song, latest timestamp).
+    pub fn get_recently_played(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<crate::stats::PlaybackEvent>, String> {
+        let conn = self.conn.lock().map_err(|_| "db lock poisoned".to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT song_id, MAX(timestamp_ms) AS ts, duration_ms, start_ms, end_ms, output
+                 FROM playback_events
+                 GROUP BY song_id
+                 ORDER BY ts DESC
+                 LIMIT ?1",
+            )
+            .map_err(|e| format!("prepare: {e}"))?;
+        let rows = stmt
+            .query_map(rusqlite::params![limit as i64], |row| {
+                Ok(crate::stats::PlaybackEvent {
+                    song_id: row.get(0)?,
+                    timestamp: row.get(1)?,
+                    duration_ms: row.get(2)?,
+                    start_timestamp: row.get(3)?,
+                    end_timestamp: row.get(4)?,
+                    output: row.get(5)?,
+                })
+            })
+            .map_err(|e| format!("query: {e}"))?;
+        let mut events = Vec::new();
+        for r in rows {
+            events.push(r.map_err(|e| format!("row: {e}"))?);
+        }
+        Ok(events)
+    }
 }
 
 #[derive(Serialize)]

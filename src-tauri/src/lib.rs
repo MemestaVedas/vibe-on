@@ -66,7 +66,6 @@ pub struct AppState {
     pub current_queue_index: Arc<Mutex<usize>>,
     pub shuffle: Arc<Mutex<bool>>,
     pub repeat_mode: Arc<Mutex<String>>, // "off", "one", "all"
-    pub stats_store: Arc<Mutex<Option<stats::StatsStore>>>,
     pub stats_tracker: Arc<Mutex<stats::StatsTracker>>,
 }
 
@@ -90,7 +89,6 @@ impl Default for AppState {
             current_queue_index: Arc::new(Mutex::new(0)),
             shuffle: Arc::new(Mutex::new(false)),
             repeat_mode: Arc::new(Mutex::new("off".to_string())),
-            stats_store: Arc::new(Mutex::new(None)),
             stats_tracker: Arc::new(Mutex::new(stats::StatsTracker::default())),
         }
     }
@@ -165,6 +163,13 @@ fn get_or_init_db(state: &AppState, app_handle: &AppHandle) -> Result<(), String
     let mut db_guard = state.db.lock().unwrap();
     if db_guard.is_none() {
         *db_guard = Some(DatabaseManager::new(app_handle).map_err(|e| e.to_string())?);
+        // One-time migration of legacy JSON stats into SQLite
+        drop(db_guard);
+        match stats::migrate_json_to_sqlite(state, app_handle) {
+            Ok(0) => {}
+            Ok(n) => println!("[Stats] Migrated {n} events from JSON to SQLite"),
+            Err(e) => eprintln!("[Stats] JSON migration failed (non-fatal): {e}"),
+        }
     }
     Ok(())
 }
@@ -681,9 +686,24 @@ fn get_stats_events(
     start_ms: Option<i64>,
     end_ms: Option<i64>,
     state: State<AppState>,
-    app_handle: AppHandle,
 ) -> Result<Vec<stats::PlaybackEvent>, String> {
-    stats::load_stats_events(&state, &app_handle, start_ms, end_ms)
+    stats::load_stats_events(&state, start_ms, end_ms)
+}
+
+#[tauri::command]
+fn get_top_tracks(
+    limit: Option<usize>,
+    state: State<AppState>,
+) -> Result<Vec<stats::TrackAnalytics>, String> {
+    stats::get_top_tracks(&state, limit.unwrap_or(50))
+}
+
+#[tauri::command]
+fn get_recently_played(
+    limit: Option<usize>,
+    state: State<AppState>,
+) -> Result<Vec<stats::PlaybackEvent>, String> {
+    stats::get_recently_played(&state, limit.unwrap_or(30))
 }
 
 
@@ -1821,7 +1841,7 @@ pub fn run() {
                     };
 
                     if let Some(event) = maybe_event {
-                        let _ = stats::record_stats_event(&state, &app_handle, event);
+                        let _ = stats::record_stats_event(&state, event);
                         let _ = app_handle.emit("stats-updated", ());
                     }
                 }
@@ -1848,6 +1868,8 @@ pub fn run() {
             get_queue_state,
             smart_shuffle_queue,
             get_stats_events,
+            get_top_tracks,
+            get_recently_played,
             scan_music_folder,
             get_track_metadata,
             init_library,

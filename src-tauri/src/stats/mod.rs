@@ -1,12 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Manager};
 
 const MIN_SESSION_LISTEN_MS: i64 = 5_000;
-const MAX_HISTORY_AGE_MS: i64 = 1000 * 60 * 60 * 24 * 365 * 2; // ~2 years
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +12,17 @@ pub struct PlaybackEvent {
     pub start_timestamp: Option<i64>,
     pub end_timestamp: Option<i64>,
     pub output: String,
+}
+
+/// Aggregated analytics for a single track.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackAnalytics {
+    pub song_id: String,
+    pub play_count: i64,
+    pub total_listen_ms: i64,
+    pub last_played_ms: i64,
+    pub avg_listen_pct: f64,
 }
 
 #[derive(Default)]
@@ -142,105 +148,81 @@ impl StatsTracker {
     }
 }
 
-pub struct StatsStore {
-    file_path: PathBuf,
-    file_lock: Mutex<()>,
-}
+// ---------------------------------------------------------------------------
+// Database-backed recording & querying
+// ---------------------------------------------------------------------------
 
-impl StatsStore {
-    pub fn new(app_handle: &AppHandle) -> Result<Self, String> {
-        let app_dir = app_handle
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {e}"))?;
-        if !app_dir.exists() {
-            fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create app dir: {e}"))?;
-        }
-        Ok(Self {
-            file_path: app_dir.join("playback_events.json"),
-            file_lock: Mutex::new(()),
-        })
-    }
-
-    pub fn record_event(&self, event: PlaybackEvent) -> Result<(), String> {
-        let _guard = self.file_lock.lock().map_err(|_| "Stats store lock poisoned".to_string())?;
-        let mut events = self.read_events_locked()?;
-        let cutoff = current_time_ms().saturating_sub(MAX_HISTORY_AGE_MS);
-        events.retain(|e| e.timestamp >= cutoff);
-        events.push(event);
-        let serialized = serde_json::to_string(&events).map_err(|e| format!("Serialize stats failed: {e}"))?;
-        fs::write(&self.file_path, serialized).map_err(|e| format!("Write stats failed: {e}"))?;
-        Ok(())
-    }
-
-    pub fn load_events(&self) -> Result<Vec<PlaybackEvent>, String> {
-        let _guard = self.file_lock.lock().map_err(|_| "Stats store lock poisoned".to_string())?;
-        self.read_events_locked()
-    }
-
-    pub fn load_events_in_range(
-        &self,
-        start_ms: Option<i64>,
-        end_ms: Option<i64>,
-    ) -> Result<Vec<PlaybackEvent>, String> {
-        let events = self.load_events()?;
-        let start = start_ms.unwrap_or(i64::MIN);
-        let end = end_ms.unwrap_or(i64::MAX);
-        Ok(events
-            .into_iter()
-            .filter(|e| e.timestamp >= start && e.timestamp <= end)
-            .collect())
-    }
-
-    fn read_events_locked(&self) -> Result<Vec<PlaybackEvent>, String> {
-        if !self.file_path.exists() {
-            return Ok(Vec::new());
-        }
-        let raw = fs::read_to_string(&self.file_path).map_err(|e| format!("Read stats failed: {e}"))?;
-        if raw.trim().is_empty() {
-            return Ok(Vec::new());
-        }
-        serde_json::from_str::<Vec<PlaybackEvent>>(&raw)
-            .map_err(|e| format!("Parse stats failed: {e}"))
-    }
-}
-
-pub fn ensure_stats_store(
-    app_state: &crate::AppState,
-    app_handle: &AppHandle,
-) -> Result<(), String> {
-    let mut guard = app_state.stats_store.lock().map_err(|_| "Stats store lock poisoned".to_string())?;
-    if guard.is_none() {
-        *guard = Some(StatsStore::new(app_handle)?);
-    }
-    Ok(())
-}
-
+/// Record a playback event into SQLite via the app's DatabaseManager.
 pub fn record_stats_event(
     app_state: &crate::AppState,
-    app_handle: &AppHandle,
     event: PlaybackEvent,
 ) -> Result<(), String> {
-    ensure_stats_store(app_state, app_handle)?;
-    let guard = app_state.stats_store.lock().map_err(|_| "Stats store lock poisoned".to_string())?;
-    if let Some(ref store) = *guard {
-        store.record_event(event)?;
-    }
-    Ok(())
+    let guard = app_state.db.lock().map_err(|_| "db lock poisoned".to_string())?;
+    let db = guard.as_ref().ok_or("database not initialized")?;
+    db.insert_playback_event(&event)
 }
 
+/// Load playback events from SQLite, optionally filtered by time range.
 pub fn load_stats_events(
     app_state: &crate::AppState,
-    app_handle: &AppHandle,
     start_ms: Option<i64>,
     end_ms: Option<i64>,
 ) -> Result<Vec<PlaybackEvent>, String> {
-    ensure_stats_store(app_state, app_handle)?;
-    let guard = app_state.stats_store.lock().map_err(|_| "Stats store lock poisoned".to_string())?;
-    if let Some(ref store) = *guard {
-        return store.load_events_in_range(start_ms, end_ms);
+    let guard = app_state.db.lock().map_err(|_| "db lock poisoned".to_string())?;
+    let db = guard.as_ref().ok_or("database not initialized")?;
+    db.load_playback_events(start_ms, end_ms)
+}
+
+/// Get aggregated analytics for the top-N most-played tracks.
+pub fn get_top_tracks(
+    app_state: &crate::AppState,
+    limit: usize,
+) -> Result<Vec<TrackAnalytics>, String> {
+    let guard = app_state.db.lock().map_err(|_| "db lock poisoned".to_string())?;
+    let db = guard.as_ref().ok_or("database not initialized")?;
+    db.get_top_tracks(limit)
+}
+
+/// Get the most recently played tracks (unique, latest timestamp).
+pub fn get_recently_played(
+    app_state: &crate::AppState,
+    limit: usize,
+) -> Result<Vec<PlaybackEvent>, String> {
+    let guard = app_state.db.lock().map_err(|_| "db lock poisoned".to_string())?;
+    let db = guard.as_ref().ok_or("database not initialized")?;
+    db.get_recently_played(limit)
+}
+
+/// Migrate legacy JSON playback_events.json into SQLite (idempotent).
+pub fn migrate_json_to_sqlite(
+    app_state: &crate::AppState,
+    app_handle: &tauri::AppHandle,
+) -> Result<usize, String> {
+    use std::fs;
+    use tauri::Manager;
+
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir: {e}"))?;
+    let json_path = app_dir.join("playback_events.json");
+    if !json_path.exists() {
+        return Ok(0);
     }
-    Ok(Vec::new())
+    let raw = fs::read_to_string(&json_path).map_err(|e| format!("read json: {e}"))?;
+    if raw.trim().is_empty() {
+        return Ok(0);
+    }
+    let events: Vec<PlaybackEvent> =
+        serde_json::from_str(&raw).map_err(|e| format!("parse json: {e}"))?;
+    let count = events.len();
+    for ev in events {
+        record_stats_event(app_state, ev)?;
+    }
+    // Rename so we don't re-migrate
+    let backup = app_dir.join("playback_events.json.migrated");
+    let _ = fs::rename(&json_path, backup);
+    Ok(count)
 }
 
 pub fn current_time_ms() -> i64 {

@@ -765,7 +765,7 @@ pub async fn get_stats_events(
     Query(params): Query<StatsEventsParams>,
 ) -> Result<Json<Vec<crate::stats::PlaybackEvent>>, StatusCode> {
     let app_state = state.app_state();
-    crate::stats::load_stats_events(&app_state, &state.app_handle, params.start_ms, params.end_ms)
+    crate::stats::load_stats_events(&app_state, params.start_ms, params.end_ms)
         .map(Json)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
