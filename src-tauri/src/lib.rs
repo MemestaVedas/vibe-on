@@ -595,6 +595,87 @@ fn get_queue_state(state: State<AppState>) -> serde_json::Value {
     })
 }
 
+/// Smart shuffle: Fisher-Yates with artist/album spacing constraints.
+/// Tries to avoid placing tracks from the same artist or album within `min_spacing` positions.
+/// Falls back to standard Fisher-Yates if constraints can't be satisfied.
+#[tauri::command]
+fn smart_shuffle_queue(
+    tracks: Vec<serde_json::Value>,
+    current_path: Option<String>,
+    min_spacing: Option<usize>,
+) -> Vec<serde_json::Value> {
+    use rand::seq::SliceRandom;
+    use rand::rng;
+
+    let spacing = min_spacing.unwrap_or(3).min(tracks.len() / 2).max(1);
+    let mut pool: Vec<(usize, String, String)> = tracks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let artist = t.get("artist").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            let album = t.get("album").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            (i, artist, album)
+        })
+        .collect();
+
+    // Fisher-Yates base shuffle
+    pool.shuffle(&mut rng());
+
+    // Greedy constraint pass: try to space same-artist/album tracks apart
+    let mut result: Vec<usize> = Vec::with_capacity(pool.len());
+    let mut remaining = pool;
+    let max_retries = remaining.len() * 3;
+    let mut retries = 0;
+
+    while !remaining.is_empty() && retries < max_retries {
+        let mut placed = false;
+        for i in 0..remaining.len() {
+            let (idx, ref artist, ref album) = remaining[i];
+            let tail = &result[result.len().saturating_sub(spacing)..];
+            let conflicts = tail.iter().any(|&prev_idx| {
+                let (_, ref pa, ref pal) = pool_lookup(&tracks, prev_idx);
+                (!artist.is_empty() && *pa == *artist) || (!album.is_empty() && *pal == *album)
+            });
+            if !conflicts || remaining.len() <= spacing {
+                result.push(idx);
+                remaining.remove(i);
+                placed = true;
+                break;
+            }
+        }
+        if !placed {
+            // Can't satisfy constraint — just place the first remaining item
+            let (idx, _, _) = remaining.remove(0);
+            result.push(idx);
+        }
+        retries += 1;
+    }
+    // Append any leftover
+    for (idx, _, _) in remaining {
+        result.push(idx);
+    }
+
+    // Move currently playing track to front
+    if let Some(ref path) = current_path {
+        if let Some(pos) = result.iter().position(|&i| {
+            tracks[i].get("path").and_then(|v| v.as_str()) == Some(path.as_str())
+        }) {
+            let item = result.remove(pos);
+            result.insert(0, item);
+        }
+    }
+
+    result.iter().map(|&i| tracks[i].clone()).collect()
+}
+
+/// Helper to extract artist/album from a track JSON value by original index.
+fn pool_lookup(tracks: &[serde_json::Value], idx: usize) -> (usize, String, String) {
+    let t = &tracks[idx];
+    let artist = t.get("artist").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+    let album = t.get("album").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+    (idx, artist, album)
+}
+
 #[tauri::command]
 fn get_stats_events(
     start_ms: Option<i64>,
@@ -1765,6 +1846,7 @@ pub fn run() {
             set_speed,
             get_player_state,
             get_queue_state,
+            smart_shuffle_queue,
             get_stats_events,
             scan_music_folder,
             get_track_metadata,

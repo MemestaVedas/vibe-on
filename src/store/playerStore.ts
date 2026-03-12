@@ -149,7 +149,7 @@ interface PlayerStore {
     setQueue: (tracks: TrackDisplay[]) => void;
     addToQueue: (track: TrackDisplay) => void;
     playNext: (track: TrackDisplay) => void;
-    toggleShuffle: () => void;
+    toggleShuffle: () => Promise<void>;
     playQueue: (tracks: TrackDisplay[], startIndex?: number) => Promise<void>;
 
     // Repeat mode actions
@@ -464,48 +464,56 @@ export const usePlayerStore = create<PlayerStore>()(
                 }
             },
 
-            toggleShuffle: () => {
+            toggleShuffle: async () => {
                 const { isShuffled, originalQueue, queue, status } = get();
 
                 if (isShuffled) {
                     // Un-shuffle: Restore original order
-                    // Try to keep current track playing
                     set({
                         isShuffled: false,
                         queue: [...originalQueue]
                     });
                     broadcastQueueUpdate(originalQueue);
                 } else {
-                    // Shuffle
-                    // Fisher-Yates shuffle
-                    const newQueue = [...queue];
-                    let currentIndex = newQueue.length;
-
-                    // While there remain elements to shuffle...
-                    while (currentIndex != 0) {
-                        // Pick a remaining element...
-                        let randomIndex = Math.floor(Math.random() * currentIndex);
-                        currentIndex--;
-                        // And swap it with the current element.
-                        [newQueue[currentIndex], newQueue[randomIndex]] = [
-                            newQueue[randomIndex], newQueue[currentIndex]];
-                    }
-
-                    // Move currently playing track to top if exists
+                    // Smart shuffle via backend (Fisher-Yates + artist/album spacing)
                     const currentPath = status.track?.path;
-                    if (currentPath) {
-                        const trackIndex = newQueue.findIndex(t => t.path === currentPath);
-                        if (trackIndex > -1) {
-                            const [track] = newQueue.splice(trackIndex, 1);
-                            newQueue.unshift(track);
-                        }
-                    }
+                    try {
+                        const shuffled = await invoke<TrackDisplay[]>('smart_shuffle_queue', {
+                            tracks: queue.map(t => ({
+                                path: t.path,
+                                title: t.title,
+                                artist: t.artist,
+                                album: t.album,
+                                duration_secs: t.duration_secs,
+                                cover_image: t.cover_image,
+                            })),
+                            currentPath: currentPath || null,
+                            minSpacing: 3,
+                        });
 
-                    set({
-                        isShuffled: true,
-                        queue: newQueue
-                    });
-                    broadcastQueueUpdate(newQueue);
+                        set({
+                            isShuffled: true,
+                            queue: shuffled
+                        });
+                        broadcastQueueUpdate(shuffled);
+                    } catch (e) {
+                        console.warn('[PlayerStore] Smart shuffle failed, using fallback:', e);
+                        // Fallback: naive Fisher-Yates
+                        const newQueue = [...queue];
+                        for (let i = newQueue.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
+                        }
+                        if (currentPath) {
+                            const idx = newQueue.findIndex(t => t.path === currentPath);
+                            if (idx > -1) {
+                                const [track] = newQueue.splice(idx, 1);
+                                newQueue.unshift(track);
+                            }
+                        }
+                        set({ isShuffled: true, queue: newQueue });
+                        broadcastQueueUpdate(newQueue);
+                    }
                 }
             },
 
@@ -524,29 +532,39 @@ export const usePlayerStore = create<PlayerStore>()(
                     let newQueue = [...tracks];
 
                     if (isShuffled) {
-                        // Inherit shuffle mode: Shuffle the new context immediately
-                        let currentIndex = newQueue.length;
-                        while (currentIndex != 0) {
-                            let randomIndex = Math.floor(Math.random() * currentIndex);
-                            currentIndex--;
-                            [newQueue[currentIndex], newQueue[randomIndex]] = [
-                                newQueue[randomIndex], newQueue[currentIndex]];
-                        }
-
-                        // Ensure the selected track is played first
-                        const trackIndex = newQueue.findIndex(t => t.path === trackToPlay.path);
-                        if (trackIndex > -1) {
-                            const [track] = newQueue.splice(trackIndex, 1);
-                            newQueue.unshift(track);
+                        // Smart shuffle via backend
+                        try {
+                            newQueue = await invoke<TrackDisplay[]>('smart_shuffle_queue', {
+                                tracks: tracks.map(t => ({
+                                    path: t.path,
+                                    title: t.title,
+                                    artist: t.artist,
+                                    album: t.album,
+                                    duration_secs: t.duration_secs,
+                                    cover_image: t.cover_image,
+                                })),
+                                currentPath: trackToPlay.path,
+                                minSpacing: 3,
+                            });
+                        } catch {
+                            // Fallback: naive Fisher-Yates
+                            for (let i = newQueue.length - 1; i > 0; i--) {
+                                const j = Math.floor(Math.random() * (i + 1));
+                                [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
+                            }
+                            const idx = newQueue.findIndex(t => t.path === trackToPlay.path);
+                            if (idx > -1) {
+                                const [track] = newQueue.splice(idx, 1);
+                                newQueue.unshift(track);
+                            }
                         }
                     }
 
                     set({
                         queue: newQueue,
-                        originalQueue: tracks // Update originalQueue to this new context (Album/Artist)
+                        originalQueue: tracks
                     });
 
-                    // Broadcast updated queue to mobile clients
                     broadcastQueueUpdate(newQueue);
 
                     await get().playFile(trackToPlay.path);

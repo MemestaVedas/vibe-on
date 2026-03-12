@@ -83,6 +83,7 @@ lindera-tokenizer = { version = "0.24", features = ["ipadic"] }
 lindera-core = "0.24"
 lindera-dictionary = "0.24"
 wana_kana = "4.0"
+rand = "0.10.0"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.52", features = [
