@@ -180,7 +180,7 @@ where
             cached_gains: vec![0.0; 15],
             update_counter: 0,
             pending_sample: None,
-            reverb: Freeverb::new(sample_rate as u32),
+            reverb: Freeverb::new(sample_rate),
         };
 
         eq.recalculate_coeffs();
@@ -254,7 +254,7 @@ where
         };
 
         if self.channels == 2 {
-            if 0 < self.filters.len() {
+            if !self.filters.is_empty() {
                 for filter in self.filters[0].iter_mut() {
                     left = filter.process(left);
                 }

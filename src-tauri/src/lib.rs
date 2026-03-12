@@ -48,6 +48,7 @@ pub struct AppState {
     discord: Arc<DiscordRpc>,
     current_cover_url: Arc<Mutex<Option<String>>>,
     media_cmd_tx: Mutex<Option<Sender<MediaCmd>>>,
+    #[allow(dead_code)]
     last_rpc_update: Mutex<String>, // De-duplication key
     lyrics_cache: Arc<Mutex<CachedLyrics>>,
     torrent_manager: Arc<Mutex<Option<torrent::TorrentManager>>>,
@@ -670,14 +671,13 @@ async fn init_library(
                     if !missing_metadata_paths.is_empty() {
                          println!("[Library] Found {} tracks missing Romaji metadata. Forcing re-scan for these.", missing_metadata_paths.len());
                          for missing_path in missing_metadata_paths {
-                             if missing_path.starts_with(&path) { 
-                                 if !files.contains(&missing_path) {
+                             if missing_path.starts_with(&path) 
+                                 && !files.contains(&missing_path) {
                                      // Verify file still exists on disk before adding
                                      if Path::new(&missing_path).exists() {
                                          files.push(missing_path);
                                      }
                                  }
-                             }
                          }
                          // De-duplicate just in case
                          files.sort();
@@ -702,7 +702,7 @@ async fn init_library(
     let tracks: Vec<TrackInfo> = files.par_iter()
         .filter_map(|file_path| {
             let count = processed.fetch_add(1, Ordering::Relaxed) + 1;
-            if count % 100 == 0 || count == total {
+            if count.is_multiple_of(100) || count == total {
                 println!("[Library] Processed {}/{} files...", count, total);
                 let _ = app_handle.emit("library-scan-progress", serde_json::json!({
                     "processed": count,
@@ -711,10 +711,7 @@ async fn init_library(
             }
             
             // Extract metadata WITHOUT cover art (much faster)
-            match get_track_metadata_helper_fast(file_path) {
-                Ok(track) => Some(track),
-                Err(_) => None, // Skip files that fail
-            }
+            get_track_metadata_helper_fast(file_path).ok()
         })
         .collect();
 
@@ -1533,7 +1530,7 @@ async fn start_mobile_playback(state: State<'_, AppState>, app_handle: AppHandle
     if let Ok(mut player_guard) = state.player.lock() {
         if let Some(ref mut player) = *player_guard {
             let _ = player.set_mute(true);
-            player.pause();
+            let _ = player.pause();
             log::info!("🔇 PC playback muted and paused for mobile handoff");
         }
     }
@@ -1916,8 +1913,7 @@ pub fn run() {
 
                         // Update current index if possible
                         // We need to use a new block or clone state to avoid lifetime issues if any
-                        {
-                            if let Ok(player_guard) = state.player.lock() {
+                        if let Ok(player_guard) = state.player.lock() {
                                 if let Some(ref player) = *player_guard {
                                     let status = player.get_status();
                                     if let Some(current_track) = &status.track {
@@ -1928,8 +1924,7 @@ pub fn run() {
                                         }
                                     }
                                 }
-                            }
-                        };
+                            };
                     }
                 }
             });

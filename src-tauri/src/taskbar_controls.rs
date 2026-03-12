@@ -1,5 +1,3 @@
-#![cfg(target_os = "windows")]
-
 use std::sync::Once;
 use tauri::{AppHandle, Manager, WebviewWindow};
 use windows::core::{Result as WindowsResult, PCWSTR};
@@ -24,6 +22,7 @@ const ID_NEXT: u32 = 1003;
 
 static mut OLD_WND_PROC: Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT> =
     None;
+#[allow(dead_code)]
 static INIT: Once = Once::new();
 
 static mut GLOBAL_APP_HANDLE: Option<AppHandle> = None;
@@ -47,7 +46,7 @@ pub fn init(window: WebviewWindow) {
         }
     } else {
         0
-    } as isize;
+    };
 
     let hwnd = HWND(hwnd_isize as _);
 
@@ -61,8 +60,8 @@ pub fn init(window: WebviewWindow) {
         }
 
         // Subclass Window Proc
-        let old_proc = SetWindowLongPtrW(hwnd, GWLP_WNDPROC, taskbar_wnd_proc as isize);
-        OLD_WND_PROC = Some(std::mem::transmute(old_proc));
+        let old_proc = SetWindowLongPtrW(hwnd, GWLP_WNDPROC, taskbar_wnd_proc as usize as isize);
+        OLD_WND_PROC = Some(std::mem::transmute::<isize, unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT>(old_proc));
     }
 }
 

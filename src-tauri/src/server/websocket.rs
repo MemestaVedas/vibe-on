@@ -273,7 +273,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
                     match event {
                         Ok(ev) => {
                             let json = serde_json::to_string(&ServerMessage::from(ev)).unwrap();
-                            if sender.send(Message::Text(json.into())).await.is_err() { break; }
+                            if sender.send(Message::Text(json)).await.is_err() { break; }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                             log::warn!("[WS] Client lagged, skipped {} messages", n);
@@ -286,14 +286,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
                     match reply {
                         Some(msg) => {
                             let json = serde_json::to_string(&msg).unwrap();
-                            if sender.send(Message::Text(json.into())).await.is_err() { break; }
+                            if sender.send(Message::Text(json)).await.is_err() { break; }
                         }
                         None => break,
                     }
                 }
                 _ = keepalive.tick() => {
                     let json = serde_json::to_string(&ServerMessage::Pong).unwrap();
-                    if sender.send(Message::Text(json.into())).await.is_err() { break; }
+                    if sender.send(Message::Text(json)).await.is_err() { break; }
                 }
                 _ = stop_rx.recv() => break,
             }
@@ -381,7 +381,7 @@ async fn handle_client_message(
         // ── Playback: Play / Resume ──────────────────────────────────────
         ClientMessage::Play | ClientMessage::Resume => {
             if let Ok(mut g) = app_state.player.lock() {
-                if let Some(ref mut p) = *g { p.resume(); }
+                if let Some(ref mut p) = *g { let _ = p.resume(); }
             }
             sync_discord(state, &app_state).await;
             broadcast_player_state(state, &app_state).await;
@@ -418,7 +418,7 @@ async fn handle_client_message(
         // ── Seek ─────────────────────────────────────────────────────────
         ClientMessage::Seek { position_secs } => {
             if let Ok(mut g) = app_state.player.lock() {
-                if let Some(ref mut p) = *g { p.seek(position_secs); }
+                if let Some(ref mut p) = *g { let _ = p.seek(position_secs); }
             }
             sync_discord(state, &app_state).await;
             broadcast_player_state(state, &app_state).await;
@@ -427,7 +427,7 @@ async fn handle_client_message(
         // ── Volume ───────────────────────────────────────────────────────
         ClientMessage::SetVolume { volume } => {
             if let Ok(mut g) = app_state.player.lock() {
-                if let Some(ref mut p) = *g { p.set_volume(volume as f32); }
+                if let Some(ref mut p) = *g { let _ = p.set_volume(volume as f32); }
             }
             broadcast_player_state(state, &app_state).await;
         }
@@ -694,7 +694,7 @@ async fn handle_client_message(
         ClientMessage::AddToPlaylist { playlist_id, path } => {
             let ok = {
                 let db_guard = app_state.db.lock().unwrap();
-                db_guard.as_ref().map_or(false, |db| db.add_track_to_playlist(&playlist_id, &path).is_ok())
+                db_guard.as_ref().is_some_and(|db| db.add_track_to_playlist(&playlist_id, &path).is_ok())
             };
             if ok {
                 let _ = reply_tx.send(ServerMessage::Ack { action: "addToPlaylist".to_string() }).await;
@@ -706,7 +706,7 @@ async fn handle_client_message(
         ClientMessage::RemoveFromPlaylist { playlist_id, playlist_track_id } => {
             let ok = {
                 let db_guard = app_state.db.lock().unwrap();
-                db_guard.as_ref().map_or(false, |db| db.remove_track_from_playlist(&playlist_id, playlist_track_id).is_ok())
+                db_guard.as_ref().is_some_and(|db| db.remove_track_from_playlist(&playlist_id, playlist_track_id).is_ok())
             };
             if ok {
                 let _ = reply_tx.send(ServerMessage::Ack { action: "removeFromPlaylist".to_string() }).await;
@@ -718,7 +718,7 @@ async fn handle_client_message(
         ClientMessage::ReorderPlaylistTracks { playlist_id, track_ids } => {
             let ok = {
                 let db_guard = app_state.db.lock().unwrap();
-                db_guard.as_ref().map_or(false, |db| db.reorder_playlist_tracks(&playlist_id, track_ids).is_ok())
+                db_guard.as_ref().is_some_and(|db| db.reorder_playlist_tracks(&playlist_id, track_ids).is_ok())
             };
             if ok {
                 let _ = reply_tx.send(ServerMessage::Ack { action: "reorderPlaylistTracks".to_string() }).await;

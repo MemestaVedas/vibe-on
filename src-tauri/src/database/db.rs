@@ -226,6 +226,7 @@ impl DatabaseManager {
         Ok(tracks)
     }
 
+    #[allow(dead_code)]
     pub fn search_tracks(
         &self,
         query: &str,
@@ -403,6 +404,7 @@ impl DatabaseManager {
     // If we paginated search, it gets complex.
     // Let's stick to get_albums/artists optimization first.
 
+    #[allow(dead_code)]
     pub fn search_library(&self, query: &str) -> Result<Vec<TrackInfo>> {
         let conn = self.conn.lock().unwrap();
         let search_query = format!("%{}%", query);
@@ -546,11 +548,10 @@ impl DatabaseManager {
                 let mut count = 0;
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_file() {
-                        if std::fs::remove_file(path).is_ok() {
+                    if path.is_file()
+                        && std::fs::remove_file(path).is_ok() {
                             count += 1;
                         }
-                    }
                 }
                 println!("[Database] Removed {} cover files.", count);
             }
@@ -673,6 +674,7 @@ impl DatabaseManager {
     // Better: update position. But dealing with shifting other items is tricky in simple SQL without a transaction block handling it.
     // For MVP: Let's assume we might implement full reorder later or just update position if we trust frontend sending right values.
     // Let's implement a swap or simple update.
+    #[allow(dead_code)]
     pub fn reorder_playlist_track(
         &self,
         _playlist_id: &str,
@@ -786,6 +788,7 @@ pub struct DbPlaylist {
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 pub struct DbPlaylistTrack {
     pub id: i64,
     pub playlist_id: String,

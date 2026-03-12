@@ -50,7 +50,7 @@ impl DiscordRpc {
 
                 match DiscordIpcClient::new(id) {
                     Ok(mut c) => {
-                        if let Ok(_) = c.connect() {
+                        if c.connect().is_ok() {
                             println!("[Discord] Connected successfully");
                             *client_opt = Some(c);
                             true

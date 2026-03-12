@@ -72,6 +72,7 @@ impl AudioPlayer {
         }
     }
 
+    #[allow(dead_code)]
     pub fn play_file(&self, path: &str) -> Result<(), String> {
         self.play_track(TrackInfo {
             path: path.to_string(),
@@ -85,6 +86,7 @@ impl AudioPlayer {
             .map_err(|e| format!("Failed to send play command: {}", e))
     }
 
+    #[allow(dead_code)]
     pub fn load_file(&self, path: &str) -> Result<(), String> {
         self.load_track(TrackInfo {
             path: path.to_string(),

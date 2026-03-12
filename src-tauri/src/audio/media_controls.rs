@@ -91,7 +91,7 @@ impl MediaControlService {
 
             let wnd_class = WNDCLASSW {
                 lpfnWndProc: Some(media_wnd_proc),
-                hInstance: std::mem::transmute(instance),
+                hInstance: std::mem::transmute::<windows::Win32::Foundation::HMODULE, windows::Win32::Foundation::HINSTANCE>(instance),
                 lpszClassName: class_name,
                 style: CS_OWNDC,
                 ..Default::default()
@@ -110,7 +110,7 @@ impl MediaControlService {
                 CW_USEDEFAULT,
                 None,                                // Parent HWND
                 None,                                // Menu HMENU
-                Some(std::mem::transmute(instance)), // hInstance
+                Some(std::mem::transmute::<windows::Win32::Foundation::HMODULE, &windows::Win32::Foundation::HINSTANCE>(instance)), // hInstance
                 None,
             )
         };

@@ -196,6 +196,7 @@ pub struct TrackSummary {
 
 /// Connected WebSocket client info
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ConnectedClient {
     pub id: String,
     pub name: String,

@@ -207,6 +207,7 @@ pub struct StatsEventsParams {
 
 /// Stream range params for HTTP Range requests
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct RangeParams {
     pub path: String,
 }
@@ -707,7 +708,7 @@ pub async fn get_lyrics(
         Err(_) => {
             // Return empty response if not found, rather than error, so UI knows we tried
              Ok(Json(LyricsResponse {
-                track_path: track_path,
+                track_path,
                 has_synced: false,
                 synced_lyrics: None,
                 plain_lyrics: None,
@@ -909,7 +910,7 @@ fn extract_cover_from_file(path: &str) -> Option<(Vec<u8>, &'static str)> {
     let tagged_file = Probe::open(path).ok()?.read().ok()?;
     let tag = tagged_file.primary_tag().or_else(|| tagged_file.first_tag())?;
     
-    for picture in tag.pictures() {
+    if let Some(picture) = tag.pictures().iter().next() {
         let mime = match picture.mime_type() {
             Some(lofty::picture::MimeType::Png) => "image/png",
             Some(lofty::picture::MimeType::Jpeg) => "image/jpeg",

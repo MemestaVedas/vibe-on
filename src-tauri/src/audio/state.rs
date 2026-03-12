@@ -2,17 +2,14 @@ use serde::{Deserialize, Serialize};
 
 /// Current state of the audio player
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum PlayerState {
+    #[default]
     Stopped,
     Playing,
     Paused,
 }
 
-impl Default for PlayerState {
-    fn default() -> Self {
-        Self::Stopped
-    }
-}
 
 /// Information about the currently playing track
 #[derive(Debug, Clone, Serialize, Deserialize)]

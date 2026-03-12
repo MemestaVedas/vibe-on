@@ -88,7 +88,7 @@ pub fn to_romaji(text: &str) -> String {
     // "aoi sora" -> "Aoi Sora" usually looks better for titles.
     // Let's do simple capitalization of first letter of sentence for now, or each word?
     // Title Case for metadata is safer.
-    to_title_case(&result.trim())
+    to_title_case(result.trim())
 }
 
 fn to_title_case(s: &str) -> String {

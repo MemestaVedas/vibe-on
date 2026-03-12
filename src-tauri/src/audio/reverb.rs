@@ -1,11 +1,10 @@
-use std::f32::consts::PI;
-
-/// Simple Freeverb-style Reverb Implementation
-///
-/// Uses 8 parallel Lowpass-Feedback Comb Filters (LBCF)
-/// followed by 4 series Allpass Filters (APF).
-///
-/// Ref: https://ccrma.stanford.edu/~jos/pasp/Freeverb.html
+#![allow(dead_code)]
+// Simple Freeverb-style Reverb Implementation
+//
+// Uses 8 parallel Lowpass-Feedback Comb Filters (LBCF)
+// followed by 4 series Allpass Filters (APF).
+//
+// Ref: https://ccrma.stanford.edu/~jos/pasp/Freeverb.html
 
 const NUM_COMB: usize = 8;
 const NUM_ALLPASS: usize = 4;

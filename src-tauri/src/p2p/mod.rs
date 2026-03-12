@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! P2P Streaming Module for VIBE-ON!
 //!
 //! Provides lossless audio streaming over libp2p with:
@@ -322,11 +323,8 @@ async fn handle_swarm_event(
                 protocol::StreamingBehaviourEvent::Streaming(streaming_event) => {
                     protocol::handle_streaming_event(swarm, state, event_tx, streaming_event).await;
                 }
-                protocol::StreamingBehaviourEvent::Identify(identify_event) => {
-                    // Handle identify events for peer info
-                    if let libp2p::identify::Event::Received { peer_id, info, connection_id: _ } = identify_event {
-                        log::debug!("Identified peer {}: {:?}", peer_id, info.agent_version);
-                    }
+                protocol::StreamingBehaviourEvent::Identify(libp2p::identify::Event::Received { peer_id, info, connection_id: _ }) => {
+                    log::debug!("Identified peer {}: {:?}", peer_id, info.agent_version);
                 }
                 _ => {}
             }
