@@ -451,6 +451,46 @@ Lyrics for the current track.
   "plainLyrics": "Line one\nLine two",
   "instrumental": false
 }
+
+---
+
+### Romaji support
+
+The protocol includes explicit Romaji fields for titles, artists, albums and synced lyrics. These fields may be `null` when not available; when present they mirror the original-language fields but in Latin script.
+
+Example `mediaSession` with Romaji populated:
+
+```json
+{
+  "type": "mediaSession",
+  "trackId": "C:/Music/song.flac",
+  "title": "自傷無色",
+  "titleRomaji": "Jishō Mushoku",
+  "artist": "ヨルシカ",
+  "artistRomaji": "Yorushika",
+  "album": "盗作",
+  "albumRomaji": "Tōsaku",
+  "duration": 240.5,
+  "coverUrl": "/cover/C%3A%2FMusic%2Fsong.flac",
+  "isPlaying": true,
+  "position": 42.5,
+  "timestamp": 1710000000000
+}
+```
+
+Example `lyrics` showing synced Romaji lines:
+
+```json
+{
+  "type": "lyrics",
+  "trackPath": "C:/Music/song.flac",
+  "hasSynced": true,
+  "syncedLyrics": "[00:12.34] 自傷無色...\n[00:16.00] 歌詞の続き...",
+  "syncedLyricsRomaji": "[00:12.34] Jishō Mushoku...\n[00:16.00] Kashi no tsuzuki...",
+  "plainLyrics": "自傷無色\n歌詞の続き...",
+  "instrumental": false
+}
+```
 ```
 
 ### `library`

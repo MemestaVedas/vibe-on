@@ -12,16 +12,6 @@ export interface DiscoveredDevice {
     platform: string;
 }
 
-// P2P peer from Rust backend
-interface P2PPeer {
-    peer_id: string;
-    addresses: string[];
-    device_name: string;
-    platform: string;
-    version: string;
-    is_local: boolean;
-}
-
 export interface ConnectedDevice {
     id: string;
     name: string;

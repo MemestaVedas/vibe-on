@@ -35,6 +35,7 @@ export default {
             colors: {
                 surface: 'var(--md-sys-color-surface)',
                 'on-surface': 'var(--md-sys-color-on-surface)',
+                'on-surface-variant': 'var(--md-sys-color-on-surface-variant)',
                 'surface-container-low': 'var(--md-sys-color-surface-container-low)',
                 'surface-container': 'var(--md-sys-color-surface-container)',
                 'surface-container-high': 'var(--md-sys-color-surface-container-high)',
