@@ -38,7 +38,10 @@ use super::{ConnectedClient, ServerEvent, ServerState};
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ClientMessage {
     // Handshake
-    Hello { client_name: String },
+    Hello {
+        #[serde(alias = "clientName")]
+        client_name: String,
+    },
     GetStatus,
 
     // Playback controls
@@ -48,7 +51,10 @@ pub enum ClientMessage {
     Stop,
     Next,
     Previous,
-    Seek { position_secs: f64 },
+    Seek {
+        #[serde(alias = "positionSecs")]
+        position_secs: f64,
+    },
     SetVolume { volume: f64 },
     ToggleShuffle,
     CycleRepeat,
@@ -68,21 +74,45 @@ pub enum ClientMessage {
     // Mobile streaming
     StartMobilePlayback,
     StopMobilePlayback,
-    MobilePositionUpdate { position_secs: f64 },
+    MobilePositionUpdate {
+        #[serde(alias = "positionSecs")]
+        position_secs: f64,
+    },
 
     // Playlists
     GetPlaylists,
-    GetPlaylistTracks { playlist_id: String },
-    AddToPlaylist { playlist_id: String, path: String },
-    RemoveFromPlaylist { playlist_id: String, playlist_track_id: i64 },
-    ReorderPlaylistTracks { playlist_id: String, track_ids: Vec<i64> },
+    GetPlaylistTracks {
+        #[serde(alias = "playlistId")]
+        playlist_id: String,
+    },
+    AddToPlaylist {
+        #[serde(alias = "playlistId")]
+        playlist_id: String,
+        path: String,
+    },
+    RemoveFromPlaylist {
+        #[serde(alias = "playlistId")]
+        playlist_id: String,
+        #[serde(alias = "playlistTrackId")]
+        playlist_track_id: i64,
+    },
+    ReorderPlaylistTracks {
+        #[serde(alias = "playlistId")]
+        playlist_id: String,
+        #[serde(alias = "trackIds")]
+        track_ids: Vec<i64>,
+    },
 
     // Stats sync (mobile → PC)
     ReportPlaybackEvent {
+        #[serde(alias = "songId")]
         song_id: String,
         timestamp: i64,
+        #[serde(alias = "durationMs")]
         duration_ms: i64,
+        #[serde(alias = "startTimestamp")]
         start_timestamp: Option<i64>,
+        #[serde(alias = "endTimestamp")]
         end_timestamp: Option<i64>,
         output: Option<String>,
     },
