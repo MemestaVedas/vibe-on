@@ -181,112 +181,119 @@ export function TorrentBrowser({ onAdded }: Props) {
                 </div>
             )}
 
-            {step === 'input' && (
-                <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="flex gap-3 p-1 w-fit mb-6">
-                        <button
-                            onClick={() => setInputType('search')}
-                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'search'
-                                ? 'bg-primary text-on-primary ring-2 ring-primary/20'
-                                : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
-                                }`}
-                        >
-                            Search
-                        </button>
-                        <button
-                            onClick={() => setInputType('magnet')}
-                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'magnet'
-                                ? 'bg-primary text-on-primary ring-2 ring-primary/20'
-                                : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
-                                }`}
-                        >
-                            Magnet Link
-                        </button>
-                        <button
-                            onClick={() => setInputType('file')}
-                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'file'
-                                ? 'bg-primary text-on-primary ring-2 ring-primary/20'
-                                : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
-                                }`}
-                        >
-                            Torrent File
-                        </button>
-                    </div>
+            {/* Persistent Input View (Search/Magnet/File) */}
+            <div className={`flex-1 flex flex-col overflow-hidden ${(step === 'selection' || step === 'inspecting') ? 'pointer-events-none' : ''} transition-all duration-300`}>
+                <div className="flex gap-3 p-1 w-fit mb-6">
+                    <button
+                        onClick={() => setInputType('search')}
+                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'search'
+                            ? 'bg-primary text-on-primary ring-2 ring-primary/20'
+                            : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
+                            }`}
+                    >
+                        Search
+                    </button>
+                    <button
+                        onClick={() => setInputType('magnet')}
+                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'magnet'
+                            ? 'bg-primary text-on-primary ring-2 ring-primary/20'
+                            : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
+                            }`}
+                    >
+                        Magnet Link
+                    </button>
+                    <button
+                        onClick={() => setInputType('file')}
+                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'file'
+                            ? 'bg-primary text-on-primary ring-2 ring-primary/20'
+                            : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
+                            }`}
+                    >
+                        Torrent File
+                    </button>
+                </div>
 
-                    <div className="flex-1 overflow-hidden relative">
-                        {inputType === 'search' && (
-                            <TorrentSearch onSelectMagnet={(magnet) => handleInspect(magnet)} />
-                        )}
+                <div className="flex-1 overflow-hidden relative">
+                    {inputType === 'search' && (
+                        <TorrentSearch onSelectMagnet={(magnet) => handleInspect(magnet)} />
+                    )}
 
-                        {inputType === 'magnet' && (
-                            <div className="space-y-4 max-w-2xl">
-                                <label className="text-sm font-medium text-on-surface-variant">Magnet Link</label>
-                                <textarea
-                                    value={magnetLink}
-                                    onChange={(e) => setMagnetLink(e.target.value)}
-                                    placeholder="magnet:?xt=urn:btih:..."
-                                    className="w-full h-32 px-4 py-3 rounded-xl bg-surface-container-high text-on-surface border-none focus:ring-2 focus:ring-primary outline-none resize-none"
-                                />
-                                <div className="bg-surface-container-highest p-4 rounded-xl text-sm text-on-surface-variant">
-                                    Paste a magnet link above to start inspecting the torrent metadata.
-                                </div>
-                                <div className="flex justify-end">
-                                    <button
-                                        onClick={() => handleInspect()}
-                                        disabled={!magnetLink}
-                                        className="px-6 py-2 bg-primary text-on-primary rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                                    >
-                                        Inspect
-                                    </button>
-                                </div>
+                    {inputType === 'magnet' && (
+                        <div className="space-y-4 max-w-2xl">
+                            <label className="text-sm font-medium text-on-surface-variant">Magnet Link</label>
+                            <textarea
+                                value={magnetLink}
+                                onChange={(e) => setMagnetLink(e.target.value)}
+                                placeholder="magnet:?xt=urn:btih:..."
+                                className="w-full h-32 px-4 py-3 rounded-xl bg-surface-container-high text-on-surface border-none focus:ring-2 focus:ring-primary outline-none resize-none"
+                            />
+                            <div className="bg-surface-container-highest p-4 rounded-xl text-sm text-on-surface-variant">
+                                Paste a magnet link above to start inspecting the torrent metadata.
                             </div>
-                        )}
-
-                        {inputType === 'file' && (
-                            <div className="space-y-4 max-w-2xl">
-                                <label className="text-sm font-medium text-on-surface-variant">Torrent File</label>
-                                <div
-                                    onClick={handleFileSelect}
-                                    className="w-full h-48 border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors"
+                            <div className="flex justify-end">
+                                <button
+                                    onClick={() => handleInspect()}
+                                    disabled={!magnetLink}
+                                    className="px-6 py-2 bg-primary text-on-primary rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                                 >
-                                    {fileName ? (
-                                        <div className="text-primary font-medium flex flex-col items-center">
-                                            <svg className="w-8 h-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                            {fileName}
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <svg className="w-8 h-8 text-on-surface-variant mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                            </svg>
-                                            <span className="text-on-surface-variant">Click to select .torrent file</span>
-                                        </>
-                                    )}
-                                </div>
-                                <div className="flex justify-end">
-                                    <button
-                                        onClick={() => handleInspect()}
-                                        disabled={!fileBytes}
-                                        className="px-6 py-2 bg-primary text-on-primary rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                                    >
-                                        Inspect
-                                    </button>
-                                </div>
+                                    Inspect
+                                </button>
                             </div>
-                        )}
-                    </div>
-                </div>
-            )}
+                        </div>
+                    )}
 
-            {step === 'inspecting' && (
-                <div className="flex-1 flex flex-col items-center justify-center">
-                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
-                    <p className="text-on-surface animate-pulse">Fetching Metadata...</p>
-                    <p className="text-sm text-on-surface-variant mt-2">This may take up to a minute for magnet links</p>
+                    {inputType === 'file' && (
+                        <div className="space-y-4 max-w-2xl">
+                            <label className="text-sm font-medium text-on-surface-variant">Torrent File</label>
+                            <div
+                                onClick={handleFileSelect}
+                                className="w-full h-48 border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors"
+                            >
+                                {fileName ? (
+                                    <div className="text-primary font-medium flex flex-col items-center">
+                                        <svg className="w-8 h-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        {fileName}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <svg className="w-8 h-8 text-on-surface-variant mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                        <span className="text-on-surface-variant">Click to select .torrent file</span>
+                                    </>
+                                )}
+                            </div>
+                            <div className="flex justify-end">
+                                <button
+                                    onClick={() => handleInspect()}
+                                    disabled={!fileBytes}
+                                    className="px-6 py-2 bg-primary text-on-primary rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                                >
+                                    Inspect
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
+
+            {/* Inspecting Overlay */}
+            <AnimatePresence>
+                {step === 'inspecting' && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-40 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center"
+                    >
+                        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+                        <p className="text-white font-medium animate-pulse">Fetching Metadata...</p>
+                        <p className="text-sm text-white/60 mt-2">This may take up to a minute for magnet links</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {step === 'selection' && (
@@ -294,7 +301,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
                         onClick={() => setStep('input')}
                     >
                         <motion.div

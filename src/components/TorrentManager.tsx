@@ -295,7 +295,7 @@ export function TorrentManager() {
                                                     <TorrentWavyProgress
                                                         progress={t.progress}
                                                         isActive={t.state === 'Downloading' && t.download_speed > 0}
-                                                        accentColor={t.state === 'Finished' ? 'var(--green-500)' : t.error ? 'var(--error)' : 'var(--primary)'}
+                                                        accentColor={t.state === 'Finished' ? 'var(--md-sys-color-secondary)' : t.error ? 'var(--md-sys-color-error)' : 'var(--md-sys-color-primary)'}
                                                     />
                                                 </div>
 

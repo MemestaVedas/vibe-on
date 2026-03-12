@@ -12,8 +12,8 @@ export const TorrentWavyProgress = memo(function TorrentWavyProgress({
     progress,
     isActive = false,
     className = '',
-    accentColor = 'var(--primary)',
-    trackColor = 'var(--surface-container-highest)'
+    accentColor = 'var(--md-sys-color-primary)',
+    trackColor = 'var(--md-sys-color-surface-container-highest)'
 }: TorrentWavyProgressProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(400);

@@ -353,8 +353,8 @@ pub async fn start_server(
         .route("/api/stats/events", get(get_stats_events))
         // Cover art
         .route("/cover/*path", get(get_cover))
-        // Audio streaming
-        .route("/stream/:path", get(stream_audio_file))
+        // Audio streaming — use wildcard so Windows absolute paths (C:/...) work
+        .route("/stream/*path", get(stream_audio_file))
         .route("/stream", get(stream_audio))
         // WebSocket
         .route("/control", get(websocket_handler))

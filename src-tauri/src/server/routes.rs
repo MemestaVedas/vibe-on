@@ -5,7 +5,7 @@ use std::sync::Arc;
 use axum::{
     body::Body,
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::Response,
     Json,
 };
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::audio::TrackInfo;
 use super::{ServerState, TrackSummary};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 /// Health check response
 #[derive(Serialize)]
@@ -922,46 +923,44 @@ fn extract_cover_from_file(path: &str) -> Option<(Vec<u8>, &'static str)> {
     None
 }
 
-/// Stream audio to mobile client from a specific file path
-/// Supports HTTP Range requests for seeking
+/// Stream audio to mobile client from a specific file path.
+/// Supports HTTP Range requests (RFC 7233) — required for ExoPlayer seeking on Android.
 pub async fn stream_audio_file(
     Path(encoded_path): Path<String>,
-) -> Result<Response, StatusCode> {
-    
-    // Decode the path
-    let track_path = urlencoding::decode(&encoded_path)
+    headers: HeaderMap,
+) -> Result<Response<Body>, StatusCode> {
+    // Decode and normalise the path
+    // axum's *path wildcard prepends a '/' — strip it so Windows paths work: "C:/..."
+    let raw = urlencoding::decode(&encoded_path)
         .map_err(|_| StatusCode::BAD_REQUEST)?
-        .to_string()
-        .replace("\\", "/");
-        
+        .to_string();
+
+    let track_path = raw
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .to_string();
+
+    // Re-add drive letter slash on Windows ("C:/...") or root slash on Unix
+    let track_path = if track_path.contains(':') {
+        track_path // Windows absolute path — already correct
+    } else {
+        format!("/{}" , track_path) // Unix absolute path needs leading /
+    };
+
     log::info!("📱 Streaming request for: {}", track_path);
-    
-    // Validate path exists and is accessible
+
     if !std::path::Path::new(&track_path).exists() {
         log::error!("❌ Stream file not found: {}", track_path);
         return Err(StatusCode::NOT_FOUND);
     }
-    
-    // Read file metadata for size
+
     let file_metadata = tokio::fs::metadata(&track_path).await
         .map_err(|e| {
-            log::error!("❌ Failed to get metadata for {}: {}", track_path, e);
+            log::error!("❌ Metadata error for {}: {}", track_path, e);
             StatusCode::NOT_FOUND
         })?;
     let file_size = file_metadata.len();
-    
-    // Read the entire file
-    let data = match tokio::fs::read(&track_path).await {
-        Ok(d) => d,
-        Err(e) => {
-            log::error!("❌ Failed to read file {}: {}", track_path, e);
-            return Err(StatusCode::NOT_FOUND);
-        }
-    };
-    
-    log::info!("✅ Serving {} bytes for {}", file_size, track_path);
-    
-    // Determine content type from extension
+
     let content_type = if track_path.ends_with(".flac") {
         "audio/flac"
     } else if track_path.ends_with(".mp3") {
@@ -975,16 +974,95 @@ pub async fn stream_audio_file(
     } else {
         "application/octet-stream"
     };
-    
-    // Build response with proper headers for streaming
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, content_type)
-        .header(header::CONTENT_LENGTH, file_size.to_string())
-        .header(header::ACCEPT_RANGES, "bytes")
-        .header(header::CACHE_CONTROL, "public, max-age=604800")
-        .body(Body::from(data))
-        .unwrap())
+
+    // Parse an optional Range header.
+    // FLAC on some Android devices fails to decode reliably from arbitrary byte ranges,
+    // so serve full-file responses for FLAC to keep mobile playback stable.
+    let has_range_header = headers.get(header::RANGE).is_some();
+    let range = if content_type == "audio/flac" {
+        if has_range_header {
+            log::warn!("⚠️ Ignoring Range request for FLAC stream: {}", track_path);
+        }
+        None
+    } else {
+        headers
+            .get(header::RANGE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| parse_range(s, file_size))
+    };
+
+    match range {
+        Some((start, end)) => {
+            // --- Partial Content (206) ---
+            let length = end - start + 1;
+            let mut buf = vec![0u8; length as usize];
+
+            let mut file = tokio::fs::File::open(&track_path).await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            file.seek(std::io::SeekFrom::Start(start)).await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            file.read_exact(&mut buf).await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            log::info!("✅ 206 range {}-{}/{} ({})", start, end, file_size, track_path);
+
+            Ok(Response::builder()
+                .status(StatusCode::PARTIAL_CONTENT)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::CONTENT_LENGTH, length.to_string())
+                .header(header::CONTENT_RANGE, format!("bytes {}-{}/{}", start, end, file_size))
+                .header(header::ACCEPT_RANGES, "bytes")
+                .header(header::CACHE_CONTROL, "no-cache")
+                .body(Body::from(buf))
+                .unwrap())
+        }
+        None => {
+            // --- Full file (200) ---
+            let data = tokio::fs::read(&track_path).await
+                .map_err(|e| {
+                    log::error!("❌ Failed to read {}: {}", track_path, e);
+                    StatusCode::NOT_FOUND
+                })?;
+
+            log::info!("✅ 200 full {} bytes for {}", file_size, track_path);
+
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, content_type)
+                .header(header::CONTENT_LENGTH, file_size.to_string())
+                .header(header::ACCEPT_RANGES, "bytes")
+                .header(header::CACHE_CONTROL, "no-cache")
+                .body(Body::from(data))
+                .unwrap())
+        }
+    }
+}
+
+/// Parse `Range: bytes=start-end` header value → (start, inclusive_end).
+fn parse_range(range: &str, file_size: u64) -> Option<(u64, u64)> {
+    let s = range.strip_prefix("bytes=")?;
+    let mut parts = s.splitn(2, '-');
+    let start_str = parts.next()?.trim();
+    let end_str   = parts.next()?.trim();
+
+    let start: u64 = if start_str.is_empty() {
+        // Suffix range: "-N" → last N bytes
+        let n: u64 = end_str.parse().ok()?;
+        file_size.saturating_sub(n)
+    } else {
+        start_str.parse().ok()?
+    };
+
+    let end: u64 = if end_str.is_empty() {
+        file_size.saturating_sub(1)
+    } else {
+        end_str.parse::<u64>().ok()?.min(file_size.saturating_sub(1))
+    };
+
+    if start > end || start >= file_size {
+        return None;
+    }
+    Some((start, end))
 }
 
 /// Stream audio to mobile client (legacy endpoint for current track)
