@@ -78,7 +78,7 @@ export const useMobileStore = create<MobileStore>()(
             // Initial State
             status: 'disconnected',
             serverRunning: false,
-            serverPort: 5443,
+            serverPort: 5000,
             localIP: null,
             discoveredDevices: [],
             connectedDevice: null,
@@ -214,37 +214,10 @@ export const useMobileStore = create<MobileStore>()(
             },
 
             scanForDevices: async () => {
-                try {
-                    const peers = await invoke<P2PPeer[]>('get_p2p_peers');
-                    console.log('[Mobile] Discovered peers:', peers);
-
-                    // Convert P2P peers to DiscoveredDevice format
-                    const devices: DiscoveredDevice[] = peers
-                        .filter(peer => peer.platform === 'android' || peer.platform === 'ios' || peer.platform === 'mobile')
-                        .map(peer => {
-                            // Extract IP from multiaddr (e.g., "/ip4/192.168.1.x/udp/...")
-                            let ip = 'unknown';
-                            for (const addr of peer.addresses) {
-                                const match = addr.match(/\/ip4\/([0-9.]+)\//);
-                                if (match) {
-                                    ip = match[1];
-                                    break;
-                                }
-                            }
-
-                            return {
-                                id: peer.peer_id,
-                                name: peer.device_name || 'Mobile Device',
-                                ip,
-                                port: 5443,
-                                platform: peer.platform,
-                            };
-                        });
-
-                    set({ discoveredDevices: devices });
-                } catch (e) {
-                    console.error('Failed to scan for devices:', e);
-                }
+                // Connected devices are tracked via Tauri events
+                // (mobile_client_connected / mobile_client_disconnected)
+                // handled in GlobalEffects.tsx — nothing to poll here.
+                console.log('[Mobile] Connected devices are tracked via Tauri events');
             },
 
             startDiscoveryPolling: () => {

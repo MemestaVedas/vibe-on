@@ -1,111 +1,99 @@
-//! WebSocket handler for real-time control
+//! WebSocket handler for real-time control between PC and mobile clients.
+//!
+//! ## Protocol
+//!
+//! 1. Mobile connects to `ws://<ip>:5000/control`
+//! 2. Mobile sends `hello` with its name
+//! 3. Server replies with `connected` + full state (`mediaSession`, `status`, `queueUpdate`)
+//! 4. Mobile sends commands (`play`, `pause`, `next`, …)
+//! 5. Server replies to the requesting client via **direct** channel
+//! 6. Server broadcasts state changes to **all** clients via broadcast channel
+//!
+//! ### Delivery paths
+//!
+//! - `reply_tx` — direct replies to the client that sent the command
+//! - `event_tx` — broadcast to every connected client (periodic status, track changes)
 
 use std::sync::Arc;
 
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        ConnectInfo, State, WebSocketUpgrade,
+        State, WebSocketUpgrade,
     },
     response::Response,
 };
-use std::net::SocketAddr;
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::{ConnectedClient, ServerEvent, ServerState};
 
-/// Client to server messages
+// ─── Client → Server Messages ────────────────────────────────────────────────
+
+/// Every JSON message the mobile client can send.
+/// The `type` field is used as the discriminator (camelCase).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ClientMessage {
-    /// Initial handshake
+    // Handshake
     Hello { client_name: String },
-    /// Request current status
     GetStatus,
-    /// Playback controls
+
+    // Playback controls
     Play,
     Pause,
     Resume,
     Stop,
     Next,
     Previous,
-    /// Seek to position
     Seek { position_secs: f64 },
-    /// Set volume (0.0 - 1.0)
     SetVolume { volume: f64 },
-    /// Toggle shuffle
     ToggleShuffle,
-    /// Cycle repeat mode
     CycleRepeat,
-    /// Play a specific track
+
+    // Track / queue
     PlayTrack { path: String },
-    /// Play an album
     PlayAlbum { album: String, artist: String },
-    /// Play an artist
     PlayArtist { artist: String },
-    /// Add track to queue
     AddToQueue { path: String },
-    /// Set entire queue
     SetQueue { paths: Vec<String> },
-    /// Toggle favorite
     ToggleFavorite { path: String },
-    /// Get lyrics
-    GetLyrics,
-    /// Request audio streaming to mobile
-    RequestStreamToMobile,
-    /// Stop streaming to mobile
-    StopStreamToMobile,
-    /// Mobile is ready to receive stream
-    HandoffReady,
-    /// Network stats from mobile
-    NetworkStats { buffer_ms: u32, throughput_kbps: u32 },
-    /// Request library
+
+    // Library
     GetLibrary,
-    /// Start mobile playback (client-initiated)
+    GetLyrics,
+
+    // Mobile streaming
     StartMobilePlayback,
-    /// Stop mobile playback (client-initiated)
     StopMobilePlayback,
-    /// Mobile playback position update
     MobilePositionUpdate { position_secs: f64 },
-    /// Get playlists
+
+    // Playlists
     GetPlaylists,
-    /// Get tracks in a playlist
     GetPlaylistTracks { playlist_id: String },
-    /// Add track to playlist
     AddToPlaylist { playlist_id: String, path: String },
-    /// Remove track from playlist
     RemoveFromPlaylist { playlist_id: String, playlist_track_id: i64 },
-    /// Reorder playlist tracks
     ReorderPlaylistTracks { playlist_id: String, track_ids: Vec<i64> },
-    /// WebRTC signaling: offer
-    WebrtcOffer { target_peer_id: String, sdp: String },
-    /// WebRTC signaling: answer
-    WebrtcAnswer { target_peer_id: String, sdp: String },
-    /// WebRTC signaling: ICE candidate
-    IceCandidate { target_peer_id: String, candidate: String },
-    /// Ping for keepalive
+
+    // Keepalive
     Ping,
 }
 
-/// Server to client messages
+// ─── Server → Client Messages ────────────────────────────────────────────────
+
+/// Every JSON message the server can send to a client.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ServerMessage {
-    /// Welcome message after hello
-    Welcome {
-        client_id: String,
-        server_name: String,
-        version: String,
-    },
-    /// Connection established (what mobile expects)
-    #[serde(rename = "Connected")]
+    /// Sent once after `hello` to confirm the connection.
+    #[serde(rename = "connected")]
     Connected {
         #[serde(rename = "clientId")]
         client_id: String,
     },
-    /// Current media session state
+
+    /// Current track metadata.
     #[serde(rename_all = "camelCase")]
     MediaSession {
         track_id: String,
@@ -124,7 +112,8 @@ pub enum ServerMessage {
         position: f64,
         timestamp: u64,
     },
-    /// Player status
+
+    /// Player status (volume, shuffle, repeat, active output).
     #[serde(rename_all = "camelCase")]
     Status {
         volume: f64,
@@ -132,16 +121,17 @@ pub enum ServerMessage {
         repeat_mode: String,
         output: String,
     },
-    /// Position update (mapped to PlaybackState)
+
+    /// Lightweight position update during playback.
     #[serde(rename = "PlaybackState")]
-    #[serde(rename_all = "camelCase")]
     PlaybackState {
         #[serde(rename = "is_playing")]
         is_playing: bool,
         position: f64,
         volume: f64,
     },
-    /// Lyrics data
+
+    /// Lyrics for the current track.
     #[serde(rename_all = "camelCase")]
     Lyrics {
         track_path: String,
@@ -152,75 +142,49 @@ pub enum ServerMessage {
         plain_lyrics: Option<String>,
         instrumental: bool,
     },
-    /// Prepare for audio handoff
+
+    /// Tells mobile to start streaming from the given URL at the given sample offset.
     #[serde(rename_all = "camelCase")]
-    HandoffPrepare {
-        sample: u64,
-        url: String,
-    },
-    /// Commit handoff (start playing)
-    HandoffCommit,
-    /// Stream stopped
+    HandoffPrepare { sample: u64, url: String },
+
+    /// Tells mobile that streaming has been stopped (returned to desktop).
     StreamStopped,
-    /// Library data
+
+    /// Full library of tracks.
     #[serde(rename_all = "camelCase")]
-    Library {
-        tracks: Vec<super::routes::TrackDetail>,
-    },
-    /// Queue update
+    Library { tracks: Vec<super::routes::TrackDetail> },
+
+    /// Current playback queue with cursor position.
     #[serde(rename_all = "camelCase")]
     QueueUpdate {
         queue: Vec<super::TrackSummary>,
         #[serde(rename = "currentIndex")]
         current_index: i32,
     },
-    /// WebRTC signaling relay
-    #[serde(rename = "WebRTCOffer")]
+
+    /// List of playlists.
     #[serde(rename_all = "camelCase")]
-    WebRTCOffer {
-        #[serde(rename = "from_client_id")]
-        from_peer_id: String,
-        #[serde(rename = "offer")]
-        sdp: String,
-    },
-    /// WebRTC answer relay
-    #[serde(rename = "WebRTCAnswer")]
-    #[serde(rename_all = "camelCase")]
-    WebRTCAnswer {
-        #[serde(rename = "to_client_id")]
-        to_peer_id: String,
-        #[serde(rename = "answer")]
-        sdp: String,
-    },
-    /// ICE candidate relay
-    #[serde(rename = "ICECandidate")]
-    #[serde(rename_all = "camelCase")]
-    ICECandidate {
-        #[serde(rename = "from_client_id")]
-        from_peer_id: String,
-        candidate: String,
-    },
-    /// Playlists list response
-    #[serde(rename_all = "camelCase")]
-    Playlists {
-        playlists: Vec<PlaylistResponse>,
-    },
-    /// Playlist tracks response
+    Playlists { playlists: Vec<PlaylistResponse> },
+
+    /// Tracks inside a specific playlist.
     #[serde(rename_all = "camelCase")]
     PlaylistTracks {
         #[serde(rename = "playlistId")]
         playlist_id: String,
         tracks: Vec<super::routes::TrackDetail>,
     },
-    /// Playback stats updated
+
+    /// Notification that playback stats were updated.
     #[serde(rename_all = "camelCase")]
-    StatsUpdated {
-        timestamp: i64,
-    },
-    /// Error message
-    #[serde(rename = "Error")]
+    StatsUpdated { timestamp: i64 },
+
+    /// Acknowledge a successful action.
+    Ack { action: String },
+
+    /// Error description.
     Error { message: String },
-    /// Pong response
+
+    /// Keepalive response.
     Pong,
 }
 
@@ -235,28 +199,25 @@ pub struct PlaylistResponse {
     pub updated_at: String,
 }
 
+// ─── ServerEvent → ServerMessage conversion ──────────────────────────────────
+
 impl From<ServerEvent> for ServerMessage {
     fn from(event: ServerEvent) -> Self {
         match event {
             ServerEvent::MediaSession {
-                track_id, title, artist, album, duration, cover_url, 
+                track_id, title, artist, album, duration, cover_url,
                 title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
-                is_playing, position, timestamp
+                is_playing, position, timestamp,
             } => ServerMessage::MediaSession {
-                track_id, title, artist, album, duration, cover_url, 
+                track_id, title, artist, album, duration, cover_url,
                 title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
-                is_playing, position, timestamp
+                is_playing, position, timestamp,
             },
-            ServerEvent::PositionUpdate { position, timestamp: _ } => {
-                // Map to PlaybackState for mobile
-                // Note: We don't have is_playing/volume here, so we send defaults/nulls
-                // ideally PositionUpdate should carry more info, or we assume mobile merges state
-                ServerMessage::PlaybackState {
-                    is_playing: true, // If we are sending position updates, we are likely playing
-                    position,
-                    volume: 1.0, // Backend volume is usually handled in Status event
-                }
-            }
+            ServerEvent::PositionUpdate { position, is_playing, volume, .. } => ServerMessage::PlaybackState {
+                is_playing,
+                position,
+                volume,
+            },
             ServerEvent::Status { volume, shuffle, repeat_mode, output } => {
                 ServerMessage::Status { volume, shuffle, repeat_mode, output }
             }
@@ -269,27 +230,16 @@ impl From<ServerEvent> for ServerMessage {
             ServerEvent::HandoffPrepare { sample, url } => {
                 ServerMessage::HandoffPrepare { sample, url }
             }
-            ServerEvent::HandoffCommit => ServerMessage::HandoffCommit,
             ServerEvent::StreamStopped => ServerMessage::StreamStopped,
-            ServerEvent::WebrtcOffer { from_peer_id, sdp } => {
-                ServerMessage::WebRTCOffer { from_peer_id, sdp }
-            }
-            ServerEvent::WebrtcAnswer { target_peer_id, sdp } => {
-                ServerMessage::WebRTCAnswer { to_peer_id: target_peer_id, sdp }
-            }
-            ServerEvent::IceCandidate { from_peer_id, candidate } => {
-                ServerMessage::ICECandidate { from_peer_id, candidate }
-            }
-            ServerEvent::StatsUpdated { timestamp } => {
-                ServerMessage::StatsUpdated { timestamp }
-            }
+            ServerEvent::StatsUpdated { timestamp } => ServerMessage::StatsUpdated { timestamp },
             ServerEvent::Error { message } => ServerMessage::Error { message },
             ServerEvent::Pong => ServerMessage::Pong,
         }
     }
 }
 
-/// WebSocket upgrade handler
+// ─── WebSocket upgrade & connection lifecycle ────────────────────────────────
+
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<ServerState>>,
@@ -297,714 +247,310 @@ pub async fn websocket_handler(
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
-/// Handle a WebSocket connection
 async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
-    let remote_ip = "unknown".to_string();
-    log::info!("🔌 New WebSocket connection from {}", remote_ip);
-    println!("[WebSocket] New connection!");
-    
     let (mut sender, mut receiver) = socket.split();
-    
-    // Subscribe to broadcast events
+
     let mut event_rx = state.event_tx.subscribe();
-    
-    // Generate client ID
     let client_id = uuid::Uuid::new_v4().to_string();
-    log::info!("🔌 WebSocket client ID assigned: {}", client_id);
-    println!("[WebSocket] Client ID: {}", client_id);
-    let _client_id_clone = client_id.clone();
     let client_id_for_cleanup = client_id.clone();
     let app_handle = state.app_handle.clone();
-    
-    log::info!("📱 New WebSocket connection accepted (ID: {})", client_id);
-    println!("[WebSocket] New client connected: {}", client_id);
-    
-    // Create channel for keepalive pings
-    let (ping_tx, mut ping_rx) = tokio::sync::mpsc::channel::<()>(1);
-    
-    // Create channel for direct replies from handle_client_message
-    let (reply_tx, mut reply_rx) = tokio::sync::mpsc::channel::<ServerMessage>(32);
 
-    // Spawn task to forward events to client and handle keepalive
+    log::info!("[WS] New connection, client_id={}", client_id);
+
+    // Direct replies to this specific client
+    let (reply_tx, mut reply_rx) = tokio::sync::mpsc::channel::<ServerMessage>(32);
+    // Signal the send task to stop
+    let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(1);
+
+    // ── Send task ────────────────────────────────────────────────────────────
+    // Forwards broadcast events + direct replies + keepalive pings to the client.
     let send_task = tokio::spawn(async move {
-        let mut keepalive_interval = tokio::time::interval(std::time::Duration::from_secs(30));
-        
+        let mut keepalive = tokio::time::interval(std::time::Duration::from_secs(30));
+
         loop {
             tokio::select! {
-                // Forward broadcast events
                 event = event_rx.recv() => {
                     match event {
-                        Ok(event) => {
-                            let msg: ServerMessage = event.into();
-                            let json = serde_json::to_string(&msg).unwrap();
-                            if sender.send(Message::Text(json.into())).await.is_err() {
-                                break;
-                            }
+                        Ok(ev) => {
+                            let json = serde_json::to_string(&ServerMessage::from(ev)).unwrap();
+                            if sender.send(Message::Text(json.into())).await.is_err() { break; }
                         }
-                        Err(_) => break,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            log::warn!("[WS] Client lagged, skipped {} messages", n);
+                            // Continue — client will catch up via next broadcast
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                     }
                 }
-                // Forward direct replies
                 reply = reply_rx.recv() => {
                     match reply {
                         Some(msg) => {
-                             log::debug!("📱 Sending reply to client: {:?}", msg);
-                             let json = serde_json::to_string(&msg).unwrap();
-                             if sender.send(Message::Text(json.into())).await.is_err() {
-                                 log::warn!("❌ Failed to send reply to client");
-                                 break;
-                             }
+                            let json = serde_json::to_string(&msg).unwrap();
+                            if sender.send(Message::Text(json.into())).await.is_err() { break; }
                         }
                         None => break,
                     }
                 }
-                // Send keepalive ping every 30 seconds
-                _ = keepalive_interval.tick() => {
-                    let ping_msg = serde_json::to_string(&ServerMessage::Pong).unwrap();
-                    if sender.send(Message::Text(ping_msg.into())).await.is_err() {
-                        break;
-                    }
+                _ = keepalive.tick() => {
+                    let json = serde_json::to_string(&ServerMessage::Pong).unwrap();
+                    if sender.send(Message::Text(json.into())).await.is_err() { break; }
                 }
-                // Handle close signal
-                _ = ping_rx.recv() => {
-                    break;
-                }
+                _ = stop_rx.recv() => break,
             }
         }
     });
-    
-    // Handle incoming messages
+
+    // ── Receive loop ─────────────────────────────────────────────────────────
     while let Some(Ok(msg)) = receiver.next().await {
         match msg {
             Message::Text(text) => {
-                log::debug!("📱 WebSocket message received ({}): {}", client_id, text);
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(client_msg) => {
-                        log::info!("📱 Parsed ClientMessage: {:?}", client_msg);
-                        handle_client_message(&state, &client_id, &remote_ip, client_msg, &reply_tx).await;
+                        log::debug!("[WS] {} -> {:?}", client_id, client_msg);
+                        handle_client_message(&state, &client_id, client_msg, &reply_tx).await;
                     }
                     Err(e) => {
-                        log::warn!("❌ Invalid WebSocket message: {}", e);
-                        state.broadcast(ServerEvent::Error {
-                            message: format!("Invalid message format: {}", e),
-                        });
+                        log::warn!("[WS] Bad message from {}: {}", client_id, e);
+                        let _ = reply_tx.send(ServerMessage::Error {
+                            message: format!("Invalid message: {}", e),
+                        }).await;
                     }
                 }
             }
-            Message::Close(_) => {
-                log::info!("📱 WebSocket close received ({})", client_id);
-                break;
-            }
+            Message::Close(_) => break,
             _ => {}
         }
     }
-    
-    // Cleanup
-    let _ = ping_tx.send(()).await; // Signal send task to stop
+
+    // ── Cleanup ──────────────────────────────────────────────────────────────
+    let _ = stop_tx.send(()).await;
     send_task.abort();
-    
-    // Remove client from list and emit disconnect event
+
     let mut clients = state.clients.write().await;
-    let disconnected_client = clients.iter().find(|c| c.id == client_id_for_cleanup).cloned();
+    let disconnected = clients.iter().find(|c| c.id == client_id_for_cleanup).cloned();
     clients.retain(|c| c.id != client_id_for_cleanup);
-    
-    // Emit disconnect event to frontend
-    if let Some(client) = disconnected_client {
+
+    if let Some(client) = disconnected {
         let _ = app_handle.emit("mobile_client_disconnected", serde_json::json!({
             "client_id": client.id,
             "client_name": client.name,
         }));
-        log::info!("Mobile client disconnected: {} ({})", client.name, client.id);
+        log::info!("[WS] Client disconnected: {} ({})", client.name, client.id);
     }
 }
 
-/// Handle a client message
+// ─── Message dispatch ────────────────────────────────────────────────────────
+
 async fn handle_client_message(
     state: &Arc<ServerState>,
     client_id: &str,
-    client_ip: &str,
     msg: ClientMessage,
     reply_tx: &tokio::sync::mpsc::Sender<ServerMessage>,
 ) {
     let app_state = state.app_state();
-    
+
     match msg {
+        // ── Handshake ────────────────────────────────────────────────────
         ClientMessage::Hello { client_name } => {
-            log::info!("📱 Mobile HELLO received from: {} (ID: {})", client_name, client_id);
-            
-            // Add client to list
-            let client = ConnectedClient {
+            log::info!("[WS] Hello from '{}' ({})", client_name, client_id);
+
+            state.clients.write().await.push(ConnectedClient {
                 id: client_id.to_string(),
                 name: client_name.clone(),
-                remote_ip: client_ip.to_string(),
+                remote_ip: String::new(),
                 connected_at: std::time::Instant::now(),
-            };
-            state.clients.write().await.push(client);
-            
-            log::info!("📱 Emitting mobile_client_connected event to frontend");
-            println!("[WebSocket] Emitting mobile_client_connected: {} ({})", client_name, client_id);
-            
-            // Emit connection event to frontend
-            let emit_result = state.app_handle.emit("mobile_client_connected", serde_json::json!({
+            });
+
+            let _ = state.app_handle.emit("mobile_client_connected", serde_json::json!({
                 "client_id": client_id,
                 "client_name": client_name,
             }));
-            
-            match emit_result {
-                Ok(_) => log::info!("✅ mobile_client_connected event emitted successfully"),
-                Err(e) => log::error!("❌ Failed to emit mobile_client_connected: {}", e),
-            }
-            log::info!("Mobile client connected: {} ({})", client_name, client_id);
-            
-            // Send Connected event to confirm handshake
-            let _ = reply_tx.send(ServerMessage::Connected { 
-                client_id: client_id.to_string() 
-            }).await;
-            log::info!("✅ Sent Connected acknowledgment to mobile");
 
-            // Send current status immediately
-            send_current_status_internal(state, &app_state, &reply_tx).await;
-            
-            // Send current queue immediately
-            let (tracks, index) = {
-                let queue = app_state.queue.lock().unwrap();
-                let index = *app_state.current_queue_index.lock().unwrap();
-                (
-                    queue.iter().map(|t| super::TrackSummary {
-                        path: t.path.clone(),
-                        title: t.title.clone(),
-                        artist: t.artist.clone(),
-                        album: t.album.clone(),
-                        duration_secs: t.duration_secs,
-                        cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
-                        title_romaji: t.title_romaji.clone(),
-                        title_en: t.title_en.clone(),
-                        artist_romaji: t.artist_romaji.clone(),
-                        artist_en: t.artist_en.clone(),
-                        album_romaji: t.album_romaji.clone(),
-                        album_en: t.album_en.clone(),
-                    }).collect::<Vec<_>>(),
-                    index
-                )
-            };
-            let _ = reply_tx.send(ServerMessage::QueueUpdate { queue: tracks, current_index: index as i32 }).await;
+            let _ = reply_tx.send(ServerMessage::Connected {
+                client_id: client_id.to_string(),
+            }).await;
+
+            // Send full current state to this client only
+            send_full_state(state, &app_state, reply_tx).await;
         }
-        
+
         ClientMessage::GetStatus => {
-            log::info!("📱 GetStatus request from mobile ({})", client_id);
-            send_current_status_internal(state, &app_state, &reply_tx).await;
+            send_full_state(state, &app_state, reply_tx).await;
         }
-        
-        ClientMessage::Play => {
-            log::info!("📱 Play command from mobile ({})", client_id);
-            {
-                if let Ok(mut player_guard) = app_state.player.lock() {
-                    if let Some(ref mut player) = *player_guard {
-                        player.resume();
-                    }
-                }
+
+        // ── Playback: Play / Resume ──────────────────────────────────────
+        ClientMessage::Play | ClientMessage::Resume => {
+            if let Ok(mut g) = app_state.player.lock() {
+                if let Some(ref mut p) = *g { p.resume(); }
             }
-            sync_discord_for_mobile(state, &app_state).await;
-            // Send acknowledgment
-            let _ = reply_tx.send(ServerMessage::Error {
-                message: "ok:play".to_string(),
-            }).await;
-            send_current_status_internal(state, &app_state, &reply_tx).await;
+            sync_discord(state, &app_state).await;
+            broadcast_player_state(state, &app_state).await;
         }
-        
+
+        // ── Playback: Pause / Stop ───────────────────────────────────────
         ClientMessage::Pause | ClientMessage::Stop => {
-            log::info!("📱 Pause/Stop command from mobile ({})", client_id);
-            {
-                if let Ok(mut player_guard) = app_state.player.lock() {
-                    if let Some(ref mut player) = *player_guard {
-                        let _ = player.pause();
-                    }
-                }
+            if let Ok(mut g) = app_state.player.lock() {
+                if let Some(ref mut p) = *g { let _ = p.pause(); }
             }
-            sync_discord_for_mobile(state, &app_state).await;
-            // Send acknowledgment
-            let _ = reply_tx.send(ServerMessage::Error {
-                message: "ok:pause".to_string(),
-            }).await;
-            send_current_status_internal(state, &app_state, &reply_tx).await;
+            sync_discord(state, &app_state).await;
+            broadcast_player_state(state, &app_state).await;
         }
-        
-        ClientMessage::Resume => {
-            log::info!("📱 Resume command from mobile ({})", client_id);
-            {
-                if let Ok(mut player_guard) = app_state.player.lock() {
-                    if let Some(ref mut player) = *player_guard {
-                        let _ = player.resume();
-                    }
-                }
-            }
-            sync_discord_for_mobile(state, &app_state).await;
-            // Send acknowledgment
-            let _ = reply_tx.send(ServerMessage::Error {
-                message: "ok:resume".to_string(),
-            }).await;
-            send_current_status_internal(state, &app_state, &reply_tx).await;
-        }
-        
+
+        // ── Next / Previous ──────────────────────────────────────────────
         ClientMessage::Next => {
-            log::info!("📱 Next track command from mobile ({})", client_id);
-            
-            let (next_track_path, _next_index) = {
-                let queue = app_state.queue.lock().unwrap();
-                let mut index_guard = app_state.current_queue_index.lock().unwrap();
-                let repeat_mode = app_state.repeat_mode.lock().unwrap();
-                
-                if queue.is_empty() {
-                    (None, 0)
-                } else {
-                    let mut next_idx = *index_guard + 1;
-                    if next_idx >= queue.len() {
-                        if *repeat_mode == "all" {
-                            next_idx = 0;
-                        } else {
-                            // "off" or "one" (one is handled by naturally repeated play)
-                            // If user clicked NEXT, we stop or loop depending on mode
-                            next_idx = 0; // Wrap around for manual Next click
-                        }
-                    }
-                    *index_guard = next_idx;
-                    (Some(queue[next_idx].path.clone()), next_idx)
-                }
-            };
-            
-            if let Some(path) = next_track_path {
-                // Send acknowledgment
-                let _ = reply_tx.send(ServerMessage::Error {
-                    message: "ok:next".to_string(),
-                }).await;
-                play_track_internal(state, &app_state, path, &reply_tx).await;
+            let next_path = advance_queue(&app_state, 1);
+            if let Some(path) = next_path {
+                play_track_internal(state, &app_state, path, reply_tx).await;
             } else {
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "Queue is empty".to_string(),
                 }).await;
             }
         }
-        
+
         ClientMessage::Previous => {
-            log::info!("📱 Previous track command from mobile ({})", client_id);
-            
-            let (prev_track_path, _prev_index) = {
-                let queue = app_state.queue.lock().unwrap();
-                let mut index_guard = app_state.current_queue_index.lock().unwrap();
-                
-                if queue.is_empty() {
-                    (None, 0)
-                } else {
-                    let prev_idx = if *index_guard == 0 {
-                        queue.len() - 1
-                    } else {
-                        *index_guard - 1
-                    };
-                    *index_guard = prev_idx;
-                    (Some(queue[prev_idx].path.clone()), prev_idx)
-                }
-            };
-            
-            if let Some(path) = prev_track_path {
-                // Send acknowledgment
-                let _ = reply_tx.send(ServerMessage::Error {
-                    message: "ok:previous".to_string(),
-                }).await;
-                play_track_internal(state, &app_state, path, &reply_tx).await;
+            let prev_path = advance_queue(&app_state, -1);
+            if let Some(path) = prev_path {
+                play_track_internal(state, &app_state, path, reply_tx).await;
             }
         }
-        
+
+        // ── Seek ─────────────────────────────────────────────────────────
         ClientMessage::Seek { position_secs } => {
-            log::info!("📱 Seek command from mobile ({}): {:.2}s", client_id, position_secs);
-            {
-                if let Ok(mut player_guard) = app_state.player.lock() {
-                    if let Some(ref mut player) = *player_guard {
-                        player.seek(position_secs);
-                    }
-                }
+            if let Ok(mut g) = app_state.player.lock() {
+                if let Some(ref mut p) = *g { p.seek(position_secs); }
             }
-            sync_discord_for_mobile(state, &app_state).await;
-            // Send acknowledgment
-            let _ = reply_tx.send(ServerMessage::Error {
-                message: "ok:seek".to_string(),
-            }).await;
-            send_current_status_internal(state, &app_state, &reply_tx).await;
+            sync_discord(state, &app_state).await;
+            broadcast_player_state(state, &app_state).await;
         }
-        
+
+        // ── Volume ───────────────────────────────────────────────────────
         ClientMessage::SetVolume { volume } => {
-            log::info!("📱 SetVolume command from mobile ({}): {:.2}", client_id, volume);
-            {
-                if let Ok(mut player_guard) = app_state.player.lock() {
-                    if let Some(ref mut player) = *player_guard {
-                        player.set_volume(volume as f32);
-                    }
-                }
+            if let Ok(mut g) = app_state.player.lock() {
+                if let Some(ref mut p) = *g { p.set_volume(volume as f32); }
             }
-            // Send acknowledgment
-            let _ = reply_tx.send(ServerMessage::Error {
-                message: "ok:setVolume".to_string(),
-            }).await;
-            send_current_status_internal(state, &app_state, &reply_tx).await;
+            broadcast_player_state(state, &app_state).await;
         }
-        
+
+        // ── Shuffle / Repeat ─────────────────────────────────────────────
+        ClientMessage::ToggleShuffle => {
+            {
+                let mut s = app_state.shuffle.lock().unwrap();
+                *s = !*s;
+            }
+            broadcast_player_state(state, &app_state).await;
+        }
+
+        ClientMessage::CycleRepeat => {
+            {
+                let mut r = app_state.repeat_mode.lock().unwrap();
+                *r = match r.as_str() {
+                    "off" => "all".to_string(),
+                    "all" => "one".to_string(),
+                    _ => "off".to_string(),
+                };
+            }
+            broadcast_player_state(state, &app_state).await;
+        }
+
+        // ── Play a specific track ────────────────────────────────────────
         ClientMessage::PlayTrack { path } => {
-            log::info!("📱 PlayTrack command from mobile ({}): {}", client_id, path);
-            play_track_internal(state, &app_state, path, &reply_tx).await;
+            play_track_internal(state, &app_state, path, reply_tx).await;
         }
 
-        ClientMessage::SetQueue { paths } => {
-            log::info!("📱 SetQueue command from mobile ({}) with {} tracks", client_id, paths.len());
-            
-            let tracks = {
-                let db_guard = app_state.db.lock().unwrap();
-                if let Some(ref db) = *db_guard {
-                    if let Ok(all_tracks) = db.get_all_tracks() {
-                        paths.iter().filter_map(|p| {
-                            all_tracks.iter().find(|t| &t.path == p).cloned()
-                        }).collect::<Vec<_>>()
-                    } else {
-                         Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                }
-            };
-
-            {
-                let mut queue = app_state.queue.lock().unwrap();
-                let mut index = app_state.current_queue_index.lock().unwrap();
-                *queue = tracks;
-                *index = 0;
-            }
-
-            // Sync with all clients
-            broadcast_queue_update(state, &app_state).await;
-        }
-
-        ClientMessage::AddToQueue { path } => {
-            log::info!("📱 AddToQueue command from mobile: {}", path);
-            let track = {
-                let db_guard = app_state.db.lock().unwrap();
-                if let Some(ref db) = *db_guard {
-                    if let Ok(all_tracks) = db.get_all_tracks() {
-                        all_tracks.into_iter().find(|t| t.path == path)
-                    } else { None }
-                } else { None }
-            };
-
-            if let Some(t) = track {
-                app_state.queue.lock().unwrap().push(t);
-                broadcast_queue_update(state, &app_state).await;
-            }
-        }
-
+        // ── Play all tracks of an album ──────────────────────────────────
         ClientMessage::PlayAlbum { album, artist } => {
-            log::info!("📱 PlayAlbum command from mobile ({}) - Album: {}, Artist: {}", client_id, album, artist);
-            
-            let tracks = {
-                let db_guard = app_state.db.lock().unwrap();
-                if let Some(ref db) = *db_guard {
-                    if let Ok(all_tracks) = db.get_all_tracks() {
-                         let mut filtered: Vec<_> = all_tracks.into_iter()
-                            .filter(|t| t.album == album && (artist.is_empty() || t.artist == artist))
-                            .collect();
-                        // Sort by disc, then track
-                        filtered.sort_by(|a, b| {
-                             a.disc_number.cmp(&b.disc_number)
-                                .then(a.track_number.cmp(&b.track_number))
-                        });
-                        filtered
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                }
-            };
-
-            if !tracks.is_empty() {
-                let first_path = tracks[0].path.clone();
-                {
-                    let mut queue = app_state.queue.lock().unwrap();
-                    let mut index = app_state.current_queue_index.lock().unwrap();
-                    *queue = tracks;
-                    *index = 0;
-                }
-                play_track_internal(state, &app_state, first_path.clone(), &reply_tx).await;
-                broadcast_queue_update(state, &app_state).await;
+            let tracks = get_sorted_tracks(&app_state, |t| {
+                t.album == album && (artist.is_empty() || t.artist == artist)
+            });
+            if let Some(first) = tracks.first() {
+                let first_path = first.path.clone();
+                set_queue(&app_state, tracks);
+                play_track_internal(state, &app_state, first_path, reply_tx).await;
+                broadcast_queue(state, &app_state).await;
             } else {
-                 let _ = reply_tx.send(ServerMessage::Error {
+                let _ = reply_tx.send(ServerMessage::Error {
                     message: "Album not found or empty".to_string(),
                 }).await;
             }
         }
 
+        // ── Play all tracks of an artist ─────────────────────────────────
         ClientMessage::PlayArtist { artist } => {
-            log::info!("📱 PlayArtist command from mobile ({}) - Artist: {}", client_id, artist);
-            
-            let tracks = {
-                let db_guard = app_state.db.lock().unwrap();
-                if let Some(ref db) = *db_guard {
-                    if let Ok(all_tracks) = db.get_all_tracks() {
-                         let mut filtered: Vec<_> = all_tracks.into_iter()
-                            .filter(|t| t.artist == artist)
-                            .collect();
-                        // Sort by album, then disc, then track
-                        filtered.sort_by(|a, b| {
-                             a.album.cmp(&b.album)
-                                .then(a.disc_number.cmp(&b.disc_number))
-                                .then(a.track_number.cmp(&b.track_number))
-                        });
-                        filtered
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                }
-            };
-
-            if !tracks.is_empty() {
-                let first_path = tracks[0].path.clone();
-                {
-                    let mut queue = app_state.queue.lock().unwrap();
-                    let mut index = app_state.current_queue_index.lock().unwrap();
-                    *queue = tracks;
-                    *index = 0;
-                }
-                play_track_internal(state, &app_state, first_path.clone(), &reply_tx).await;
-                broadcast_queue_update(state, &app_state).await;
+            let tracks = get_sorted_tracks(&app_state, |t| t.artist == artist);
+            if let Some(first) = tracks.first() {
+                let first_path = first.path.clone();
+                set_queue(&app_state, tracks);
+                play_track_internal(state, &app_state, first_path, reply_tx).await;
+                broadcast_queue(state, &app_state).await;
             } else {
-                 let _ = reply_tx.send(ServerMessage::Error {
+                let _ = reply_tx.send(ServerMessage::Error {
                     message: "Artist not found or empty".to_string(),
                 }).await;
             }
         }
 
-        ClientMessage::ToggleShuffle => {
-            {
-                let mut shuffle = app_state.shuffle.lock().unwrap();
-                *shuffle = !*shuffle;
-            }
-            send_current_status_internal(state, &app_state, &reply_tx).await;
-        }
-
-        ClientMessage::CycleRepeat => {
-            {
-                let mut repeat = app_state.repeat_mode.lock().unwrap();
-                *repeat = match repeat.as_str() {
-                    "off" => "all".to_string(),
-                    "all" => "one".to_string(),
-                    "one" => "off".to_string(),
-                    _ => "off".to_string(),
-                };
-            }
-            send_current_status_internal(state, &app_state, &reply_tx).await;
-        }
-        
-        ClientMessage::RequestStreamToMobile => {
-            // Get current track and prepare stream URL
-            let (track_path, sample, url) = {
-                let player_guard = app_state.player.lock().ok();
-                match player_guard.as_ref().and_then(|p| p.as_ref()) {
-                    Some(player) => {
-                        let status = player.get_status();
-                        match status.track {
-                            Some(track) => {
-                                let position = status.position_secs;
-                                // Calculate sample position (assuming 44.1kHz)
-                                let sample = (position * 44100.0) as u64;
-                                let local_ip = local_ip().unwrap_or("127.0.0.1".to_string());
-                                let port = state.config.port;
-                                let encoded_path = urlencoding::encode(&track.path).to_string();
-                                let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
-                                (Some(track.path), sample, url)
-                            }
-                            None => {
-                                state.broadcast(ServerEvent::Error {
-                                    message: "No track currently playing".to_string(),
-                                });
-                                return;
-                            }
-                        }
-                    }
-                    None => {
-                        state.broadcast(ServerEvent::Error {
-                            message: "Player not initialized".to_string(),
-                        });
-                        return;
-                    }
-                }
+        // ── Queue manipulation ───────────────────────────────────────────
+        ClientMessage::SetQueue { paths } => {
+            let tracks = {
+                let db_guard = app_state.db.lock().unwrap();
+                if let Some(ref db) = *db_guard {
+                    if let Ok(all) = db.get_all_tracks() {
+                        paths.iter().filter_map(|p| all.iter().find(|t| &t.path == p).cloned()).collect()
+                    } else { Vec::new() }
+                } else { Vec::new() }
             };
-            
-            let local_ip = determine_accessible_ip().unwrap_or_else(|| {
-                log::warn!("⚠️ Failed to determine local IP - defaulting to 127.0.0.1");
-                "127.0.0.1".to_string()
-            });
-            let port = state.config.port;
-            let encoded_path = urlencoding::encode(&track_path.clone().unwrap_or_default()).to_string();
-            let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
-            log::info!("🌐 Generated stream URL with IP: {} ({})", local_ip, url);
-            log::info!("[Stream] Mobile client requesting stream for: {:?}", track_path);
-            state.broadcast(ServerEvent::HandoffPrepare { sample, url });
+            set_queue(&app_state, tracks);
+            broadcast_queue(state, &app_state).await;
         }
-        
-        ClientMessage::HandoffReady => {
-            // Pause desktop playback and commit handoff
-            if let Ok(mut player_guard) = app_state.player.lock() {
-                if let Some(ref mut player) = *player_guard {
-                    player.pause();
-                }
-            }
-            state.broadcast(ServerEvent::HandoffCommit);
-        }
-        
-        ClientMessage::StartMobilePlayback => {
-            log::info!("📱 StartMobilePlayback command from mobile ({})", client_id);
 
-            // Finalize any active desktop session before switching output
-            if let Ok(mut tracker) = app_state.stats_tracker.lock() {
-                let now_ms = crate::stats::current_time_ms();
-                if let Some(event) = tracker.update_desktop(None, 0.0, false, now_ms) {
-                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
-                    state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
-                    let _ = state.app_handle.emit("stats-updated", ());
-                }
-            }
-            
-            // Set active output to mobile
-            {
-                let mut output = state.active_output.write().await;
-                *output = "mobile".to_string();
-            }
-            log::info!("🔊 Active output set to: mobile");
-
-            // Pause PC playback so mobile assumes independent control
-            if let Ok(mut player_guard) = app_state.player.lock() {
-                if let Some(ref mut player) = *player_guard {
-                    let _ = player.pause();
-                    log::info!("⏸️ PC playback paused for mobile streaming");
-                }
-            }
-            
-            // Get current track info and send stream URL to mobile
-            let (track_path, position, stream_url) = {
-                log::info!("🔍 Attempting to generate stream URL for mobile playback...");
-                let player_guard = app_state.player.lock().ok();
-                match player_guard.as_ref().and_then(|p| p.as_ref()) {
-                    Some(player) => {
-                        let status = player.get_status();
-                        match status.track {
-                            Some(track) => {
-                                let position = status.position_secs;
-                                log::info!("📀 Current track: {} (position: {:.2}s)", track.path, position);
-                                // Try to determine accessible IP address for the mobile client
-                                let local_ip = determine_accessible_ip().unwrap_or_else(|| {
-                                    log::warn!("⚠️ Failed to determine local IP - defaulting to 127.0.0.1");
-                                    log::info!("💡 TIP: If mobile can't connect, check that PC and mobile are on the same WiFi network");
-                                    "127.0.0.1".to_string()
-                                });
-                                let port = state.config.port;
-                                let encoded_path = urlencoding::encode(&track.path).to_string();
-                                let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
-                                log::info!("🌐 Generated stream URL: {}", url);
-                                log::info!("✅ Stream URL ready for mobile client (IP: {}, Port: {})", local_ip, port);
-                                (Some(track.path), position, url)
-                            }
-                            None => (None, 0.0, String::new())
-                        }
-                    }
-                    None => (None, 0.0, String::new())
-                }
+        ClientMessage::AddToQueue { path } => {
+            let track = {
+                let db_guard = app_state.db.lock().unwrap();
+                db_guard.as_ref().and_then(|db| {
+                    db.get_all_tracks().ok().and_then(|all| all.into_iter().find(|t| t.path == path))
+                })
             };
-            
-            if track_path.is_some() {
-                log::info!("🎵 Sending stream URL to mobile: {}", stream_url);
-                let _ = reply_tx.send(ServerMessage::HandoffPrepare { 
-                    sample: (position * 44100.0) as u64,
-                    url: stream_url 
-                }).await;
-                
-                // Notify frontend that output changed
-                let _ = state.app_handle.emit("output-changed", serde_json::json!({
-                    "output": "mobile"
-                }));
-            } else {
-                let _ = reply_tx.send(ServerMessage::Error {
-                    message: "No track currently playing".to_string(),
-                }).await;
+            if let Some(t) = track {
+                app_state.queue.lock().unwrap().push(t);
+                broadcast_queue(state, &app_state).await;
             }
         }
-        
-        ClientMessage::StopMobilePlayback => {
-            log::info!("📱 StopMobilePlayback command from mobile ({})", client_id);
 
-            // Finalize any active mobile session
-            if let Ok(mut tracker) = app_state.stats_tracker.lock() {
-                let now_ms = crate::stats::current_time_ms();
-                if let Some(event) = tracker.stop_mobile(now_ms) {
-                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
-                    state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
-                    let _ = state.app_handle.emit("stats-updated", ());
-                }
-            }
-            
-            // Set active output to desktop
-            {
-                let mut output = state.active_output.write().await;
-                *output = "desktop".to_string();
-            }
-            log::info!("🔊 Active output set to: desktop");
-
-            // Unmute and resume PC playback
-            if let Ok(mut player_guard) = app_state.player.lock() {
-                if let Some(ref mut player) = *player_guard {
-                    let _ = player.set_mute(false);
-                    let _ = player.resume();
-                    log::info!("▶️ PC playback unmuted and resumed");
-                }
-            }
-            state.broadcast(ServerEvent::StreamStopped);
-            
-            // Notify frontend that output changed
-            let _ = state.app_handle.emit("output-changed", serde_json::json!({
-                "output": "desktop"
-            }));
+        // ── Favorites ────────────────────────────────────────────────────
+        ClientMessage::ToggleFavorite { path } => {
+            log::info!("[WS] ToggleFavorite for {} (not yet implemented in DB)", path);
+            let _ = reply_tx.send(ServerMessage::Ack {
+                action: "toggleFavorite".to_string(),
+            }).await;
         }
 
+        // ── Library ──────────────────────────────────────────────────────
+        ClientMessage::GetLibrary => {
+            let tracks = build_track_details(&app_state);
+            let _ = reply_tx.send(ServerMessage::Library { tracks }).await;
+        }
+
+        // ── Lyrics ───────────────────────────────────────────────────────
         ClientMessage::GetLyrics => {
-            log::info!("📱 GetLyrics request from mobile ({})", client_id);
-            
-            // Get current track to fetch lyrics for
             let current_track = {
-                if let Ok(player_guard) = app_state.player.lock() {
-                    if let Some(ref player) = *player_guard {
-                        player.get_status().track
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                app_state.player.lock().ok().and_then(|g| {
+                    g.as_ref().and_then(|p| p.get_status().track)
+                })
             };
 
             if let Some(track) = current_track {
+                let reply = reply_tx.clone();
                 let artist = track.artist.clone();
                 let title = track.title.clone();
                 let duration = track.duration_secs as u32;
                 let path = track.path.clone();
-                
-                log::info!("📝 Fetching lyrics for: {} - {}", artist, title);
-                
-                // Fetch in background task to not block
-                let reply_tx = reply_tx.clone();
+
                 tokio::task::spawn_blocking(move || {
-                    // Try local lrc first
-                    println!("[Lyrics] Checking local file for: {}", path);
+                    // Try local .lrc first
                     if let Some(lrc) = crate::lyrics_fetcher::find_local_lrc(&path) {
-                        println!("[Lyrics] Found local file!");
-                        let _ = reply_tx.blocking_send(ServerMessage::Lyrics {
-                            track_path: path.clone(),
+                        let _ = reply.blocking_send(ServerMessage::Lyrics {
+                            track_path: path,
                             has_synced: lrc.synced_lyrics.is_some(),
                             synced_lyrics: lrc.synced_lyrics.clone(),
                             synced_lyrics_romaji: lrc.synced_lyrics.as_ref().and_then(|t| {
@@ -1017,11 +563,11 @@ async fn handle_client_message(
                         });
                         return;
                     }
-                    
+
                     // Fetch from API
                     match crate::lyrics_fetcher::fetch_lyrics(&artist, &title, duration, |_| {}) {
                         Ok(lyrics) => {
-                             let _ = reply_tx.blocking_send(ServerMessage::Lyrics {
+                            let _ = reply.blocking_send(ServerMessage::Lyrics {
                                 track_path: path,
                                 has_synced: lyrics.synced_lyrics.is_some(),
                                 synced_lyrics: lyrics.synced_lyrics.clone(),
@@ -1036,623 +582,586 @@ async fn handle_client_message(
                         }
                         Err(e) => {
                             log::warn!("Failed to fetch lyrics: {}", e);
-                            let _ = reply_tx.blocking_send(ServerMessage::Error {
+                            let _ = reply.blocking_send(ServerMessage::Error {
                                 message: "Lyrics not found".to_string(),
                             });
                         }
                     }
                 });
             } else {
-                 let _ = reply_tx.send(ServerMessage::Error {
+                let _ = reply_tx.send(ServerMessage::Error {
                     message: "No track playing".to_string(),
                 }).await;
             }
         }
-        
-        ClientMessage::MobilePositionUpdate { position_secs } => {
-            log::debug!("📱 Mobile position update: {:.2}s", position_secs);
+
+        // ── Mobile streaming: start ──────────────────────────────────────
+        ClientMessage::StartMobilePlayback => {
+            log::info!("[WS] StartMobilePlayback from {}", client_id);
+
+            // Finalize any active desktop stats session
+            finalize_desktop_stats(&app_state, state).await;
+
+            // Switch output to mobile
+            *state.active_output.write().await = "mobile".to_string();
+
+            // Pause PC playback
+            if let Ok(mut g) = app_state.player.lock() {
+                if let Some(ref mut p) = *g { let _ = p.pause(); }
+            }
+
+            // Build & send stream URL
+            if let Some((path, position)) = current_track_info(&app_state) {
+                let url = build_stream_url(state, &path);
+                let _ = reply_tx.send(ServerMessage::HandoffPrepare {
+                    sample: (position * 44100.0) as u64,
+                    url,
+                }).await;
+
+                let _ = state.app_handle.emit("output-changed", serde_json::json!({
+                    "output": "mobile"
+                }));
+            } else {
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "No track currently playing".to_string(),
+                }).await;
+            }
+        }
+
+        // ── Mobile streaming: stop ───────────────────────────────────────
+        ClientMessage::StopMobilePlayback => {
+            log::info!("[WS] StopMobilePlayback from {}", client_id);
+
+            // Finalize mobile stats session
             if let Ok(mut tracker) = app_state.stats_tracker.lock() {
                 let now_ms = crate::stats::current_time_ms();
-                let song_id = if let Ok(player_guard) = app_state.player.lock() {
-                    player_guard
-                        .as_ref()
-                        .and_then(|player| player.get_status().track.map(|track| track.path))
-                } else {
-                    None
-                };
+                if let Some(event) = tracker.stop_mobile(now_ms) {
+                    let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
+                    state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
+                    let _ = state.app_handle.emit("stats-updated", ());
+                }
+            }
 
+            // Switch back to desktop
+            *state.active_output.write().await = "desktop".to_string();
+
+            // Resume PC playback
+            if let Ok(mut g) = app_state.player.lock() {
+                if let Some(ref mut p) = *g {
+                    let _ = p.set_mute(false);
+                    let _ = p.resume();
+                }
+            }
+
+            state.broadcast(ServerEvent::StreamStopped);
+
+            let _ = state.app_handle.emit("output-changed", serde_json::json!({
+                "output": "desktop"
+            }));
+        }
+
+        // ── Mobile position updates ──────────────────────────────────────
+        ClientMessage::MobilePositionUpdate { position_secs } => {
+            // Update stats tracker
+            if let Ok(mut tracker) = app_state.stats_tracker.lock() {
+                let now_ms = crate::stats::current_time_ms();
+                let song_id = app_state.player.lock().ok().and_then(|g| {
+                    g.as_ref().and_then(|p| p.get_status().track.map(|t| t.path))
+                });
                 if let Some(event) = tracker.update_mobile_position(song_id, position_secs, now_ms) {
                     let _ = crate::stats::record_stats_event(&app_state, &state.app_handle, event);
                     state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
                     let _ = state.app_handle.emit("stats-updated", ());
                 }
             }
-            // Sync position with React frontend
+            // Sync with React frontend
             let _ = state.app_handle.emit("mobile-position-update", serde_json::json!({
-                "position_secs": position_secs
+                "position_secs": position_secs,
             }));
         }
-        
-        ClientMessage::StopStreamToMobile => {
-            // Resume desktop playback
-            if let Ok(mut player_guard) = app_state.player.lock() {
-                if let Some(ref mut player) = *player_guard {
-                    let _ = player.resume();
-                }
-            }
-            state.broadcast(ServerEvent::StreamStopped);
-        }
 
-        ClientMessage::GetLibrary => {
-            log::info!("📱 GetLibrary request from mobile ({})", client_id);
-            
-            // Fetch all tracks from DB
-            let tracks = if let Ok(db_guard) = app_state.db.lock() {
-                if let Some(ref db) = *db_guard {
-                    if let Ok(all_tracks) = db.get_all_tracks() {
-                        all_tracks.into_iter().map(|t| super::routes::TrackDetail {
-                            path: t.path.clone(),
-                            title: t.title,
-                            artist: t.artist,
-                            album: t.album,
-                            duration_secs: t.duration_secs,
-                            disc_number: t.disc_number,
-                            track_number: t.track_number,
-                            cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
-                            title_romaji: t.title_romaji,
-                            title_en: t.title_en,
-                            artist_romaji: t.artist_romaji,
-                            artist_en: t.artist_en,
-                            album_romaji: t.album_romaji,
-                            album_en: t.album_en,
-                            playlist_track_id: t.playlist_track_id,
-                        }).collect()
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            };
-            
-            log::info!("📱 Sending library with {} tracks to mobile", tracks.len());
-            let _ = reply_tx.send(ServerMessage::Library { tracks }).await;
-        }
-        
+        // ── Playlists ────────────────────────────────────────────────────
         ClientMessage::GetPlaylists => {
-            log::info!("📱 GetPlaylists request from mobile ({})", client_id);
-            
-            // Fetch all playlists from DB
-            let playlists: Vec<PlaylistResponse> = if let Ok(db_guard) = app_state.db.lock() {
-                if let Some(ref db) = *db_guard {
-                    if let Ok(all_playlists) = db.get_playlists() {
-                        all_playlists.into_iter().map(|p| {
-                            // Get track count for this playlist
-                            let track_count = db.get_playlist_tracks(&p.id)
-                                .map(|tracks| tracks.len() as i32)
-                                .unwrap_or(0);
-                            
-                            PlaylistResponse {
-                                id: p.id,
-                                name: p.name,
-                                track_count,
-                                created_at: p.created_at,
-                                updated_at: p.updated_at,
-                            }
-                        }).collect()
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            };
-            
-            log::info!("📱 Sending {} playlists to mobile", playlists.len());
+            let playlists = build_playlists_list(&app_state);
             let _ = reply_tx.send(ServerMessage::Playlists { playlists }).await;
         }
-        
+
         ClientMessage::GetPlaylistTracks { playlist_id } => {
-            log::info!("📱 GetPlaylistTracks request for playlist {} from mobile ({})", playlist_id, client_id);
-            
-            // Fetch tracks from playlist
-            let tracks = if let Ok(db_guard) = app_state.db.lock() {
-                if let Some(ref db) = *db_guard {
-                    if let Ok(playlist_tracks) = db.get_playlist_tracks(&playlist_id) {
-                        playlist_tracks.into_iter().map(|t| super::routes::TrackDetail {
-                            path: t.path.clone(),
-                            title: t.title,
-                            artist: t.artist,
-                            album: t.album,
-                            duration_secs: t.duration_secs,
-                            disc_number: t.disc_number,
-                            track_number: t.track_number,
-                            cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
-                            title_romaji: t.title_romaji,
-                            title_en: t.title_en,
-                            artist_romaji: t.artist_romaji,
-                            artist_en: t.artist_en,
-                            album_romaji: t.album_romaji,
-                            album_en: t.album_en,
-                            playlist_track_id: t.playlist_track_id,
-                        }).collect()
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            };
-            
-            log::info!("📱 Sending {} tracks from playlist {} to mobile", tracks.len(), playlist_id);
-            let _ = reply_tx.send(ServerMessage::PlaylistTracks { 
-                playlist_id, 
-                tracks 
-            }).await;
-        }
-        
-        ClientMessage::AddToPlaylist { playlist_id, path } => {
-            log::info!("📱 AddToPlaylist request - playlist: {}, track: {} from mobile ({})", playlist_id, path, client_id);
-            
-            let result = {
-                if let Ok(db_guard) = app_state.db.lock() {
-                    if let Some(ref db) = *db_guard {
-                        db.add_track_to_playlist(&playlist_id, &path)
-                    } else {
-                        log::error!("❌ Database not initialized");
-                        Err(rusqlite::Error::QueryReturnedNoRows)
-                    }
-                } else {
-                    log::error!("❌ Failed to acquire database lock");
-                    Err(rusqlite::Error::QueryReturnedNoRows)
-                }
-            };
-            
-            match result {
-                Ok(_) => {
-                    log::info!("✅ Track added to playlist");
-                    let _ = reply_tx.send(ServerMessage::Error {
-                        message: "ok:track_added".to_string(),
-                    }).await;
-                }
-                Err(e) => {
-                    log::error!("❌ Failed to add track to playlist: {:?}", e);
-                    let _ = reply_tx.send(ServerMessage::Error {
-                        message: format!("Failed to add track: {}", e),
-                    }).await;
-                }
-            }
-        }
-        
-        ClientMessage::RemoveFromPlaylist { playlist_id, playlist_track_id } => {
-            log::info!("📱 RemoveFromPlaylist request - playlist: {}, track_id: {} from mobile ({})", playlist_id, playlist_track_id, client_id);
-            
-            let success = {
-                if let Ok(db_guard) = app_state.db.lock() {
-                    if let Some(ref db) = *db_guard {
-                        db.remove_track_from_playlist(&playlist_id, playlist_track_id).is_ok()
-                    } else { false }
-                } else { false }
-            };
-            
-            if success {
-                let _ = reply_tx.send(ServerMessage::Error {
-                    message: "ok:track_removed".to_string(),
-                }).await;
-            }
-        }
-        
-        ClientMessage::ReorderPlaylistTracks { playlist_id, track_ids } => {
-            log::info!("📱 ReorderPlaylistTracks request - playlist: {} from mobile ({})", playlist_id, client_id);
-            
-            let success = {
-                if let Ok(db_guard) = app_state.db.lock() {
-                    if let Some(ref db) = *db_guard {
-                        db.reorder_playlist_tracks(&playlist_id, track_ids).is_ok()
-                    } else { false }
-                } else { false }
-            };
-            
-            if success {
-                let _ = reply_tx.send(ServerMessage::Error {
-                    message: "ok:tracks_reordered".to_string(),
-                }).await;
-            }
-        }
-        
-        ClientMessage::Ping => {
-            let _ = reply_tx.send(ServerMessage::Pong).await;
+            let tracks = build_playlist_track_details(&app_state, &playlist_id);
+            let _ = reply_tx.send(ServerMessage::PlaylistTracks { playlist_id, tracks }).await;
         }
 
-        ClientMessage::WebrtcOffer { target_peer_id: _, sdp } => {
-            // Broadcast offer to all (filtering usually happens on client or server should unicast)
-            // For now, broadcasting with from_id
-            state.broadcast(ServerEvent::WebrtcOffer { 
-                from_peer_id: client_id.to_string(), 
-                sdp 
-            });
+        ClientMessage::AddToPlaylist { playlist_id, path } => {
+            let ok = {
+                let db_guard = app_state.db.lock().unwrap();
+                db_guard.as_ref().map_or(false, |db| db.add_track_to_playlist(&playlist_id, &path).is_ok())
+            };
+            if ok {
+                let _ = reply_tx.send(ServerMessage::Ack { action: "addToPlaylist".to_string() }).await;
+            } else {
+                let _ = reply_tx.send(ServerMessage::Error { message: "Failed to add track".to_string() }).await;
+            }
         }
-        
-        ClientMessage::WebrtcAnswer { target_peer_id, sdp } => {
-             state.broadcast(ServerEvent::WebrtcAnswer { 
-                target_peer_id, 
-                sdp 
-            });
+
+        ClientMessage::RemoveFromPlaylist { playlist_id, playlist_track_id } => {
+            let ok = {
+                let db_guard = app_state.db.lock().unwrap();
+                db_guard.as_ref().map_or(false, |db| db.remove_track_from_playlist(&playlist_id, playlist_track_id).is_ok())
+            };
+            if ok {
+                let _ = reply_tx.send(ServerMessage::Ack { action: "removeFromPlaylist".to_string() }).await;
+            } else {
+                let _ = reply_tx.send(ServerMessage::Error { message: "Failed to remove track".to_string() }).await;
+            }
         }
-        
-        ClientMessage::IceCandidate { target_peer_id: _, candidate } => {
-            state.broadcast(ServerEvent::IceCandidate { 
-                from_peer_id: client_id.to_string(), 
-                candidate 
-            });
+
+        ClientMessage::ReorderPlaylistTracks { playlist_id, track_ids } => {
+            let ok = {
+                let db_guard = app_state.db.lock().unwrap();
+                db_guard.as_ref().map_or(false, |db| db.reorder_playlist_tracks(&playlist_id, track_ids).is_ok())
+            };
+            if ok {
+                let _ = reply_tx.send(ServerMessage::Ack { action: "reorderPlaylistTracks".to_string() }).await;
+            } else {
+                let _ = reply_tx.send(ServerMessage::Error { message: "Failed to reorder tracks".to_string() }).await;
+            }
         }
-        
-        // TODO: Implement remaining messages
-        _ => {
-            log::debug!("Unhandled message type");
+
+        // ── Keepalive ────────────────────────────────────────────────────
+        ClientMessage::Ping => {
+            let _ = reply_tx.send(ServerMessage::Pong).await;
         }
     }
 }
 
-/// Send current playback status to all clients (internal use)
-async fn send_current_status_internal(
+// ═════════════════════════════════════════════════════════════════════════════
+// Helper functions
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Send the full player state directly to one client (media + status + queue).
+async fn send_full_state(
     state: &Arc<ServerState>,
     app_state: &tauri::State<'_, crate::AppState>,
     reply_tx: &tokio::sync::mpsc::Sender<ServerMessage>,
 ) {
-    let (media_event, status_event) = get_player_state_events(state, app_state).await;
-    
-    // Send MediaSession message directly to client
-    let media_msg: ServerMessage = media_event.clone().into();
-    let _ = reply_tx.send(media_msg).await;
-    log::debug!("✅ Sent MediaSession to mobile client");
-    
-    // Also broadcast to all connected clients
-    state.broadcast(media_event.clone());
-    
-    // Send Status message directly to client
-    let status_msg: ServerMessage = status_event.clone().into();
-    let _ = reply_tx.send(status_msg).await;
-    log::debug!("✅ Sent Status to mobile client");
+    let (media, status) = build_state_events(state, app_state).await;
 
-    // Also send QueueUpdate to client
-    let queue_msg = {
-        let queue = app_state.queue.lock().unwrap();
-        let index = *app_state.current_queue_index.lock().unwrap();
-        ServerMessage::QueueUpdate {
-            queue: queue.iter().map(|t| super::TrackSummary {
-                path: t.path.clone(),
-                title: t.title.clone(),
-                artist: t.artist.clone(),
-                album: t.album.clone(),
-                duration_secs: t.duration_secs,
-                cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
-                title_romaji: t.title_romaji.clone(),
-                title_en: t.title_en.clone(),
-                artist_romaji: t.artist_romaji.clone(),
-                artist_en: t.artist_en.clone(),
-                album_romaji: t.album_romaji.clone(),
-                album_en: t.album_en.clone(),
-            }).collect(),
-            current_index: index as i32,
-        }
-    };
-    let _ = reply_tx.send(queue_msg).await;
+    let _ = reply_tx.send(media.into()).await;
+    let _ = reply_tx.send(status.into()).await;
+    let _ = reply_tx.send(build_queue_message(app_state)).await;
 
-    // Emit event to Tauri frontend to refresh UI
+    // Tell the Tauri frontend to refresh
     let _ = state.app_handle.emit("refresh-player-state", ());
-    
-    // Also broadcast Status to all connected clients
-    state.broadcast(status_event);
 }
 
-/// Helper for starting playback of a track (desktop or mobile)
-/// Helper for starting playback of a track (desktop or mobile)
+/// Broadcast player state to **all** connected clients.
+async fn broadcast_player_state(
+    state: &Arc<ServerState>,
+    app_state: &tauri::State<'_, crate::AppState>,
+) {
+    let (media, status) = build_state_events(state, app_state).await;
+    state.broadcast(media);
+    state.broadcast(status);
+    let _ = state.app_handle.emit("refresh-player-state", ());
+}
+
+/// Broadcast queue update to all clients.
+async fn broadcast_queue(
+    state: &Arc<ServerState>,
+    app_state: &tauri::State<'_, crate::AppState>,
+) {
+    let (tracks, index) = read_queue(app_state);
+    state.broadcast(ServerEvent::QueueUpdate { tracks, current_index: index as i32 });
+}
+
+/// Public entry point for the periodic broadcast task in `mod.rs`.
+pub async fn send_current_status_with_handle(state: &Arc<ServerState>, app_handle: &AppHandle) {
+    let app_state: tauri::State<'_, crate::AppState> = app_handle.state();
+    let (media, status) = build_state_events(state, &app_state).await;
+    state.broadcast(media);
+    state.broadcast(status);
+}
+
+// ─── Track / queue helpers ───────────────────────────────────────────────────
+
+/// Advance the queue by `delta` positions (+1 = next, -1 = previous).
+/// Returns the path to play, or `None` if the queue is empty.
+fn advance_queue(
+    app_state: &tauri::State<'_, crate::AppState>,
+    delta: i32,
+) -> Option<String> {
+    let queue = app_state.queue.lock().unwrap();
+    if queue.is_empty() { return None; }
+
+    let mut index = app_state.current_queue_index.lock().unwrap();
+    let repeat = app_state.repeat_mode.lock().unwrap();
+    let len = queue.len() as i32;
+
+    let mut next = *index as i32 + delta;
+    if next >= len {
+        match repeat.as_str() {
+            "all" => next = 0,
+            "one" => next = *index as i32,
+            _ => return None, // repeat off: stop at end
+        }
+    } else if next < 0 {
+        match repeat.as_str() {
+            "all" => next = len - 1,
+            "one" => next = *index as i32,
+            _ => next = 0, // repeat off: stay at first track
+        }
+    }
+    *index = next as usize;
+    Some(queue[next as usize].path.clone())
+}
+
+/// Load and optionally start playback of a track, handling both desktop and mobile output.
 async fn play_track_internal(
     state: &Arc<ServerState>,
     app_state: &tauri::State<'_, crate::AppState>,
     path: String,
     reply_tx: &tokio::sync::mpsc::Sender<ServerMessage>,
 ) {
-    let is_mobile = {
-        state.active_output.read().await.as_str() == "mobile"
-    };
+    let is_mobile = state.active_output.read().await.as_str() == "mobile";
 
-    // Get track info from DB first so we can pass enriched metadata to the player
+    // Fetch enriched track from DB
     let track_info = {
         let db_guard = app_state.db.lock().unwrap();
-        if let Some(ref db) = *db_guard {
-            db.get_track(&path).unwrap_or(None)
-        } else {
-            None
-        }
+        db_guard.as_ref().and_then(|db| db.get_track(&path).unwrap_or(None))
     };
 
-    if let Ok(mut player_guard) = app_state.player.lock() {
-        if let Some(ref mut player) = *player_guard {
-            let track_to_play = track_info.clone().unwrap_or_else(|| crate::audio::TrackInfo {
+    // Load into player
+    if let Ok(mut g) = app_state.player.lock() {
+        if let Some(ref mut player) = *g {
+            let track = track_info.clone().unwrap_or_else(|| crate::audio::TrackInfo {
                 path: path.clone(),
                 ..crate::audio::TrackInfo::default()
             });
-
             if is_mobile {
-                let _ = player.load_track(track_to_play);
+                let _ = player.load_track(track);
             } else {
-                let _ = player.play_track(track_to_play);
+                let _ = player.play_track(track);
             }
         }
     }
-    
-    // Ensure queue is consistent (if empty, populate; if exists, update index)
-    let should_broadcast = {
-        let mut needs_broadcast = false;
-        if let Some(track) = track_info {
-            let mut queue = app_state.queue.lock().unwrap();
-            let mut index = app_state.current_queue_index.lock().unwrap();
-            
-            if queue.is_empty() {
-                *queue = vec![track.clone()];
+
+    // Update queue index (or seed the queue if empty) without holding locks across await.
+    let should_broadcast_queue = {
+        let mut queue = app_state.queue.lock().unwrap();
+        let mut index = app_state.current_queue_index.lock().unwrap();
+
+        if queue.is_empty() {
+            if let Some(t) = track_info {
+                *queue = vec![t];
                 *index = 0;
-                needs_broadcast = true;
-            } else if let Some(i) = queue.iter().position(|t| t.path == path) {
-                *index = i;
+                true
+            } else {
+                false
             }
+        } else if let Some(i) = queue.iter().position(|t| t.path == path) {
+            *index = i;
+            false
+        } else {
+            false
         }
-        needs_broadcast
     };
 
-    if should_broadcast {
-        broadcast_queue_update(state, app_state).await;
+    if should_broadcast_queue {
+        broadcast_queue(state, app_state).await;
     }
 
+    // For mobile: send the stream URL
     if is_mobile {
-        // Signal mobile to stop current stream before sending new one
+        // Tell mobile to tear down current stream first
         let _ = reply_tx.send(ServerMessage::StreamStopped).await;
-        
-        let local_ip = determine_accessible_ip().unwrap_or_else(|| {
-            log::warn!("⚠️ Failed to determine local IP - defaulting to 127.0.0.1");
-            "127.0.0.1".to_string()
-        });
-        let port = state.config.port;
-        let encoded_path = urlencoding::encode(&path).to_string();
-        let url = format!("http://{}:{}/stream/{}", local_ip, port, encoded_path);
-        log::info!("🌐 Generated stream URL with IP: {} ({})", local_ip, url);
-        
-        let _ = reply_tx.send(ServerMessage::HandoffPrepare { 
-            sample: 0,
-            url 
-        }).await;
+
+        let url = build_stream_url(state, &path);
+        let _ = reply_tx.send(ServerMessage::HandoffPrepare { sample: 0, url }).await;
     }
 
-    sync_discord_for_mobile(state, &app_state).await;
-    send_current_status_internal(state, &app_state, &reply_tx).await;
+    sync_discord(state, app_state).await;
+    broadcast_player_state(state, app_state).await;
 }
 
-/// Broadcast queue update to all clients
-async fn broadcast_queue_update(state: &Arc<ServerState>, app_state: &tauri::State<'_, crate::AppState>) {
-    let (tracks, index) = {
-        let queue = app_state.queue.lock().unwrap();
-        let index = *app_state.current_queue_index.lock().unwrap();
-        (
-            queue.iter().map(|t| super::TrackSummary {
-                path: t.path.clone(),
-                title: t.title.clone(),
-                artist: t.artist.clone(),
-                album: t.album.clone(),
-                duration_secs: t.duration_secs,
-                cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
-                title_romaji: t.title_romaji.clone(),
-                title_en: t.title_en.clone(),
-                artist_romaji: t.artist_romaji.clone(),
-                artist_en: t.artist_en.clone(),
-                album_romaji: t.album_romaji.clone(),
-                album_en: t.album_en.clone(),
-            }).collect::<Vec<_>>(),
-            index
-        )
-    };
-    
-    state.broadcast(ServerEvent::QueueUpdate { tracks, current_index: index as i32 });
-    // Note: ServerEvent::QueueUpdate should probably include current_index too, but ServerEvent enum needs update
-}
-
-/// Send current playback status (public, for periodic broadcasting from mod.rs)
-pub async fn send_current_status_with_handle(state: &Arc<ServerState>, app_handle: &AppHandle) {
-    let app_state: tauri::State<'_, crate::AppState> = app_handle.state();
-    send_current_status_broadcast_only(state, &app_state).await;
-}
-
-/// Send current playback status (broadcast only, for periodic updates)
-async fn send_current_status_broadcast_only(
-    state: &Arc<ServerState>,
-    app_state: &tauri::State<'_, crate::AppState>,
-) {
-    let (media_event, status_event) = get_player_state_events(state, app_state).await;
-    state.broadcast(media_event);
-    state.broadcast(status_event);
-}
-
-/// Helper to get consistent MediaSession and Status events for broadcasting/sending
-async fn get_player_state_events(
+/// Build a MediaSession + Status event pair from the current player state.
+async fn build_state_events(
     state: &Arc<ServerState>,
     app_state: &tauri::State<'_, crate::AppState>,
 ) -> (ServerEvent, ServerEvent) {
-    let (track_id, title, artist, album, duration, cover_url, 
+    let (track_id, title, artist, album, duration, cover_url,
          title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
          is_playing, position, volume) = {
-        if let Ok(player_guard) = app_state.player.lock() {
-            if let Some(ref player) = *player_guard {
-                let status = player.get_status();
-                let is_playing = status.state == crate::audio::PlayerState::Playing;
-                let position = status.position_secs;
-                let volume = status.volume;
-                
-                if let Some(ref track) = status.track {
-                    (
-                        track.path.clone(),
-                        track.title.clone(),
-                        track.artist.clone(),
-                        track.album.clone(),
-                        track.duration_secs,
-                        Some(format!("/cover/{}", urlencoding::encode(track.cover_image.as_deref().unwrap_or(&track.path)))),
-                        track.title_romaji.clone(),
-                        track.title_en.clone(),
-                        track.artist_romaji.clone(),
-                        track.artist_en.clone(),
-                        track.album_romaji.clone(),
-                        track.album_en.clone(),
-                        is_playing,
-                        position,
-                        volume,
-                    )
+        app_state.player.lock().ok().map(|g| {
+            g.as_ref().map(|player| {
+                let s = player.get_status();
+                let playing = s.state == crate::audio::PlayerState::Playing;
+                let pos = s.position_secs;
+                let vol = s.volume;
+                if let Some(ref t) = s.track {
+                    (t.path.clone(), t.title.clone(), t.artist.clone(), t.album.clone(),
+                     t.duration_secs,
+                     Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                     t.title_romaji.clone(), t.title_en.clone(),
+                     t.artist_romaji.clone(), t.artist_en.clone(),
+                     t.album_romaji.clone(), t.album_en.clone(),
+                     playing, pos, vol)
                 } else {
-                    ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, 
-                     None, None, None, None, None, None,
-                     false, 0.0, volume)
+                    (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+                     None, None, None, None, None, None, false, 0.0, vol)
                 }
-            } else {
-                ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, 
-                 None, None, None, None, None, None,
-                 false, 0.0, 1.0)
-            }
-        } else {
-            ("".to_string(), "".to_string(), "".to_string(), "".to_string(), 0.0, None, 
-             None, None, None, None, None, None,
-             false, 0.0, 1.0)
-        }
+            }).unwrap_or_else(|| {
+                (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+                 None, None, None, None, None, None, false, 0.0, 1.0)
+            })
+        }).unwrap_or_else(|| {
+            (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+             None, None, None, None, None, None, false, 0.0, 1.0)
+        })
     };
-    
-    let active_output = state.active_output.read().await.clone();
-    
+
+    let output = state.active_output.read().await.clone();
     let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
-    
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
     let (shuffle, repeat_mode) = {
-        let shuffle = *app_state.shuffle.lock().unwrap();
-        let repeat = app_state.repeat_mode.lock().unwrap().clone();
-        (shuffle, repeat)
+        let s = *app_state.shuffle.lock().unwrap();
+        let r = app_state.repeat_mode.lock().unwrap().clone();
+        (s, r)
     };
 
     (
         ServerEvent::MediaSession {
-            track_id,
-            title,
-            artist,
-            album,
-            duration,
-            cover_url,
-            title_romaji,
-            title_en,
-            artist_romaji,
-            artist_en,
-            album_romaji,
-            album_en,
-            is_playing,
-            position,
-            timestamp,
+            track_id, title, artist, album, duration, cover_url,
+            title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+            is_playing, position, timestamp,
         },
         ServerEvent::Status {
             volume: volume as f64,
             shuffle,
             repeat_mode,
-            output: active_output,
-        }
+            output,
+        },
     )
 }
 
-/// Get local IP address
-fn local_ip() -> Option<String> {
-    use std::net::UdpSocket;
-    
-    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("8.8.8.8:80").ok()?;
-    socket.local_addr().ok().map(|addr| addr.ip().to_string())
+/// Read the current queue & index, mapping to `TrackSummary`.
+fn read_queue(app_state: &tauri::State<'_, crate::AppState>) -> (Vec<super::TrackSummary>, usize) {
+    let queue = app_state.queue.lock().unwrap();
+    let index = *app_state.current_queue_index.lock().unwrap();
+    let tracks = queue.iter().map(|t| super::TrackSummary {
+        path: t.path.clone(),
+        title: t.title.clone(),
+        artist: t.artist.clone(),
+        album: t.album.clone(),
+        duration_secs: t.duration_secs,
+        cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+        title_romaji: t.title_romaji.clone(),
+        title_en: t.title_en.clone(),
+        artist_romaji: t.artist_romaji.clone(),
+        artist_en: t.artist_en.clone(),
+        album_romaji: t.album_romaji.clone(),
+        album_en: t.album_en.clone(),
+    }).collect();
+    (tracks, index)
 }
 
-/// Determine the best local IP address accessible to mobile clients
-/// Tries multiple methods to find a valid LAN IP
+/// Build a `QueueUpdate` server message.
+fn build_queue_message(app_state: &tauri::State<'_, crate::AppState>) -> ServerMessage {
+    let (tracks, index) = read_queue(app_state);
+    ServerMessage::QueueUpdate { queue: tracks, current_index: index as i32 }
+}
+
+/// Replace the entire queue and reset the index.
+fn set_queue(app_state: &tauri::State<'_, crate::AppState>, tracks: Vec<crate::audio::TrackInfo>) {
+    let mut q = app_state.queue.lock().unwrap();
+    let mut i = app_state.current_queue_index.lock().unwrap();
+    *q = tracks;
+    *i = 0;
+}
+
+/// Fetch sorted tracks from DB matching a predicate.
+fn get_sorted_tracks(
+    app_state: &tauri::State<'_, crate::AppState>,
+    predicate: impl Fn(&crate::audio::TrackInfo) -> bool,
+) -> Vec<crate::audio::TrackInfo> {
+    let db_guard = app_state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        if let Ok(all) = db.get_all_tracks() {
+            let mut filtered: Vec<_> = all.into_iter().filter(|t| predicate(t)).collect();
+            filtered.sort_by(|a, b| {
+                a.album.cmp(&b.album)
+                    .then(a.disc_number.cmp(&b.disc_number))
+                    .then(a.track_number.cmp(&b.track_number))
+            });
+            return filtered;
+        }
+    }
+    Vec::new()
+}
+
+/// Build full `TrackDetail` list from DB.
+fn build_track_details(app_state: &tauri::State<'_, crate::AppState>) -> Vec<super::routes::TrackDetail> {
+    let db_guard = app_state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        if let Ok(all) = db.get_all_tracks() {
+            return all.into_iter().map(|t| track_to_detail(&t)).collect();
+        }
+    }
+    Vec::new()
+}
+
+/// Build the playlists list.
+fn build_playlists_list(app_state: &tauri::State<'_, crate::AppState>) -> Vec<PlaylistResponse> {
+    let db_guard = app_state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        if let Ok(all) = db.get_playlists() {
+            return all.into_iter().map(|p| {
+                let count = db.get_playlist_tracks(&p.id).map(|t| t.len() as i32).unwrap_or(0);
+                PlaylistResponse {
+                    id: p.id,
+                    name: p.name,
+                    track_count: count,
+                    created_at: p.created_at,
+                    updated_at: p.updated_at,
+                }
+            }).collect();
+        }
+    }
+    Vec::new()
+}
+
+/// Build `TrackDetail` list for a specific playlist.
+fn build_playlist_track_details(
+    app_state: &tauri::State<'_, crate::AppState>,
+    playlist_id: &str,
+) -> Vec<super::routes::TrackDetail> {
+    let db_guard = app_state.db.lock().unwrap();
+    if let Some(ref db) = *db_guard {
+        if let Ok(tracks) = db.get_playlist_tracks(playlist_id) {
+            return tracks.into_iter().map(|t| track_to_detail(&t)).collect();
+        }
+    }
+    Vec::new()
+}
+
+/// Convert a `TrackInfo` to a `TrackDetail`.
+fn track_to_detail(t: &crate::audio::TrackInfo) -> super::routes::TrackDetail {
+    super::routes::TrackDetail {
+        path: t.path.clone(),
+        title: t.title.clone(),
+        artist: t.artist.clone(),
+        album: t.album.clone(),
+        duration_secs: t.duration_secs,
+        disc_number: t.disc_number,
+        track_number: t.track_number,
+        cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+        title_romaji: t.title_romaji.clone(),
+        title_en: t.title_en.clone(),
+        artist_romaji: t.artist_romaji.clone(),
+        artist_en: t.artist_en.clone(),
+        album_romaji: t.album_romaji.clone(),
+        album_en: t.album_en.clone(),
+        playlist_track_id: t.playlist_track_id,
+    }
+}
+
+// ─── Network helpers ─────────────────────────────────────────────────────────
+
+/// Build `http://<ip>:<port>/stream/<encoded_path>`.
+fn build_stream_url(state: &Arc<ServerState>, path: &str) -> String {
+    let ip = determine_accessible_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+    let port = state.config.port;
+    let encoded = urlencoding::encode(path);
+    format!("http://{}:{}/stream/{}", ip, port, encoded)
+}
+
+/// Determine the best LAN IP address reachable by mobile clients.
 fn determine_accessible_ip() -> Option<String> {
     use std::net::UdpSocket;
-    
-    // Method 1: Try UDP socket to Google DNS (best for finding default route IP)
+
+    // Method 1: UDP socket to Google DNS (finds the default-route IP)
     if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
         if socket.connect("8.8.8.8:80").is_ok() {
             if let Ok(addr) = socket.local_addr() {
-                let ip_str = addr.ip().to_string();
-                if !addr.ip().is_loopback() && !ip_str.starts_with("169.254.") {
-                    log::info!("✅ Determined local IP via UDP route: {}", ip_str);
-                    return Some(ip_str);
+                let s = addr.ip().to_string();
+                if !addr.ip().is_loopback() && !s.starts_with("169.254.") {
+                    return Some(s);
                 }
             }
         }
     }
-    
-    // Method 2: Use if_addrs (list all interfaces and pick the first non-loopback LAN IP)
+
+    // Method 2: Enumerate interfaces
     if let Ok(ifaces) = if_addrs::get_if_addrs() {
-        // Prefer common LAN ranges: 192.168.x.x, 10.x.x.x, 172.16-31.x.x
         for iface in &ifaces {
             let addr = iface.addr.ip();
             if addr.is_ipv4() && !addr.is_loopback() {
-                let ip_str = addr.to_string();
-                if !ip_str.starts_with("169.254.") {
-                    log::info!("✅ Determined local IP via interface list: {}", ip_str);
-                    return Some(ip_str);
+                let s = addr.to_string();
+                if !s.starts_with("169.254.") {
+                    return Some(s);
                 }
             }
         }
     }
-    
-    log::warn!("❌ Could not determine LAN IP - falling back to loopback (mobile might fail)");
+
     None
 }
 
-/// Helper function to push immediate internal updates to Discord Rich Presence 
-/// natively when commanded from the mobile application.
-pub async fn sync_discord_for_mobile(
+/// Get path and position of the currently-loaded track.
+fn current_track_info(app_state: &tauri::State<'_, crate::AppState>) -> Option<(String, f64)> {
+    app_state.player.lock().ok().and_then(|g| {
+        g.as_ref().and_then(|p| {
+            let s = p.get_status();
+            s.track.map(|t| (t.path, s.position_secs))
+        })
+    })
+}
+
+// ─── Stats helpers ───────────────────────────────────────────────────────────
+
+/// Finalize any active desktop stats session before switching to mobile.
+async fn finalize_desktop_stats(
+    app_state: &tauri::State<'_, crate::AppState>,
+    state: &Arc<ServerState>,
+) {
+    if let Ok(mut tracker) = app_state.stats_tracker.lock() {
+        let now_ms = crate::stats::current_time_ms();
+        if let Some(event) = tracker.update_desktop(None, 0.0, false, now_ms) {
+            let _ = crate::stats::record_stats_event(app_state, &state.app_handle, event);
+            state.broadcast(ServerEvent::StatsUpdated { timestamp: now_ms });
+            let _ = state.app_handle.emit("stats-updated", ());
+        }
+    }
+}
+
+// ─── Discord Rich Presence ───────────────────────────────────────────────────
+
+/// Sync Discord Rich Presence with the current player state.
+pub async fn sync_discord(
     _state: &Arc<ServerState>,
     app_state: &tauri::State<'_, crate::AppState>,
 ) {
     let status = {
-        if let Ok(player_guard) = app_state.player.lock() {
-            if let Some(ref player) = *player_guard {
-                player.get_status()
-            } else { return; }
+        if let Ok(g) = app_state.player.lock() {
+            if let Some(ref p) = *g { p.get_status() } else { return; }
         } else { return; }
     };
-    
+
     if let Some(track) = status.track {
         let cover_url = app_state.current_cover_url.lock().unwrap().clone();
-        
+
         if status.state == crate::audio::PlayerState::Playing {
-            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
-            let position = status.position_secs as i64;
-            let start = now - position;
-            let end = now + (track.duration_secs as i64 - position);
-            
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+            let pos = status.position_secs as i64;
             let _ = app_state.discord.set_activity(
-                &track.title,
-                &track.artist,
-                Some(start),
-                Some(end),
-                cover_url,
-                Some(track.album)
+                &track.title, &track.artist,
+                Some(now - pos), Some(now + (track.duration_secs as i64 - pos)),
+                cover_url, Some(track.album),
             );
         } else {
             let _ = app_state.discord.set_activity(
-                &format!("(Paused) {}", track.title),
-                &track.artist,
-                None,
-                None,
-                cover_url,
-                Some(track.album)
+                &format!("(Paused) {}", track.title), &track.artist,
+                None, None, cover_url, Some(track.album),
             );
         }
     } else {

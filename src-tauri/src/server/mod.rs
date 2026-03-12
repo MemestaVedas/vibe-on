@@ -113,6 +113,8 @@ pub enum ServerEvent {
     PositionUpdate {
         position: f64,
         timestamp: u64,
+        is_playing: bool,
+        volume: f64,
     },
     /// Volume/shuffle/repeat status
     Status {
@@ -147,8 +149,6 @@ pub enum ServerEvent {
         sample: u64,
         url: String,
     },
-    /// Commit handoff (start playing)
-    HandoffCommit,
     /// Stream stopped (returned to desktop)
     StreamStopped,
     /// Error occurred
@@ -157,21 +157,6 @@ pub enum ServerEvent {
     },
     /// Pong response
     Pong,
-    /// WebRTC Offer
-    WebrtcOffer {
-        from_peer_id: String,
-        sdp: String,
-    },
-    /// WebRTC Answer
-    WebrtcAnswer {
-        target_peer_id: String, 
-        sdp: String,
-    },
-    /// ICE Candidate
-    IceCandidate {
-        from_peer_id: String,
-        candidate: String,
-    },
     /// Playback stats updated
     #[serde(rename_all = "camelCase")]
     StatsUpdated {
