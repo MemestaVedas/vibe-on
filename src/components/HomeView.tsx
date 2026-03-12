@@ -1,14 +1,49 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { M3SquircleImage, M3CircleImage } from './ShapeComponents';
 import { IconAlbum, IconMicrophone } from './Icons';
 import { TrackDisplay } from '../types';
 import { useCoverArt } from '../hooks/useCoverArt';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+interface TrackAnalytics {
+    songId: string;
+    playCount: number;
+    totalListenMs: number;
+    lastPlayedMs: number;
+    avgListenPct: number;
+}
 
 export function HomeView() {
     const { history, library, playCounts, playQueue } = usePlayerStore();
     const { navigateToAlbum, navigateToArtist } = useNavigationStore();
+
+    // Fetch top tracks from SQLite analytics
+    const [topTrackAnalytics, setTopTrackAnalytics] = useState<TrackAnalytics[]>([]);
+    useEffect(() => {
+        const fetchTop = () => {
+            invoke<TrackAnalytics[]>('get_top_tracks', { limit: 20 })
+                .then(setTopTrackAnalytics)
+                .catch(() => {});
+        };
+        fetchTop();
+        // Refresh when stats update
+        let unlisten: (() => void) | undefined;
+        listen('stats-updated', fetchTop).then(u => { unlisten = u; });
+        return () => { unlisten?.(); };
+    }, []);
+
+    // Resolve top tracks analytics to TrackDisplay items
+    const mostPlayedTracks = useMemo(() => {
+        if (topTrackAnalytics.length === 0) return [];
+        const libraryMap = new Map(library.map(t => [t.path, t]));
+        return topTrackAnalytics
+            .map(a => libraryMap.get(a.songId))
+            .filter((t): t is TrackDisplay => !!t)
+            .slice(0, 12);
+    }, [topTrackAnalytics, library]);
 
     // 1. Time-based Greeting
     const greeting = useMemo(() => {
@@ -125,6 +160,17 @@ export function HomeView() {
                 <CarouselSection
                     title="Jump back in"
                     items={jumpBackInItems}
+                    onItemClick={(track) => navigateToAlbum(track.album, track.artist)}
+                    onPlayClick={handlePlayAlbum}
+                    type="album"
+                />
+            )}
+
+            {/* Most Played (from SQLite stats) */}
+            {mostPlayedTracks.length > 0 && (
+                <CarouselSection
+                    title="Most played"
+                    items={mostPlayedTracks}
                     onItemClick={(track) => navigateToAlbum(track.album, track.artist)}
                     onPlayClick={handlePlayAlbum}
                     type="album"
