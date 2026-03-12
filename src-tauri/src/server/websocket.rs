@@ -14,6 +14,7 @@
 //! - `reply_tx` — direct replies to the client that sent the command
 //! - `event_tx` — broadcast to every connected client (periodic status, track changes)
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use axum::{
@@ -512,7 +513,7 @@ async fn handle_client_message(
                 })
             };
             if let Some(t) = track {
-                app_state.queue.lock().unwrap().push(t);
+                app_state.queue.lock().unwrap().push_back(t);
                 broadcast_queue(state, &app_state).await;
             }
         }
@@ -852,7 +853,7 @@ async fn play_track_internal(
 
         if queue.is_empty() {
             if let Some(t) = track_info {
-                *queue = vec![t];
+                *queue = VecDeque::from(vec![t]);
                 *index = 0;
                 true
             } else {
@@ -974,7 +975,7 @@ fn build_queue_message(app_state: &tauri::State<'_, crate::AppState>) -> ServerM
 fn set_queue(app_state: &tauri::State<'_, crate::AppState>, tracks: Vec<crate::audio::TrackInfo>) {
     let mut q = app_state.queue.lock().unwrap();
     let mut i = app_state.current_queue_index.lock().unwrap();
-    *q = tracks;
+    *q = VecDeque::from(tracks);
     *i = 0;
 }
 

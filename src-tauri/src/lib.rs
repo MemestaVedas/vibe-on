@@ -11,6 +11,7 @@ mod server;
 mod taskbar_controls;
 mod torrent;
 
+use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State, Listener};
@@ -61,7 +62,7 @@ pub struct AppState {
     /// Active audio output target ("desktop" or "mobile").
     pub active_output: Arc<TokioRwLock<String>>,
     // --- Queue Management ---
-    pub queue: Arc<Mutex<Vec<TrackInfo>>>,
+    pub queue: Arc<Mutex<VecDeque<TrackInfo>>>,
     pub current_queue_index: Arc<Mutex<usize>>,
     pub shuffle: Arc<Mutex<bool>>,
     pub repeat_mode: Arc<Mutex<String>>, // "off", "one", "all"
@@ -85,7 +86,7 @@ impl Default for AppState {
             server_shutdown_tx: Arc::new(Mutex::new(None)),
             ws_broadcast_tx: Arc::new(Mutex::new(None)),
             active_output: Arc::new(TokioRwLock::new("desktop".to_string())),
-            queue: Arc::new(Mutex::new(Vec::new())),
+            queue: Arc::new(Mutex::new(VecDeque::new())),
             current_queue_index: Arc::new(Mutex::new(0)),
             shuffle: Arc::new(Mutex::new(false)),
             repeat_mode: Arc::new(Mutex::new("off".to_string())),
@@ -1879,6 +1880,17 @@ pub fn run() {
                     if let Some(tracks_val) = payload_val.get("tracks").and_then(|t| t.as_array()) {
                         let state = app_handle_for_queue.state::<AppState>();
                         
+                        // Get current playing track path before updating queue
+                        let current_path = state.player.lock().ok().and_then(|guard| {
+                            guard.as_ref().and_then(|p| {
+                                let status = p.get_status();
+                                status.track.map(|t| t.path)
+                            })
+                        });
+                        
+                        let queue_arc = state.queue.clone();
+                        let index_arc = state.current_queue_index.clone();
+                        
                         let tracks: Vec<TrackInfo> = tracks_val.iter().filter_map(|t| {
                             let path = t.get("path")?.as_str()?.to_string();
                             let title = t.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
@@ -1903,28 +1915,23 @@ pub fn run() {
                                 album_en: t.get("albumEn").and_then(|v| v.as_str()).map(|s| s.to_string()),
                                 playlist_track_id: None,
                             })
-                        }).collect();
+                        }).collect::<Vec<_>>();
                         
                         // Update queue
-                        if let Ok(mut queue_guard) = state.queue.lock() {
-                            *queue_guard = tracks.clone();
-                            println!("[Backend] Queue synchronized from frontend: {} tracks", tracks.len());
-                        }
-
-                        // Update current index if possible
-                        // We need to use a new block or clone state to avoid lifetime issues if any
-                        if let Ok(player_guard) = state.player.lock() {
-                                if let Some(ref player) = *player_guard {
-                                    let status = player.get_status();
-                                    if let Some(current_track) = &status.track {
-                                        if let Some(idx) = tracks.iter().position(|t| t.path == current_track.path) {
-                                            if let Ok(mut idx_guard) = state.current_queue_index.lock() {
-                                                *idx_guard = idx;
-                                            }
-                                        }
+                        {
+                            let mut queue_guard = queue_arc.lock().unwrap();
+                            *queue_guard = VecDeque::from(tracks);
+                            println!("[Backend] Queue synchronized from frontend: {} tracks", queue_guard.len());
+                            
+                            // Update current index if possible
+                            if let Some(ref path) = current_path {
+                                if let Some(idx) = queue_guard.iter().position(|t| t.path == *path) {
+                                    if let Ok(mut idx_guard) = index_arc.lock() {
+                                        *idx_guard = idx;
                                     }
                                 }
-                            };
+                            }
+                        }
                     }
                 }
             });
