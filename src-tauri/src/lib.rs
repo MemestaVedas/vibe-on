@@ -1,5 +1,6 @@
 mod audio;
 mod stats;
+mod stats_v2;
 mod cover_fetcher;
 mod database;
 mod discord_rpc;
@@ -706,6 +707,13 @@ fn get_recently_played(
     stats::get_recently_played(&state, limit.unwrap_or(30))
 }
 
+#[tauri::command]
+fn get_stats_v2(
+    range: Option<String>,
+    state: State<AppState>,
+) -> Result<stats_v2::PlaybackStatsSummaryV2, String> {
+    stats_v2::get_stats_v2(&state, range)
+}
 
 
 // ============================================================================
@@ -1870,6 +1878,7 @@ pub fn run() {
             get_stats_events,
             get_top_tracks,
             get_recently_played,
+            get_stats_v2,
             scan_music_folder,
             get_track_metadata,
             init_library,

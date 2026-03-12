@@ -8743,6 +8743,7 @@ version = "0.3.1"
 dependencies = [
  "axum",
  "bytes",
+ "chrono",
  "discord-rich-presence",
  "futures",
  "hostname",

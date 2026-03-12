@@ -3,6 +3,7 @@ import { TrackList } from './components/TrackList';
 import { PlayerBar } from './components/PlayerBar';
 const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const StatisticsPage = lazy(() => import('./components/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
+const Statistics2 = lazy(() => import('./components/Statistics2').then(m => ({ default: m.Statistics2 })));
 
 // Lazy-loaded views — defers ~130KB JS parsing until first visit
 const TorrentManager = lazy(() => import('./components/TorrentManager').then(m => ({ default: m.TorrentManager })));
@@ -181,6 +182,7 @@ function App() {
                 </div>
               }>
                 {view === 'statistics' && <StatisticsPage />}
+                {view === 'statistics2' && <Statistics2 />}
                 {view === 'settings' && <SettingsPage />}
                 {view === 'torrents' && <TorrentManager />}
               </Suspense>
