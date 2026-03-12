@@ -3,6 +3,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useMobileStore } from '../store/mobileStore';
+import { invoke } from '@tauri-apps/api/core';
 
 import { useShallow } from 'zustand/react/shallow';
 
@@ -46,9 +47,30 @@ export function GlobalEffects() {
                     useMobileStore.getState().disconnect();
                 }),
 
-                listen('refresh-player-state', () => {
+                listen('refresh-player-state', async () => {
                     console.log('[Native] Refreshing player state from backend event');
                     usePlayerStore.getState().refreshStatus();
+                    // Also sync queue from backend to keep frontend in sync
+                    try {
+                        const qs = await invoke<any>('get_queue_state');
+                        if (qs && Array.isArray(qs.queue)) {
+                            const tracks = qs.queue.map((t: any) => ({ ...t, id: t.path }));
+                            const store = usePlayerStore.getState();
+                            // Only update if queue actually changed (avoid clobbering user edits)
+                            const backendPaths = tracks.map((t: any) => t.path).join(',');
+                            const frontendPaths = store.queue.map(t => t.path).join(',');
+                            if (backendPaths !== frontendPaths && tracks.length > 0) {
+                                usePlayerStore.setState({
+                                    queue: tracks,
+                                    originalQueue: tracks,
+                                    isShuffled: qs.shuffle ?? store.isShuffled,
+                                    repeatMode: qs.repeatMode ?? store.repeatMode,
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[Native] Failed to sync queue from backend:', e);
+                    }
                 }),
 
                 listen('output-changed', (event: any) => {

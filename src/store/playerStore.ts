@@ -46,8 +46,16 @@ const broadcastQueueUpdate = async (queue: TrackDisplay[]) => {
                 title: t.title,
                 artist: t.artist,
                 album: t.album,
-                duration_secs: t.duration_secs,
-                cover_url: t.cover_image ? `/cover/${encodeURIComponent(t.path)}` : null
+                durationSecs: t.duration_secs,
+                coverImage: t.cover_image || null,
+                discNumber: t.disc_number || null,
+                trackNumber: t.track_number || null,
+                titleRomaji: t.title_romaji || null,
+                titleEn: t.title_en || null,
+                artistRomaji: t.artist_romaji || null,
+                artistEn: t.artist_en || null,
+                albumRomaji: t.album_romaji || null,
+                albumEn: t.album_en || null,
             }))
         });
     } catch (e) {

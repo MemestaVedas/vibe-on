@@ -49,8 +49,8 @@ pub struct ServerState {
     pub event_tx: broadcast::Sender<ServerEvent>,
     /// Connected WebSocket clients
     pub clients: RwLock<Vec<ConnectedClient>>,
-    /// Active output device ("desktop" or "mobile")
-    pub active_output: RwLock<String>,
+    /// Active output device ("desktop" or "mobile") — shared with AppState
+    pub active_output: Arc<RwLock<String>>,
     /// Server configuration
     pub config: ServerConfig,
 }
@@ -58,11 +58,16 @@ pub struct ServerState {
 impl ServerState {
     pub fn new(app_handle: AppHandle, config: ServerConfig) -> Self {
         let (event_tx, _) = broadcast::channel(256);
+        // Share the active_output lock with AppState
+        let active_output = {
+            let app_state: tauri::State<'_, crate::AppState> = app_handle.state();
+            app_state.active_output.clone()
+        };
         Self {
             app_handle,
             event_tx,
             clients: RwLock::new(Vec::new()),
-            active_output: RwLock::new("desktop".to_string()),
+            active_output,
             config,
         }
     }
@@ -206,6 +211,13 @@ pub async fn start_server(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = config.port;
     let server_state = Arc::new(ServerState::new(app_handle.clone(), config));
+
+    // Wire the broadcast sender back into AppState so Tauri commands can use it
+    {
+        let app_state: tauri::State<'_, crate::AppState> = app_handle.state();
+        let mut guard = app_state.ws_broadcast_tx.lock().unwrap();
+        *guard = Some(server_state.event_tx.clone());
+    }
     
     // Spawn periodic status broadcast task (every 2 seconds)
     let broadcast_state = server_state.clone();

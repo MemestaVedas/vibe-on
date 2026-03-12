@@ -54,6 +54,11 @@ pub struct AppState {
     p2p_manager: Arc<TokioRwLock<Option<P2PManager>>>,
     server_running: Arc<Mutex<bool>>,
     server_shutdown_tx: Arc<Mutex<Option<tokio::sync::broadcast::Sender<()>>>>,
+    /// WebSocket broadcast sender — set when the HTTP/WS server starts.
+    /// Tauri commands use this to push state changes to mobile clients immediately.
+    pub ws_broadcast_tx: Arc<Mutex<Option<tokio::sync::broadcast::Sender<server::ServerEvent>>>>,
+    /// Active audio output target ("desktop" or "mobile").
+    pub active_output: Arc<TokioRwLock<String>>,
     // --- Queue Management ---
     pub queue: Arc<Mutex<Vec<TrackInfo>>>,
     pub current_queue_index: Arc<Mutex<usize>>,
@@ -77,6 +82,8 @@ impl Default for AppState {
             p2p_manager: Arc::new(TokioRwLock::new(None)),
             server_running: Arc::new(Mutex::new(false)),
             server_shutdown_tx: Arc::new(Mutex::new(None)),
+            ws_broadcast_tx: Arc::new(Mutex::new(None)),
+            active_output: Arc::new(TokioRwLock::new("desktop".to_string())),
             queue: Arc::new(Mutex::new(Vec::new())),
             current_queue_index: Arc::new(Mutex::new(0)),
             shuffle: Arc::new(Mutex::new(false)),
@@ -85,6 +92,62 @@ impl Default for AppState {
             stats_tracker: Arc::new(Mutex::new(stats::StatsTracker::default())),
         }
     }
+}
+
+/// Broadcast the current player + status state to all connected WebSocket clients.
+/// Called after every playback-modifying Tauri command so mobile sees changes immediately.
+fn broadcast_state_to_ws(state: &AppState) {
+    let tx = {
+        let guard = state.ws_broadcast_tx.lock().unwrap();
+        guard.clone()
+    };
+    let Some(tx) = tx else { return };
+
+    // Build media session event
+    let (track_id, title, artist, album, duration, cover_url,
+         title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+         is_playing, position, volume) = {
+        if let Ok(g) = state.player.lock() {
+            if let Some(ref player) = *g {
+                let s = player.get_status();
+                let playing = s.state == audio::PlayerState::Playing;
+                if let Some(ref t) = s.track {
+                    (t.path.clone(), t.title.clone(), t.artist.clone(), t.album.clone(),
+                     t.duration_secs,
+                     Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                     t.title_romaji.clone(), t.title_en.clone(),
+                     t.artist_romaji.clone(), t.artist_en.clone(),
+                     t.album_romaji.clone(), t.album_en.clone(),
+                     playing, s.position_secs, s.volume)
+                } else {
+                    (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+                     None, None, None, None, None, None, false, 0.0, s.volume)
+                }
+            } else { return; }
+        } else { return; }
+    };
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+    let (shuffle, repeat_mode) = {
+        let s = *state.shuffle.lock().unwrap();
+        let r = state.repeat_mode.lock().unwrap().clone();
+        (s, r)
+    };
+    // Read the active output without async — use try_read to avoid blocking.
+    // If the lock is held, fall back to "desktop".
+    let output = state.active_output.try_read()
+        .map(|g| g.clone())
+        .unwrap_or_else(|_| "desktop".to_string());
+
+    let _ = tx.send(server::ServerEvent::MediaSession {
+        track_id, title, artist, album, duration, cover_url,
+        title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+        is_playing, position, timestamp,
+    });
+    let _ = tx.send(server::ServerEvent::Status {
+        volume: volume as f64, shuffle, repeat_mode, output,
+    });
 }
 /// Initialize the audio player
 fn get_or_init_player(state: &AppState) -> Result<(), String> {
@@ -139,6 +202,10 @@ async fn play_file(
             return Err("Player not initialized".to_string());
         }
     }
+
+    // Broadcast state change to WebSocket clients + frontend immediately
+    broadcast_state_to_ws(&state);
+    let _ = app_handle.emit("refresh-player-state", ());
 
     // Now spawn background operations (Discord, lyrics, cover, media controls)
     // These don't block audio playback
@@ -306,7 +373,7 @@ async fn play_file(
 }
 
 #[tauri::command]
-fn pause(state: State<AppState>) -> Result<(), String> {
+fn pause(state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
         let status = player.get_status();
@@ -334,14 +401,18 @@ fn pause(state: State<AppState>) -> Result<(), String> {
             }
         }
 
-        player.pause()
+        let result = player.pause();
+        drop(player_guard);
+        broadcast_state_to_ws(&state);
+        let _ = app_handle.emit("refresh-player-state", ());
+        result
     } else {
         Ok(())
     }
 }
 
 #[tauri::command]
-fn resume(state: State<AppState>) -> Result<(), String> {
+fn resume(state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
         let status = player.get_status();
@@ -353,9 +424,6 @@ fn resume(state: State<AppState>) -> Result<(), String> {
                 .unwrap_or_default()
                 .as_secs() as i64;
 
-            // When resuming, we need to calculate effective start time based on current position
-            // status.position_secs is where we are.
-            // effective_start = now - position
             let position = status.position_secs as i64;
             let start = now - position;
 
@@ -377,14 +445,18 @@ fn resume(state: State<AppState>) -> Result<(), String> {
             }
         }
 
-        player.resume()
+        let result = player.resume();
+        drop(player_guard);
+        broadcast_state_to_ws(&state);
+        let _ = app_handle.emit("refresh-player-state", ());
+        result
     } else {
         Ok(())
     }
 }
 
 #[tauri::command]
-fn stop(state: State<AppState>) -> Result<(), String> {
+fn stop(state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
         let _ = state.discord.clear_activity();
@@ -399,7 +471,11 @@ fn stop(state: State<AppState>) -> Result<(), String> {
             }
         }
 
-        player.stop()
+        let result = player.stop();
+        drop(player_guard);
+        broadcast_state_to_ws(&state);
+        let _ = app_handle.emit("refresh-player-state", ());
+        result
     } else {
         Ok(())
     }
@@ -410,17 +486,24 @@ fn set_volume(value: f32, state: State<AppState>) -> Result<(), String> {
     get_or_init_player(&state)?;
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
-        player.set_volume(value)
+        let result = player.set_volume(value);
+        drop(player_guard);
+        broadcast_state_to_ws(&state);
+        result
     } else {
         Ok(())
     }
 }
 
 #[tauri::command]
-fn seek(value: f64, state: State<AppState>) -> Result<(), String> {
+fn seek(value: f64, state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
-        player.seek(value)
+        let result = player.seek(value);
+        drop(player_guard);
+        broadcast_state_to_ws(&state);
+        let _ = app_handle.emit("refresh-player-state", ());
+        result
     } else {
         Ok(())
     }
@@ -478,6 +561,36 @@ fn get_player_state(state: State<AppState>) -> PlayerStatus {
     } else {
         PlayerStatus::default()
     }
+}
+
+/// Return the current backend queue + index so the frontend can stay in sync.
+#[tauri::command]
+fn get_queue_state(state: State<AppState>) -> serde_json::Value {
+    let queue = state.queue.lock().unwrap();
+    let index = *state.current_queue_index.lock().unwrap();
+    let shuffle = *state.shuffle.lock().unwrap();
+    let repeat = state.repeat_mode.lock().unwrap().clone();
+    serde_json::json!({
+        "queue": queue.iter().map(|t| serde_json::json!({
+            "path": t.path,
+            "title": t.title,
+            "artist": t.artist,
+            "album": t.album,
+            "duration_secs": t.duration_secs,
+            "cover_image": t.cover_image,
+            "disc_number": t.disc_number,
+            "track_number": t.track_number,
+            "title_romaji": t.title_romaji,
+            "title_en": t.title_en,
+            "artist_romaji": t.artist_romaji,
+            "artist_en": t.artist_en,
+            "album_romaji": t.album_romaji,
+            "album_en": t.album_en,
+        })).collect::<Vec<_>>(),
+        "currentIndex": index,
+        "shuffle": shuffle,
+        "repeatMode": repeat,
+    })
 }
 
 #[tauri::command]
@@ -1653,6 +1766,7 @@ pub fn run() {
             set_reverb,
             set_speed,
             get_player_state,
+            get_queue_state,
             get_stats_events,
             scan_music_folder,
             get_track_metadata,
