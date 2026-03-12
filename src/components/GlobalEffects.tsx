@@ -4,6 +4,7 @@ import { useLyricsStore } from '../store/lyricsStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useMobileStore } from '../store/mobileStore';
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 
 import { useShallow } from 'zustand/react/shallow';
 
@@ -152,6 +153,7 @@ export function GlobalEffects() {
 
     // 4. Autoplay Logic — uses interval polling to avoid re-rendering on every position_secs update
     const lastTrackPathRef = useRef<string | null>(null);
+    const lastSavedPositionRef = useRef<number>(0);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -160,6 +162,12 @@ export function GlobalEffects() {
             const { position_secs, track, state: activeState } = status;
             const duration_secs = track?.duration_secs || 0;
             const activePath = track?.path;
+
+            // Save lastPlayedTrack periodically (every ~5s of change)
+            if (activeState === 'Playing' && activePath && Math.abs(position_secs - lastSavedPositionRef.current) >= 5) {
+                lastSavedPositionRef.current = position_secs;
+                usePlayerStore.setState({ lastPlayedTrack: { path: activePath, position: position_secs } });
+            }
 
             if (activeState !== 'Playing' || duration_secs <= 0) return;
 
@@ -225,6 +233,65 @@ export function GlobalEffects() {
         }, 5000); // Check every 5 seconds
 
         return () => clearInterval(timer);
+    }, []);
+
+    // 7. Restore session — sync persisted queue to backend + show last track
+    useEffect(() => {
+        const restore = async () => {
+            const { queue, lastPlayedTrack } = usePlayerStore.getState();
+
+            // Sync restored queue to backend
+            if (queue.length > 0) {
+                try {
+                    await emit('queue-updated', {
+                        tracks: queue.map(t => ({
+                            path: t.path,
+                            title: t.title,
+                            artist: t.artist,
+                            album: t.album,
+                            durationSecs: t.duration_secs,
+                            coverImage: t.cover_image || null,
+                            discNumber: t.disc_number || null,
+                            trackNumber: t.track_number || null,
+                            titleRomaji: t.title_romaji || null,
+                            titleEn: t.title_en || null,
+                            artistRomaji: t.artist_romaji || null,
+                            artistEn: t.artist_en || null,
+                            albumRomaji: t.album_romaji || null,
+                            albumEn: t.album_en || null,
+                        }))
+                    });
+                    console.log(`[Restore] Synced ${queue.length} tracks to backend queue`);
+                } catch (e) {
+                    console.warn('[Restore] Failed to sync queue to backend:', e);
+                }
+            }
+
+            // Restore last played track in the UI (paused state)
+            if (lastPlayedTrack) {
+                const track = queue.find(t => t.path === lastPlayedTrack.path);
+                if (track) {
+                    const { savedVolume } = usePlayerStore.getState();
+                    usePlayerStore.setState({
+                        status: {
+                            state: 'Stopped',
+                            track: {
+                                path: track.path,
+                                title: track.title || '',
+                                artist: track.artist || '',
+                                album: track.album || '',
+                                duration_secs: track.duration_secs || 0,
+                                cover_image: track.cover_image || null,
+                            },
+                            position_secs: lastPlayedTrack.position,
+                            volume: savedVolume,
+                        }
+                    });
+                    console.log(`[Restore] Showing last track: ${track.title} at ${Math.floor(lastPlayedTrack.position)}s`);
+                }
+            }
+        };
+        restore();
     }, []);
 
     return null;

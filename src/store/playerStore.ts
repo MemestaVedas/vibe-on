@@ -943,11 +943,13 @@ export const usePlayerStore = create<PlayerStore>()(
                 playCounts: state.playCounts,
                 favorites: Array.from(state.favorites),
                 folders: state.folders,
-                // Queue is NOT persisted — reconstructed from library on startup
+                queue: state.queue.slice(0, 2000), // Persist queue (capped)
+                originalQueue: state.originalQueue.slice(0, 2000),
                 isShuffled: state.isShuffled,
+                repeatMode: state.repeatMode,
                 savedVolume: state.savedVolume,
                 lastPlayedTrack: state.lastPlayedTrack,
-                displayLanguage: state.displayLanguage, // Persist preference
+                displayLanguage: state.displayLanguage,
                 eqGains: state.eqGains,
                 presets: state.presets,
                 activePresetId: state.activePresetId,
@@ -957,7 +959,7 @@ export const usePlayerStore = create<PlayerStore>()(
                 speed: state.speed,
                 reverbMix: state.reverbMix,
                 reverbDecay: state.reverbDecay,
-                miniPlayer: state.miniPlayer, // Persist Mini-Player state
+                miniPlayer: state.miniPlayer,
             }),
             merge: (persistedState: any, currentState) => ({
                 ...currentState,
@@ -965,10 +967,10 @@ export const usePlayerStore = create<PlayerStore>()(
                 displayLanguage: persistedState?.displayLanguage || 'original',
                 favorites: new Set(persistedState?.favorites || []),
                 folders: persistedState?.folders || [],
-                // Queue is NOT restored — will be rebuilt from library on loadLibrary()
-                queue: [],
-                originalQueue: [],
+                queue: persistedState?.queue || [],
+                originalQueue: persistedState?.originalQueue || [],
                 isShuffled: persistedState?.isShuffled || false,
+                repeatMode: persistedState?.repeatMode || 'off',
                 savedVolume: persistedState?.savedVolume ?? 1.0,
                 lastPlayedTrack: persistedState?.lastPlayedTrack || null,
                 miniPlayer: persistedState?.miniPlayer || false, // Restore Mini-Player state
