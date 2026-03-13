@@ -102,6 +102,7 @@ impl DiscordRpc {
                             )];
 
                             let mut activity_payload = activity::Activity::new()
+                                .activity_type(activity::ActivityType::Listening)
                                 .details(&details)
                                 .state(&state)
                                 .assets(assets)

@@ -253,7 +253,7 @@ async fn play_file(
             let end = now + info.duration_secs as i64;
             let _ = discord.set_activity(
                 &info.title,
-                &info.artist,
+                &format!("by {}", info.artist),
                 Some(now),
                 Some(end),
                 None,
@@ -356,7 +356,7 @@ async fn play_file(
                     let end = now + duration as i64;
                     let _ = discord_clone.set_activity(
                         &title,
-                        &artist,
+                        &format!("by {}", artist),
                         Some(now),
                         Some(end),
                         Some(url),
@@ -373,7 +373,7 @@ async fn play_file(
                 .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or("Unknown Track");
-            let _ = discord.set_activity(filename, "Listening", None, None, None, None);
+            let _ = discord.set_activity(filename, "Playing", None, None, None, None);
         }
     });
 
@@ -388,10 +388,15 @@ fn pause(state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
         let cover_url = state.current_cover_url.lock().unwrap().clone();
 
         if let Some(track) = status.track {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+            let pos = status.position_secs as i64;
             let _ = state.discord.set_activity(
-                &format!("(Paused) {}", track.title),
-                &track.artist,
-                None,
+                &track.title,
+                &format!("by {} (Paused)", track.artist),
+                Some(now - pos),
                 None,
                 cover_url,
                 Some(track.album),
@@ -438,7 +443,7 @@ fn resume(state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
             let end = now + (track.duration_secs as i64 - position);
             let _ = state.discord.set_activity(
                 &track.title,
-                &track.artist,
+                &format!("by {}", track.artist),
                 Some(start),
                 Some(end),
                 cover_url,
@@ -507,8 +512,39 @@ fn set_volume(value: f32, state: State<AppState>) -> Result<(), String> {
 fn seek(value: f64, state: State<AppState>, app_handle: AppHandle) -> Result<(), String> {
     let player_guard = state.player.lock().unwrap();
     if let Some(ref player) = *player_guard {
+        let status = player.get_status();
         let result = player.seek(value);
         drop(player_guard);
+
+        // Update Discord so the progress bar reflects the new position immediately
+        if let Some(track) = status.track {
+            let cover_url = state.current_cover_url.lock().unwrap().clone();
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+            let pos = value as i64;
+            if status.state == crate::audio::PlayerState::Playing {
+                let _ = state.discord.set_activity(
+                    &track.title,
+                    &format!("by {}", track.artist),
+                    Some(now - pos),
+                    Some(now + (track.duration_secs as i64 - pos)),
+                    cover_url,
+                    Some(track.album),
+                );
+            } else {
+                let _ = state.discord.set_activity(
+                    &track.title,
+                    &format!("by {} (Paused)", track.artist),
+                    Some(now - pos),
+                    None,
+                    cover_url,
+                    Some(track.album),
+                );
+            }
+        }
+
         broadcast_state_to_ws(&state);
         let _ = app_handle.emit("refresh-player-state", ());
         result

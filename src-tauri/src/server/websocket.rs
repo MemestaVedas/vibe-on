@@ -1216,19 +1216,24 @@ pub async fn sync_discord(
     if let Some(track) = status.track {
         let cover_url = app_state.current_cover_url.lock().unwrap().clone();
 
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+        let pos = status.position_secs as i64;
+
         if status.state == crate::audio::PlayerState::Playing {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
-            let pos = status.position_secs as i64;
             let _ = app_state.discord.set_activity(
-                &track.title, &track.artist,
+                &track.title,
+                &format!("by {}", track.artist),
                 Some(now - pos), Some(now + (track.duration_secs as i64 - pos)),
                 cover_url, Some(track.album),
             );
         } else {
+            // Pass start-only timestamp → Discord renders green ♪ elapsed indicator
             let _ = app_state.discord.set_activity(
-                &format!("(Paused) {}", track.title), &track.artist,
-                None, None, cover_url, Some(track.album),
+                &track.title,
+                &format!("by {} (Paused)", track.artist),
+                Some(now - pos), None,
+                cover_url, Some(track.album),
             );
         }
     } else {
