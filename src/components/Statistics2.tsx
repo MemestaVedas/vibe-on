@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { motion } from 'motion/react';
-import { IconAlbum, IconClock, IconExternalLink, IconMusicNote, IconStats } from './Icons';
+import { IconAlbum, IconClock, IconMusicNote, IconStats } from './Icons';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
-import { getDisplayText } from '../utils/textUtils';
+
 
 
 type StatsTimeRange = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' | 'ALL';
@@ -179,18 +179,7 @@ function GradientHeroCard({ icon, label, value, startColor, endColor }: {
     );
 }
 
-function formatPresenceTime(totalSeconds: number): string {
-    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    const seconds = safeSeconds % 60;
 
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
 
 // MiniStatsPlayer removed — stats now show album art per-entry in the lists
 
