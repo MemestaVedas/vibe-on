@@ -817,6 +817,21 @@ async fn send_full_state(
     let _ = reply_tx.send(status.into()).await;
     let _ = reply_tx.send(build_queue_message(app_state)).await;
 
+    // If the active output is mobile, send a fresh HandoffPrepare so the reconnecting
+    // phone can start playing immediately instead of waiting for a song change.
+    if state.active_output.read().await.as_str() == "mobile" {
+        if let Some((path, position)) = current_track_info(app_state) {
+            let url = build_stream_url(state, &path);
+            // StreamStopped first to tear down any stale session on the phone side.
+            let _ = reply_tx.send(ServerMessage::StreamStopped).await;
+            let _ = reply_tx.send(ServerMessage::HandoffPrepare {
+                sample: (position * 44100.0) as u64,
+                url,
+            }).await;
+            log::info!("[WS] Sent reconnect HandoffPrepare for mobile output @ {:.1}s", position);
+        }
+    }
+
     // Tell the Tauri frontend to refresh
     let _ = state.app_handle.emit("refresh-player-state", ());
 }
@@ -847,6 +862,18 @@ pub async fn send_current_status_with_handle(state: &Arc<ServerState>, app_handl
     let (media, status) = build_state_events(state, &app_state).await;
     state.broadcast(media);
     state.broadcast(status);
+}
+
+/// Broadcast a fresh mobile stream handoff for the provided track path.
+/// Used by server-side autoplay paths that do not go through per-client reply channels.
+pub fn broadcast_mobile_handoff_for_path(
+    state: &Arc<ServerState>,
+    path: &str,
+    sample: u64,
+) {
+    let url = build_stream_url(state, path);
+    state.broadcast(ServerEvent::StreamStopped);
+    state.broadcast(ServerEvent::HandoffPrepare { sample, url });
 }
 
 // ─── Track / queue helpers ───────────────────────────────────────────────────

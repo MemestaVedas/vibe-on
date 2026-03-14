@@ -316,6 +316,12 @@ pub async fn start_server(
                                         }
                                     }
                                 }
+
+                                // In mobile output mode, autoplay path must emit a fresh
+                                // handoff event so the phone switches to the new stream URL.
+                                if is_mobile {
+                                    websocket::broadcast_mobile_handoff_for_path(&broadcast_state, &path, 0);
+                                }
                                 
                                 // Broadcast the update so mobile knows to fetch new stream URL if needed
                                 websocket::send_current_status_with_handle(&broadcast_state, &broadcast_handle).await;
