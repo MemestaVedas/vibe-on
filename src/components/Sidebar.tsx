@@ -153,13 +153,6 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                     <NavItem
                         icon={<IconStats size={24} />}
                         label="Statistics"
-                        active={view === 'statistics'}
-                        onClick={() => onViewChange('statistics')}
-                        collapsed={isCollapsed}
-                    />
-                    <NavItem
-                        icon={<IconStats size={24} />}
-                        label="Statistics 2"
                         active={view === 'statistics2'}
                         onClick={() => onViewChange('statistics2')}
                         collapsed={isCollapsed}
