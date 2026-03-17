@@ -6,7 +6,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
-import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart, IconShuffle, IconRepeat, IconTrash, IconClose } from './Icons';
+import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart, IconShuffle, IconRepeat, IconTrash, IconClose, IconComputer, IconMobileDevice } from './Icons';
 import { M3CircleImage } from './ShapeComponents';
 import { MarqueeText } from './MarqueeText';
 import { SquigglySlider } from './SquigglySlider';
@@ -30,6 +30,8 @@ export function RightPanel() {
     const displayLanguage = usePlayerStore(s => s.displayLanguage);
     const playFile = usePlayerStore(s => s.playFile);
     const toggleImmersiveMode = usePlayerStore(s => s.toggleImmersiveMode);
+    const audioOutput = usePlayerStore(s => s.audioOutput);
+    const setAudioOutput = usePlayerStore(s => s.setAudioOutput);
     const favorites = usePlayerStore(s => s.favorites);
     const toggleFavorite = usePlayerStore(s => s.toggleFavorite);
     const { lines, plainLyrics, isInstrumental, isLoading, error, lyricsMode, toggleLyrics } = useLyricsStore();
@@ -217,6 +219,13 @@ export function RightPanel() {
                         <h2 className="text-title-medium font-bold text-on-surface">Now Playing</h2>
                         <div className="flex items-center gap-1">
                             <button
+                                onClick={toggleImmersiveMode}
+                                className="p-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface"
+                                title="Immersive Mode"
+                            >
+                                <IconFullscreen size={20} />
+                            </button>
+                            <button
                                 onClick={() => useNavigationStore.getState().setRightPanelCollapsed(true)}
                                 className="p-2 -mr-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface"
                                 title="Collapse"
@@ -248,21 +257,21 @@ export function RightPanel() {
                                 )}
                             </div>
 
-                            {/* Top-right device/immersive toggle */}
+                            {/* Top-right device source toggle */}
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    toggleImmersiveMode();
+                                    setAudioOutput(audioOutput === 'desktop' ? 'mobile' : 'desktop');
                                 }}
                                 className="absolute top-3 right-3 p-2 rounded-full bg-black/35 hover:bg-black/50 transition-colors text-white z-30"
                                 title="Phone/PC View"
                             >
-                                <IconFullscreen size={18} />
+                                {audioOutput === 'desktop' ? <IconComputer size={18} /> : <IconMobileDevice size={18} />}
                             </button>
 
                             {/* Bottom gradient + in-art metadata */}
                             <div
-                                className="absolute inset-x-0 bottom-0 h-[44%] z-10 pointer-events-none"
+                                className="absolute inset-0 z-10 pointer-events-none"
                                 style={{
                                     background: 'linear-gradient(180deg, rgba(0, 0, 0, 0) 56%, var(--md-sys-color-primary) 100%)'
                                 }}
