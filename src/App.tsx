@@ -151,10 +151,10 @@ function App() {
       <TitleBar />
 
       {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
-      <div className="fixed inset-0 top-10 flex p-3 gap-1 overflow-hidden text-on-surface">
+      <div className="fixed inset-0 top-10 flex p-3 overflow-hidden text-on-surface">
 
         {/* Sidebar */}
-        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-[2rem]">
+        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-l-[2rem] rounded-r-[1rem]">
           <Sidebar view={view} onViewChange={setView} />
         </div>
 
@@ -202,7 +202,7 @@ function App() {
         */}
         <aside
           className={`
-            bg-surface-container z-30 overflow-hidden transition-all duration-300 rounded-[2rem]
+            bg-surface-container z-30 overflow-hidden transition-all duration-300 rounded-l-[1rem] rounded-r-[2rem]
             fixed right-3 top-[3.25rem] bottom-28 shadow-2xl
             2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
 
