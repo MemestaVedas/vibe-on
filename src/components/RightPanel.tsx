@@ -151,8 +151,18 @@ export function RightPanel() {
                     {/* Background layer: solid or dynamic (blurred album art) */}
                     {rightPanelBg === 'dynamic' && coverUrl ? (
                         <div className="absolute inset-0 z-0 overflow-hidden rounded-[2rem] pointer-events-none">
-                            <img src={coverUrl} alt="bg" className="w-full h-full object-cover filter blur-lg brightness-50 scale-105" />
-                            <div className="absolute inset-0 bg-black/30" />
+                            <img
+                                src={coverUrl}
+                                alt="bg"
+                                loading="lazy"
+                                className="w-full h-full object-cover blur-md brightness-75 saturate-125 scale-105 transform-gpu will-change-transform"
+                            />
+                            <div
+                                className="absolute inset-0"
+                                style={{
+                                    background: 'linear-gradient(160deg, color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent), color-mix(in srgb, var(--md-sys-color-surface-container) 46%, transparent))'
+                                }}
+                            />
                         </div>
                     ) : (
                         <div className="absolute inset-0 z-0 bg-surface-container rounded-[2rem] pointer-events-none" />

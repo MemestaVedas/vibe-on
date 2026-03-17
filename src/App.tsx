@@ -154,7 +154,7 @@ function App() {
       <div className="fixed inset-0 top-10 flex p-3 overflow-hidden text-on-surface">
 
         {/* Sidebar - curves inward on right */}
-        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-l-[2rem] rounded-r-[0.75rem] mr-[-1.5rem] pr-3">
+        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-l-[2rem] rounded-r-none mr-[-1.5rem] pr-3">
           <Sidebar view={view} onViewChange={setView} />
         </div>
 
@@ -202,7 +202,7 @@ function App() {
         */}
         <aside
           className={`
-            bg-surface-container z-20 overflow-hidden transition-all duration-300 rounded-r-[2rem] rounded-l-[0.75rem] pl-3
+            bg-surface-container z-20 overflow-hidden transition-all duration-300 rounded-r-[2rem] rounded-l-none pl-3
             fixed right-3 top-[3.25rem] bottom-28 shadow-2xl ml-[-1.5rem]
             2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
 
