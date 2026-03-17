@@ -279,7 +279,7 @@ export function RightPanel() {
                                 }}
                             />
                             <div className="absolute inset-x-0 bottom-0 z-20 p-4 pointer-events-none">
-                                <div className="text-title-large font-bold text-on-primary leading-tight line-clamp-2">
+                                <div className="text-[33px] font-bold text-on-primary leading-tight line-clamp-2">
                                     {displayTitle}
                                 </div>
                                 <div className="text-body-large text-on-secondary mt-1 truncate">
