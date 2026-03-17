@@ -151,15 +151,15 @@ function App() {
       <TitleBar />
 
       {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
-      <div className="fixed inset-0 top-10 flex p-3 gap-3 overflow-hidden text-on-surface">
+      <div className="fixed inset-0 top-10 flex p-3 overflow-hidden text-on-surface">
 
-        {/* Sidebar - Layer 1 */}
-        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-[2rem]">
+        {/* Sidebar - curves inward on right */}
+        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-l-[2rem] rounded-r-none mr-[-1rem]">
           <Sidebar view={view} onViewChange={setView} />
         </div>
 
-        {/* Center: Main Content Area - Layer 2 (Floating Card) */}
-        <div className="flex-1 flex flex-col min-w-0 relative bg-surface overflow-hidden z-10 transition-all duration-300 rounded-[2rem]">
+        {/* Center: Main Content Area - sits on top with higher z-index */}
+        <div className="flex-1 flex flex-col min-w-0 relative bg-surface overflow-hidden z-30 transition-all duration-300 rounded-[2rem] shadow-lg">
 
           {/* Main Content Area */}
           <main className="flex-1 flex flex-col min-h-0 relative">
@@ -195,15 +195,15 @@ function App() {
 
         </div>
 
-        {/* Right Panel - Layer 3 (Floating Card) */}
+        {/* Right Panel - curves inward on left, overlaps main content */}
         {/* Responsive Logic:
             - xl+: Relative (pushes content), toggles width/opacity
             - <xl: Fixed/Absolute overlay, toggles translate/opacity
         */}
         <aside
           className={`
-            bg-surface-container z-30 overflow-hidden transition-all duration-300 rounded-[2rem]
-            fixed right-3 top-[3.25rem] bottom-28 shadow-2xl
+            bg-surface-container z-20 overflow-hidden transition-all duration-300 rounded-r-[2rem] rounded-l-none
+            fixed right-3 top-[3.25rem] bottom-28 shadow-2xl ml-[-1rem]
             2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
 
             ${isRightPanelOpen
