@@ -4,9 +4,10 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState, memo, useCallback, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useNavigationStore } from '../store/navigationStore';
+import { usePlaylistStore } from '../store/playlistStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
-import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart, IconShuffle, IconRepeat, IconTrash, IconClose, IconComputer, IconMobileDevice } from './Icons';
+import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart, IconShuffle, IconRepeat, IconTrash, IconClose, IconComputer, IconMobileDevice, IconPlus } from './Icons';
 import { M3CircleImage } from './ShapeComponents';
 import { MarqueeText } from './MarqueeText';
 import { SquigglySlider } from './SquigglySlider';
@@ -37,6 +38,7 @@ export function RightPanel() {
     const { lines, plainLyrics, isInstrumental, isLoading, error, lyricsMode, toggleLyrics } = useLyricsStore();
     const { navigateToAlbum } = useNavigationStore();
     const { isRightPanelCollapsed } = useNavigationStore();
+    const openCreateDialog = usePlaylistStore(s => s.openCreateDialog);
     const isCollapsed = isRightPanelCollapsed;
 
     // Find full track info from library for Romaji
@@ -284,6 +286,19 @@ export function RightPanel() {
                                     {displayArtist}
                                 </div>
                             </div>
+
+                            {/* Bottom-right quick add-to-playlist action */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (trackPath) openCreateDialog(trackPath);
+                                }}
+                                disabled={!trackPath}
+                                className="absolute bottom-3 right-3 p-2 rounded-full bg-black/35 hover:bg-black/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white z-30"
+                                title={trackPath ? 'Add to Playlist' : 'No track selected'}
+                            >
+                                <IconPlus size={18} />
+                            </button>
 
                             {/* Hover Overlay - Favorite & Info */}
                             {(trackPath || coverUrl) && (
