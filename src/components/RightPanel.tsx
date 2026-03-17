@@ -217,13 +217,6 @@ export function RightPanel() {
                         <h2 className="text-title-medium font-bold text-on-surface">Now Playing</h2>
                         <div className="flex items-center gap-1">
                             <button
-                                onClick={toggleImmersiveMode}
-                                className="p-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface"
-                                title="Immersive Mode"
-                            >
-                                <IconFullscreen size={20} />
-                            </button>
-                            <button
                                 onClick={() => useNavigationStore.getState().setRightPanelCollapsed(true)}
                                 className="p-2 -mr-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface"
                                 title="Collapse"
@@ -238,7 +231,7 @@ export function RightPanel() {
                     {/* Main Art & Info */}
                     <div className="flex flex-col items-center gap-6 shrink-0 transition-all duration-300">
                         <div
-                            className="w-72 h-72 rounded-[2rem] bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.02] active:scale-95 transition-transform duration-200"
+                            className="w-full h-[22rem] rounded-[2rem] bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform duration-200"
                             title={displayAlbum ? `Go to album: ${displayAlbum}` : "Album Art"}
                         >
                             <div className="w-full h-full" onClick={handleArtClick}>
@@ -253,6 +246,34 @@ export function RightPanel() {
                                         <IconMusicNote size={64} />
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Top-right device/immersive toggle */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleImmersiveMode();
+                                }}
+                                className="absolute top-3 right-3 p-2 rounded-full bg-black/35 hover:bg-black/50 transition-colors text-white z-30"
+                                title="Phone/PC View"
+                            >
+                                <IconFullscreen size={18} />
+                            </button>
+
+                            {/* Bottom gradient + in-art metadata */}
+                            <div
+                                className="absolute inset-x-0 bottom-0 h-[44%] z-10 pointer-events-none"
+                                style={{
+                                    background: 'linear-gradient(180deg, rgba(0, 0, 0, 0) 56%, var(--md-sys-color-primary) 100%)'
+                                }}
+                            />
+                            <div className="absolute inset-x-0 bottom-0 z-20 p-4 pointer-events-none">
+                                <div className="text-title-large font-bold text-on-primary leading-tight line-clamp-2">
+                                    {displayTitle}
+                                </div>
+                                <div className="text-body-large text-on-secondary mt-1 truncate">
+                                    {displayArtist}
+                                </div>
                             </div>
 
                             {/* Hover Overlay - Favorite & Info */}
@@ -313,14 +334,7 @@ export function RightPanel() {
                             )}
                         </div>
 
-                        <div className="flex flex-col items-center text-center gap-1 w-full px-2">
-                            <div className="w-full text-headline-medium font-bold text-on-surface truncate">
-                                <MarqueeText text={displayTitle} />
-                            </div>
-                            <div className="text-title-large text-on-surface-variant truncate w-full font-medium">
-                                {displayArtist}
-                            </div>
-                        </div>
+                        <div className="hidden" aria-hidden="true" />
                     </div>
 
                     {/* Seeker */}
