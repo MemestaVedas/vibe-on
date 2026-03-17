@@ -151,14 +151,14 @@ function App() {
       <TitleBar />
 
       {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
-      <div className="fixed inset-0 top-10 flex p-3 overflow-hidden text-on-surface">
+      <div className="fixed inset-0 top-10 flex p-3 gap-3 overflow-hidden text-on-surface">
 
-        {/* Sidebar */}
-        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-l-[2rem] rounded-r-[0.5rem]">
+        {/* Sidebar - Layer 1 */}
+        <div className="shrink-0 h-full z-20 bg-surface-container-low rounded-[2rem]">
           <Sidebar view={view} onViewChange={setView} />
         </div>
 
-        {/* Center: Main Content Area (Floating Card) */}
+        {/* Center: Main Content Area - Layer 2 (Floating Card) */}
         <div className="flex-1 flex flex-col min-w-0 relative bg-surface overflow-hidden z-10 transition-all duration-300 rounded-[2rem]">
 
           {/* Main Content Area */}
@@ -195,14 +195,14 @@ function App() {
 
         </div>
 
-        {/* Right Panel (Floating Card) */}
+        {/* Right Panel - Layer 3 (Floating Card) */}
         {/* Responsive Logic:
             - xl+: Relative (pushes content), toggles width/opacity
             - <xl: Fixed/Absolute overlay, toggles translate/opacity
         */}
         <aside
           className={`
-            bg-surface-container z-30 overflow-hidden transition-all duration-300 rounded-l-[0.5rem] rounded-r-[2rem]
+            bg-surface-container z-30 overflow-hidden transition-all duration-300 rounded-[2rem]
             fixed right-3 top-[3.25rem] bottom-28 shadow-2xl
             2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
 
