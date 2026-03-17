@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
@@ -58,6 +59,48 @@ function formatTime(seconds: number): string {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+const SMOOTH_SPRING = { type: 'spring', stiffness: 300, damping: 40, mass: 1 } as const;
+
+// Restored expressive side button design for collapsed mode prev/next.
+const ExpressiveControlButton = ({ onClick, icon, disabled, direction = 'left' }: { onClick: () => void, icon: React.ReactNode, disabled: boolean, direction?: 'left' | 'right' }) => {
+    const [rotation, setRotation] = useState(0);
+
+    const handleClick = () => {
+        if (!disabled) {
+            setRotation(prev => prev + 120);
+            onClick();
+        }
+    };
+
+    return (
+        <motion.button
+            layout
+            initial={{ opacity: 0, scale: 0.8, x: direction === 'left' ? 20 : -20 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.5, x: direction === 'left' ? 10 : -10 }}
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.9 }}
+            transition={SMOOTH_SPRING}
+            onClick={handleClick}
+            disabled={disabled}
+            className="group relative w-12 h-12 flex items-center justify-center pointer-events-auto disabled:opacity-50"
+        >
+            <motion.svg
+                viewBox="0 0 340 340"
+                className="absolute inset-0 w-full h-full text-secondary-container drop-shadow-md group-hover:drop-shadow-lg group-hover:text-secondary-container-high transition-colors duration-300"
+                animate={{ rotate: rotation }}
+                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+            >
+                <path d="M261.856 41.2425C272.431 41.9625 277.718 42.3226 281.991 44.1826C288.175 46.8926 293.111 51.8325 295.816 58.0125C297.685 62.2825 298.044 67.5725 298.762 78.1425L300.402 102.273C300.693 106.553 300.838 108.693 301.303 110.733C301.975 113.683 303.142 116.503 304.754 119.063C305.869 120.843 307.279 122.453 310.097 125.683L326.001 143.903C332.97 151.893 336.455 155.882 338.155 160.222C340.615 166.512 340.615 173.493 338.155 179.783C336.455 184.123 332.97 188.112 326.001 196.102L310.097 214.322C307.279 217.552 305.869 219.162 304.754 220.942C303.142 223.502 301.975 226.323 301.303 229.273C300.838 231.313 300.693 233.452 300.402 237.732L298.762 261.863C298.044 272.433 297.685 277.723 295.816 281.993C293.111 288.173 288.175 293.112 281.991 295.822C277.718 297.682 272.431 298.043 261.856 298.763L237.725 300.403C233.448 300.693 231.31 300.843 229.267 301.303C226.316 301.973 223.499 303.143 220.937 304.753C219.164 305.873 217.549 307.283 214.319 310.103L196.097 326.003C188.111 332.973 184.119 336.453 179.775 338.153C173.491 340.623 166.509 340.623 160.225 338.153C155.881 336.453 151.889 332.973 143.903 326.003L125.681 310.103C122.451 307.283 120.836 305.873 119.063 304.753C116.501 303.143 113.684 301.973 110.733 301.303C108.69 300.843 106.552 300.693 102.275 300.403L78.1438 298.763C67.5694 298.043 62.2822 297.682 58.0088 295.822C51.8252 293.112 46.8887 288.173 44.1844 281.993C42.3154 277.723 41.9561 272.433 41.2375 261.863L39.5977 237.732C39.3071 233.452 39.1618 231.313 38.6969 229.273C38.0251 226.323 36.8584 223.502 35.2463 220.942C34.1306 219.162 32.7213 217.552 29.9027 214.322L13.999 196.102C7.02996 188.112 3.54542 184.123 1.84516 179.783C-0.615054 173.493 -0.615053 166.512 1.84516 160.222C3.54542 155.882 7.02996 151.893 13.999 143.903L29.9027 125.683C32.7213 122.453 34.1306 120.843 35.2463 119.063C36.8584 116.503 38.0251 113.683 38.6969 110.733C39.1618 108.693 39.3071 106.553 39.5977 102.273L41.2375 78.1425C41.9561 67.5725 42.3154 62.2825 44.1844 58.0125C46.8887 51.8325 51.8252 46.8926 58.0088 44.1826C62.2823 42.3226 67.5694 41.9625 78.1438 41.2425L102.275 39.6025C106.552 39.3125 108.69 39.1625 110.733 38.7025C113.684 38.0325 116.501 36.8625 119.063 35.2525C120.836 34.1325 122.451 32.7225 125.681 29.9025L143.903 14.0025C151.889 7.03252 155.881 3.5525 160.225 1.8525C166.509 -0.6175 173.491 -0.6175 179.775 1.8525C184.119 3.5525 188.111 7.03252 196.097 14.0025L214.319 29.9025C217.549 32.7225 219.164 34.1325 220.937 35.2525C223.499 36.8625 226.316 38.0325 229.267 38.7025C231.31 39.1625 233.448 39.3125 237.725 39.6025L261.856 41.2425Z" fill="currentColor" />
+            </motion.svg>
+
+            <div className="relative z-10 text-on-secondary-container group-hover:text-on-secondary-container-high transition-colors">
+                {icon}
+            </div>
+        </motion.button>
+    );
+};
 
 const PillIconButton = ({ onClick, disabled, className = '', children, title }: { onClick: () => void; disabled?: boolean; className?: string; children: React.ReactNode; title?: string }) => (
     <button
@@ -264,16 +307,16 @@ export function PlayerBar() {
             )}
 
             <div className="flex items-center justify-center gap-3 w-full h-[6rem]">
-                {!isExpanded && (
-                    <PillIconButton
-                        onClick={prevTrack}
-                        disabled={!hasPrev}
-                        title="Previous"
-                        className="pointer-events-auto bg-secondary-container text-on-secondary-container hover:bg-secondary-container-high shadow-elevation-1"
-                    >
-                        <IconPrevious size={22} />
-                    </PillIconButton>
-                )}
+                <AnimatePresence>
+                    {!isExpanded && (
+                        <ExpressiveControlButton
+                            onClick={prevTrack}
+                            disabled={!hasPrev}
+                            icon={<IconPrevious size={24} />}
+                            direction="left"
+                        />
+                    )}
+                </AnimatePresence>
 
                 <div
                     onMouseEnter={() => setIsPillHovered(true)}
@@ -360,14 +403,16 @@ export function PlayerBar() {
                         </div>
 
                         <div className="ml-auto flex items-center gap-1">
-                            <PillIconButton
-                                onClick={prevTrack}
-                                disabled={!hasPrev}
-                                title="Previous"
-                                className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
-                            >
-                                <IconPrevious size={20} />
-                            </PillIconButton>
+                            {isExpanded && (
+                                <PillIconButton
+                                    onClick={prevTrack}
+                                    disabled={!hasPrev}
+                                    title="Previous"
+                                    className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+                                >
+                                    <IconPrevious size={20} />
+                                </PillIconButton>
+                            )}
                             <PillIconButton
                                 onClick={handlePlayPause}
                                 className="bg-primary text-on-primary shadow-elevation-1 hover:brightness-95"
@@ -376,14 +421,16 @@ export function PlayerBar() {
                                 {playRipple.render}
                                 {state === 'Playing' ? <IconPause size={22} /> : <IconPlay size={22} />}
                             </PillIconButton>
-                            <PillIconButton
-                                onClick={nextTrack}
-                                disabled={!hasNext}
-                                title="Next"
-                                className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
-                            >
-                                <IconNext size={20} />
-                            </PillIconButton>
+                            {isExpanded && (
+                                <PillIconButton
+                                    onClick={nextTrack}
+                                    disabled={!hasNext}
+                                    title="Next"
+                                    className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+                                >
+                                    <IconNext size={20} />
+                                </PillIconButton>
+                            )}
                         </div>
 
                         {isExpanded && (
@@ -434,16 +481,16 @@ export function PlayerBar() {
                     </div>
                 </div>
 
-                {!isExpanded && (
-                    <PillIconButton
-                        onClick={nextTrack}
-                        disabled={!hasNext}
-                        title="Next"
-                        className="pointer-events-auto bg-secondary-container text-on-secondary-container hover:bg-secondary-container-high shadow-elevation-1"
-                    >
-                        <IconNext size={22} />
-                    </PillIconButton>
-                )}
+                <AnimatePresence>
+                    {!isExpanded && (
+                        <ExpressiveControlButton
+                            onClick={nextTrack}
+                            disabled={!hasNext}
+                            icon={<IconNext size={24} />}
+                            direction="right"
+                        />
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );
