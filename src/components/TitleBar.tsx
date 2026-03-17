@@ -131,12 +131,14 @@ export function TitleBar() {
                             </svg>
                         </button>
                     </div>
+                    <div className="flex items-center gap-2">
+                        {miniPlayerButton}
+                        {mobileButton}
+                    </div>
                     <div data-tauri-drag-region className="flex-1 flex justify-center">
                         <SearchBar />
                     </div>
                     <div className="flex items-center gap-3">
-                        {miniPlayerButton}
-                        {mobileButton}
                         <div data-tauri-drag-region className="flex items-center gap-3">
                             <div data-tauri-drag-region className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
                                 <img src="/VIBE-ON-mobile1.png" alt="Logo" className="w-5 h-5 object-contain" /> VIBE-ON!
@@ -150,17 +152,15 @@ export function TitleBar() {
                         <div data-tauri-drag-region className="text-label-large font-bold tracking-wider opacity-90 pointer-events-none flex items-center gap-2">
                             <img src="/VIBE-ON-mobile1.png" alt="Logo" className="w-5 h-5 object-contain" /> VIBE-ON!
                         </div>
+                        <div className="flex items-center gap-2 ml-3">
+                            {miniPlayerButton}
+                            {mobileButton}
+                        </div>
                     </div>
                     <div data-tauri-drag-region className="flex-1 flex justify-end pr-8">
                         <SearchBar />
                     </div>
                     <div className="flex items-center gap-3 pr-2">
-                        {/* Miniplayer Button */}
-                        {miniPlayerButton}
-
-                        {/* Mobile Pairing Button */}
-                        {mobileButton}
-
                         {/* Windows Order: Minimize, Maximize, Close */}
                         <button
                             onClick={() => appWindow.minimize()}
