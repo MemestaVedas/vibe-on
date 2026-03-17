@@ -249,6 +249,54 @@ export function PlayerBar() {
     const currentCover = useCurrentCover();
     const activeCoverUrl = useCoverArt(currentCover || track?.cover_image || track?.cover_url, track?.path, true);
 
+    // Determine whether the active cover image is dark or light to choose readable text colors.
+    const [isCoverDark, setIsCoverDark] = useState<boolean | null>(null);
+    useEffect(() => {
+        if (!activeCoverUrl) {
+            setIsCoverDark(null);
+            return;
+        }
+
+        let cancelled = false;
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = activeCoverUrl;
+        img.onload = () => {
+            try {
+                const w = 32;
+                const h = 32;
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+                ctx.drawImage(img, 0, 0, w, h);
+                const data = ctx.getImageData(0, 0, w, h).data;
+                let r = 0, g = 0, b = 0, count = 0;
+                for (let i = 0; i < data.length; i += 4) {
+                    r += data[i];
+                    g += data[i + 1];
+                    b += data[i + 2];
+                    count++;
+                }
+                if (count === 0) return;
+                const avgR = r / count;
+                const avgG = g / count;
+                const avgB = b / count;
+                // Relative luminance approximation
+                const lum = 0.2126 * avgR + 0.7152 * avgG + 0.0722 * avgB;
+                // Threshold: lower means darker image. Tuneable if needed.
+                const dark = lum < 140;
+                if (!cancelled) setIsCoverDark(dark);
+            } catch (e) {
+                if (!cancelled) setIsCoverDark(null);
+            }
+        };
+        img.onerror = () => { if (!cancelled) setIsCoverDark(null); };
+
+        return () => { cancelled = true; };
+    }, [activeCoverUrl]);
+
     const [isExpanded, setIsExpanded] = useState(false);
     const [isPillHovered, setIsPillHovered] = useState(false);
     const [isVolumeHovered, setIsVolumeHovered] = useState(false);
@@ -343,10 +391,7 @@ export function PlayerBar() {
                         </div>
                     )}
 
-                    {/* Primary tint overlay for expanded pill */}
-                    {isExpanded && (
-                        <div className="absolute inset-0 z-5 pointer-events-none" style={{ backgroundColor: 'var(--md-sys-color-primary)', opacity: 0.3 }} />
-                    )}
+                    {/* Primary tint overlay for expanded pill removed per request */}
 
                     {track && (
                         <>
@@ -411,10 +456,14 @@ export function PlayerBar() {
                         )}
 
                         <div className="flex min-w-0 flex-col justify-center overflow-hidden">
-                            <div className={`text-title-medium font-bold truncate ${isExpanded ? 'text-on-primary' : 'text-on-surface'} w-full`}>
+                            <div className={`text-title-medium font-bold truncate ${
+                                isCoverDark === null ? (isExpanded ? 'text-on-primary' : 'text-on-surface') : (isCoverDark ? 'text-white' : 'text-on-surface')
+                            } w-full`}>
                                 <MarqueeText text={getDisplayText(displayTrack as TrackDisplay, 'title', displayLanguage) || 'Not Playing'} />
                             </div>
-                            <div className={`flex items-center gap-2 ${isExpanded ? 'text-on-secondary' : 'text-on-surface-variant'} w-full`}>
+                            <div className={`flex items-center gap-2 ${
+                                isCoverDark === null ? (isExpanded ? 'text-on-secondary' : 'text-on-surface-variant') : (isCoverDark ? 'text-on-surface-variant' : 'text-on-surface-variant')
+                            } w-full`}>
                                 <span className="truncate text-body-medium">
                                     {getDisplayText(displayTrack as TrackDisplay, 'artist', displayLanguage) || 'Artist'}
                                 </span>
