@@ -102,11 +102,13 @@ const ExpressiveControlButton = ({ onClick, icon, disabled, direction = 'left' }
     );
 };
 
-const PillIconButton = ({ onClick, disabled, className = '', children, title }: { onClick: () => void; disabled?: boolean; className?: string; children: React.ReactNode; title?: string }) => (
+type PillBtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { onClick: () => void; children: React.ReactNode };
+const PillIconButton = ({ onClick, className = '', children, title, disabled, ...props }: PillBtnProps) => (
     <button
         onClick={onClick}
         disabled={disabled}
         title={title}
+        {...props}
         className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${className}`}
     >
         {children}
@@ -319,7 +321,11 @@ export function PlayerBar() {
                 </AnimatePresence>
 
                 <div
-                    onMouseEnter={() => setIsPillHovered(true)}
+                    onMouseEnter={(e) => {
+                        const tgt = e.target as HTMLElement;
+                        if (tgt && tgt.closest && tgt.closest('.no-expand')) return;
+                        setIsPillHovered(true);
+                    }}
                     onMouseLeave={() => setIsPillHovered(false)}
                     className={`
                         pointer-events-auto relative z-20 text-on-surface overflow-hidden isolation-isolate border backdrop-blur-xl
@@ -335,6 +341,11 @@ export function PlayerBar() {
                             <img src={activeCoverUrl} alt="" className="w-full h-full object-cover opacity-55 scale-105" />
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-container-high/60 to-surface-container-high" />
                         </div>
+                    )}
+
+                    {/* Primary tint overlay for expanded pill */}
+                    {isExpanded && (
+                        <div className="absolute inset-0 z-5 pointer-events-none" style={{ backgroundColor: 'var(--md-sys-color-primary)', opacity: 0.3 }} />
                     )}
 
                     {track && (
@@ -400,10 +411,10 @@ export function PlayerBar() {
                         )}
 
                         <div className="flex min-w-0 flex-col justify-center overflow-hidden">
-                            <div className="text-title-medium font-bold truncate text-on-surface w-full">
+                            <div className={`text-title-medium font-bold truncate ${isExpanded ? 'text-on-primary' : 'text-on-surface'} w-full`}>
                                 <MarqueeText text={getDisplayText(displayTrack as TrackDisplay, 'title', displayLanguage) || 'Not Playing'} />
                             </div>
-                            <div className="flex items-center gap-2 text-on-surface-variant w-full">
+                            <div className={`flex items-center gap-2 ${isExpanded ? 'text-on-secondary' : 'text-on-surface-variant'} w-full`}>
                                 <span className="truncate text-body-medium">
                                     {getDisplayText(displayTrack as TrackDisplay, 'artist', displayLanguage) || 'Artist'}
                                 </span>
@@ -445,8 +456,9 @@ export function PlayerBar() {
                             )}
                             <PillIconButton
                                 onClick={handlePlayPause}
-                                className="bg-primary text-on-primary shadow-elevation-1 hover:brightness-95"
+                                className="bg-primary text-on-primary shadow-elevation-1 hover:brightness-95 no-expand"
                                 title={state === 'Playing' ? 'Pause' : 'Play'}
+                                onMouseEnter={(e) => e.stopPropagation()}
                             >
                                 {playRipple.render}
                                 {state === 'Playing' ? <IconPause size={22} /> : <IconPlay size={22} />}
