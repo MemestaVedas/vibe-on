@@ -244,6 +244,33 @@ function SettingsContent({ tab }: { tab: TabId }) {
                                     </div>
                                 </OptionButton>
                             </div>
+                            {/* Right Panel Background Option */}
+                            <div className="mt-6">
+                                <h3 className="text-base font-medium text-on-surface">Right Panel Background</h3>
+                                <p className="text-sm text-on-surface-variant">Choose between a solid surface color or a dynamic blurred album-art background.</p>
+
+                                <div className="flex gap-4 mt-3">
+                                    <OptionButton
+                                        label="Solid"
+                                        active={useSettingsStore((s) => s.rightPanelBg) === 'solid'}
+                                        onClick={() => useSettingsStore.getState().setRightPanelBg('solid')}
+                                        accentColor={primary}
+                                    >
+                                        <div className="w-16 h-8 rounded bg-surface-container" />
+                                    </OptionButton>
+
+                                    <OptionButton
+                                        label="Dynamic"
+                                        active={useSettingsStore((s) => s.rightPanelBg) === 'dynamic'}
+                                        onClick={() => useSettingsStore.getState().setRightPanelBg('dynamic')}
+                                        accentColor={primary}
+                                    >
+                                        <div className="w-16 h-8 rounded relative overflow-hidden">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-transparent" />
+                                        </div>
+                                    </OptionButton>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Section: Mini Player */}

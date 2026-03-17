@@ -7,6 +7,7 @@ import { useNavigationStore } from '../store/navigationStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { useCurrentCover } from '../hooks/useCurrentCover';
+import { useSettingsStore } from '../store/settingsStore';
 import { IconMusicNote, IconPlay, IconQueue, IconAlbum, IconLyrics, IconFullscreen, IconHeart, IconShuffle, IconRepeat, IconTrash, IconClose, IconComputer, IconMobileDevice, IconPlus } from './Icons';
 import { M3CircleImage } from './ShapeComponents';
 import { MarqueeText } from './MarqueeText';
@@ -77,6 +78,8 @@ export function RightPanel() {
 
     const [showLyrics, setShowLyrics] = useState<boolean>(!!shouldShowLyricsIdeally);
 
+    const rightPanelBg = useSettingsStore(s => s.rightPanelBg);
+
     useEffect(() => {
         if (shouldShowLyricsIdeally) {
             setShowLyrics(true);
@@ -144,7 +147,16 @@ export function RightPanel() {
     }, [queue, trackPath, playFile, displayLanguage, removeQueueItem, moveQueueItem, dragIndex]);
 
     return (
-        <div className="h-full flex flex-col overflow-hidden bg-surface-container rounded-[2rem] relative z-20">
+                <div className="h-full flex flex-col overflow-hidden rounded-[2rem] relative z-20">
+                    {/* Background layer: solid or dynamic (blurred album art) */}
+                    {rightPanelBg === 'dynamic' && coverUrl ? (
+                        <div className="absolute inset-0 z-0 overflow-hidden rounded-[2rem] pointer-events-none">
+                            <img src={coverUrl} alt="bg" className="w-full h-full object-cover filter blur-lg brightness-50 scale-105" />
+                            <div className="absolute inset-0 bg-black/30" />
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 z-0 bg-surface-container rounded-[2rem] pointer-events-none" />
+                    )}
             {isCollapsed ? (
                 /* COLLAPSED VIEW */
                 <div className="flex flex-col items-center h-full py-6 gap-4">
