@@ -338,10 +338,40 @@ export function PlayerBar() {
                     )}
 
                     {track && (
-                        <div
-                            className="absolute left-0 bottom-0 h-1 z-[1] bg-secondary-container transition-[width] duration-200 rounded-full"
-                            style={{ width: `${Math.min(100, (position_secs / (track.duration_secs || 1)) * 100)}%` }}
-                        />
+                        <>
+                            {!isExpanded ? (
+                                <div
+                                    className="absolute left-0 top-0 bottom-0 z-[1] pointer-events-none flex items-stretch text-secondary-container rounded-l-full"
+                                    style={{
+                                        width: `${Math.min(100, (position_secs / (track.duration_secs || 1)) * 100)}%`
+                                    }}
+                                >
+                                    <div className="flex-1 bg-current" />
+                                    <div className="w-[12px] h-full shrink-0 overflow-hidden relative -ml-[1px]">
+                                        <motion.div
+                                            className="w-full absolute top-0 left-0"
+                                            style={{ height: 'calc(100% + 40px)', top: '-40px' }}
+                                            animate={state === 'Playing' ? { y: ['0px', '40px'] } : { y: '0px' }}
+                                            transition={{ duration: 1, ease: 'linear', repeat: Infinity }}
+                                        >
+                                            <svg className="h-full w-full" preserveAspectRatio="none">
+                                                <defs>
+                                                    <pattern id="pill-progress-wave" x="0" y="0" width="12" height="40" patternUnits="userSpaceOnUse">
+                                                        <path d="M 0 0 L 6 0 Q -4 10 6 20 T 6 40 L 0 40 Z" fill="currentColor" />
+                                                    </pattern>
+                                                </defs>
+                                                <rect x="0" y="0" width="100%" height="100%" fill="url(#pill-progress-wave)" />
+                                            </svg>
+                                        </motion.div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div
+                                    className="absolute left-0 bottom-0 h-1 z-[1] bg-secondary-container transition-[width] duration-200 rounded-full"
+                                    style={{ width: `${Math.min(100, (position_secs / (track.duration_secs || 1)) * 100)}%` }}
+                                />
+                            )}
+                        </>
                     )}
 
                     <div className="relative z-10 h-full flex items-center gap-4">
