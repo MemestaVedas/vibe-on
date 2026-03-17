@@ -147,7 +147,7 @@ export function RightPanel() {
     }, [queue, trackPath, playFile, displayLanguage, removeQueueItem, moveQueueItem, dragIndex]);
 
     return (
-                <div className="h-full flex flex-col overflow-hidden rounded-[2rem] relative z-20">
+                <div className="h-full flex flex-col overflow-hidden rounded-[2rem] relative z-50">
                     {/* Background layer: solid or dynamic (blurred album art) */}
                     {rightPanelBg === 'dynamic' && coverUrl ? (
                         <div className="absolute inset-0 z-0 overflow-hidden rounded-[2rem] pointer-events-none">
@@ -239,19 +239,19 @@ export function RightPanel() {
                     className="flex flex-col h-full p-6 gap-6"
                 >
                     {/* Now Playing Header */}
-                    <div className="flex items-center justify-between shrink-0">
+                    <div className="flex items-center justify-between shrink-0 z-50">
                         <h2 className="text-title-medium font-bold text-on-surface">Now Playing</h2>
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={toggleImmersiveMode}
-                                className="p-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface"
+                                className="p-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface z-50"
                                 title="Immersive Mode"
                             >
                                 <IconFullscreen size={20} />
                             </button>
                             <button
                                 onClick={() => useNavigationStore.getState().setRightPanelCollapsed(true)}
-                                className="p-2 -mr-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface"
+                                className="p-2 -mr-2 rounded-full hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-on-surface z-50"
                                 title="Collapse"
                             >
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
