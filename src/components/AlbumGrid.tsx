@@ -215,7 +215,7 @@ const AlbumItem = ({
                 <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayAlbum(album); }} />
             </div>
 
-            <div className="px-1 flex flex-col gap-0.5 min-h-[4.5rem]">
+            <div className="px-1 flex flex-col gap-0.5 min-h-18">
                 <div className="text-title-large font-semibold text-on-surface truncate" title={displayAlbumName}>
                     {displayAlbumName}
                 </div>
@@ -328,7 +328,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                 <div className="flex-1" />
                 <button
                     onClick={() => playQueue(sortedTracks, 0)}
-                    className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-sm scale-90"
+                    className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-xs scale-90"
                 >
                     <IconPlay size={18} fill="currentColor" /> Play
                 </button>
@@ -382,7 +382,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                                 </div>
                             </div>
                             <div className="w-full relative pointer-events-none">
-                                <FilledWavySeparator color="var(--md-sys-color-surface-container)" className="drop-shadow-sm -mt-[1px]" />
+                                <FilledWavySeparator color="var(--md-sys-color-surface-container)" className="drop-shadow-xs -mt-px" />
                             </div>
                         </div>
                     ),

@@ -107,7 +107,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
             {popupOpen && (
                 <motion.div
                     ref={popupRef}
-                    className="fixed z-[9999] w-80 overflow-hidden"
+                    className="fixed z-9999 w-80 overflow-hidden"
                     style={{
                         top: position.top,
                         right: position.right,
@@ -227,7 +227,7 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
                                         </div>
 
                                         <div
-                                            className="px-4 py-1.5 rounded-full flex items-center gap-2 border shadow-sm"
+                                            className="px-4 py-1.5 rounded-full flex items-center gap-2 border shadow-xs"
                                             style={{
                                                 backgroundColor: `${colors.primary}10`,
                                                 borderColor: `${colors.primary}20`,

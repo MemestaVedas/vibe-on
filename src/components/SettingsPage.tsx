@@ -62,7 +62,7 @@ export function SettingsPage() {
     return (
         <div className="h-full flex overflow-hidden bg-surface">
             {/* Sidebar */}
-            <div className="w-64 flex-shrink-0 bg-surface-container-low border-r border-white/5 flex flex-col pt-20 pb-8 px-4">
+            <div className="w-64 shrink-0 bg-surface-container-low border-r border-white/5 flex flex-col pt-20 pb-8 px-4">
                 <nav className="flex flex-col gap-1">
                     {tabs.map((tab) => (
                         <button
@@ -266,7 +266,7 @@ function SettingsContent({ tab }: { tab: TabId }) {
                                         accentColor={primary}
                                     >
                                         <div className="w-16 h-8 rounded relative overflow-hidden">
-                                            <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-transparent" />
+                                            <div className="absolute inset-0 bg-linear-to-br from-black/20 to-transparent" />
                                         </div>
                                     </OptionButton>
                                 </div>
@@ -370,7 +370,7 @@ function SettingsContent({ tab }: { tab: TabId }) {
                                     folders.map((folder) => (
                                         <div key={folder} className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low group">
                                             <div className="flex items-center gap-3 overflow-hidden">
-                                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 text-on-surface-variant">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 shrink-0 text-on-surface-variant">
                                                     <path d="M19.5 21a3 3 0 0 0 3-3v-4.5a3 3 0 0 0-3-3h-15a3 3 0 0 0-3 3V18a3 3 0 0 0 3 3h15ZM1.5 10.146V6a3 3 0 0 1 3-3h5.379a2.25 2.25 0 0 1 1.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 0 1 3 3v1.146A4.483 4.483 0 0 0 19.5 9h-15a4.483 4.483 0 0 0-3 1.146Z" />
                                                 </svg>
                                                 <span className="text-sm text-on-surface/90 truncate font-mono" title={folder}>

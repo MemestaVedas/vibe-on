@@ -134,14 +134,14 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-xs"
           />
 
           {/* Dialog */}
@@ -191,7 +191,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                         value={playlistName}
                         onChange={(e) => setPlaylistName(e.target.value)}
                         placeholder="Enter playlist name"
-                        className="w-full h-14 px-4 rounded-2xl bg-surface-container-highest text-on-surface text-body-large outline-none border-2 border-outline-variant/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        className="w-full h-14 px-4 rounded-2xl bg-surface-container-highest text-on-surface text-body-large outline-hidden border-2 border-outline-variant/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                       />
                     </div>
 
@@ -257,7 +257,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search songs..."
-                        className="w-full h-12 pl-12 pr-4 rounded-xl bg-surface-container-highest text-on-surface outline-none border-2 border-outline-variant/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        className="w-full h-12 pl-12 pr-4 rounded-xl bg-surface-container-highest text-on-surface outline-hidden border-2 border-outline-variant/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                       />
                       {searchQuery && (
                         <button
@@ -286,7 +286,7 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                               : 'bg-surface-container-highest border-2 border-outline-variant/20 hover:bg-surface-container-highest/80'
                               }`}
                           >
-                            <div className="flex-shrink-0 w-5 h-5 mt-1.5">
+                            <div className="shrink-0 w-5 h-5 mt-1.5">
                               <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectedSongs.has(song.path)
                                 ? 'bg-primary border-primary'
                                 : 'border-outline-variant/50'

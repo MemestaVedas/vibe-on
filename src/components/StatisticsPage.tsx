@@ -84,7 +84,7 @@ function TopAlbumCard({ album, index }: { album: any, index: number }) {
             {/* Blurred Background Art */}
             {coverUrl && (
                 <div
-                    className="absolute inset-0 z-0 opacity-20 blur-sm scale-105"
+                    className="absolute inset-0 z-0 opacity-20 blur-xs scale-105"
                     style={{
                         backgroundImage: `url(${coverUrl})`,
                         backgroundSize: 'cover',
@@ -370,7 +370,7 @@ export function StatisticsPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="mt-6 rounded-3xl bg-gradient-to-br from-error/10 to-error/5 border border-error/20 p-6 flex items-center justify-between"
+                    className="mt-6 rounded-3xl bg-linear-to-br from-error/10 to-error/5 border border-error/20 p-6 flex items-center justify-between"
                 >
                     <div>
                         <h2 className="text-title-large font-bold text-on-surface mb-2 flex items-center gap-2">

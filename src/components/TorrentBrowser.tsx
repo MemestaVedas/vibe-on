@@ -186,7 +186,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                 <div className="flex gap-3 p-1 w-fit mb-6">
                     <button
                         onClick={() => setInputType('search')}
-                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'search'
+                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-xs ${inputType === 'search'
                             ? 'bg-primary text-on-primary ring-2 ring-primary/20'
                             : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
                             }`}
@@ -195,7 +195,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                     </button>
                     <button
                         onClick={() => setInputType('magnet')}
-                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'magnet'
+                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-xs ${inputType === 'magnet'
                             ? 'bg-primary text-on-primary ring-2 ring-primary/20'
                             : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
                             }`}
@@ -204,7 +204,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                     </button>
                     <button
                         onClick={() => setInputType('file')}
-                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${inputType === 'file'
+                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-xs ${inputType === 'file'
                             ? 'bg-primary text-on-primary ring-2 ring-primary/20'
                             : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
                             }`}
@@ -225,7 +225,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                                 value={magnetLink}
                                 onChange={(e) => setMagnetLink(e.target.value)}
                                 placeholder="magnet:?xt=urn:btih:..."
-                                className="w-full h-32 px-4 py-3 rounded-xl bg-surface-container-high text-on-surface border-none focus:ring-2 focus:ring-primary outline-none resize-none"
+                                className="w-full h-32 px-4 py-3 rounded-xl bg-surface-container-high text-on-surface border-none focus:ring-2 focus:ring-primary outline-hidden resize-none"
                             />
                             <div className="bg-surface-container-highest p-4 rounded-xl text-sm text-on-surface-variant">
                                 Paste a magnet link above to start inspecting the torrent metadata.
@@ -286,7 +286,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-40 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center"
+                        className="absolute inset-0 z-40 bg-black/40 backdrop-blur-xs flex flex-col items-center justify-center"
                     >
                         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
                         <p className="text-white font-medium animate-pulse">Fetching Metadata...</p>
@@ -423,7 +423,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                                                         <input
                                                             readOnly
                                                             value={downloadPath}
-                                                            className="flex-1 px-3 py-2 rounded-xl bg-surface-container text-on-surface text-xs border-none outline-none opacity-80"
+                                                            className="flex-1 px-3 py-2 rounded-xl bg-surface-container text-on-surface text-xs border-none outline-hidden opacity-80"
                                                         />
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleBrowsePath(); }}

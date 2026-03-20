@@ -91,7 +91,7 @@ export function ContextMenu({ x, y, track, onClose }: ContextMenuProps) {
                     bottom: position.bottom,
                     transformOrigin: position.bottom ? 'bottom left' : 'top left'
                 }}
-                className="fixed z-[9999] min-w-[220px] max-w-[260px] bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-elevation-3 py-2 flex flex-col overflow-hidden"
+                className="fixed z-9999 min-w-[220px] max-w-[260px] bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-elevation-3 py-2 flex flex-col overflow-hidden"
             >
                 {view === 'main' ? (
                     <>

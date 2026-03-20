@@ -44,7 +44,7 @@ export function PlaylistDialog() {
     return (
         <AnimatePresence>
             {isCreateDialogOpen && (
-                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -60,7 +60,7 @@ export function PlaylistDialog() {
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 10 }}
                         transition={{ type: "spring", duration: 0.4, bounce: 0.3 }}
-                        className="relative w-full max-w-sm bg-surface-container-high rounded-[32px] p-6 shadow-elevation-4 border border-outline-variant/10 overflow-hidden"
+                        className="relative w-full max-w-sm bg-surface-container-high rounded-2xl p-6 shadow-elevation-4 border border-outline-variant/10 overflow-hidden"
                     >
                         {/* Decorative Background Shape */}
                         <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
@@ -80,7 +80,7 @@ export function PlaylistDialog() {
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         placeholder=" "
-                                        className="peer w-full h-16 px-6 rounded-2xl bg-surface-container-highest text-on-surface text-body-large outline-none border-2 border-transparent focus:border-primary/50 transition-all placeholder-shown:pt-0 pt-4"
+                                        className="peer w-full h-16 px-6 rounded-2xl bg-surface-container-highest text-on-surface text-body-large outline-hidden border-2 border-transparent focus:border-primary/50 transition-all placeholder-shown:pt-0 pt-4"
                                     />
                                     <label className="absolute left-6 top-5 text-on-surface-variant/70 text-body-large pointer-events-none transition-all peer-focus:top-2 peer-focus:text-label-small peer-focus:text-primary peer-focus:opacity-100 peer[:not(:placeholder-shown)]:top-2 peer[:not(:placeholder-shown)]:text-label-small peer[:not(:placeholder-shown)]:opacity-70">
                                         Playlist Name
@@ -98,7 +98,7 @@ export function PlaylistDialog() {
                                     <button
                                         type="submit"
                                         disabled={!name.trim() || isSubmitting}
-                                        className="h-12 px-8 rounded-full bg-primary text-on-primary text-label-large font-bold shadow-sm hover:shadow-md hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-50 disabled:shadow-none bg-gradient-to-br from-primary to-tertiary"
+                                        className="h-12 px-8 rounded-full bg-primary text-on-primary text-label-large font-bold shadow-xs hover:shadow-md hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-50 disabled:shadow-none bg-linear-to-br from-primary to-tertiary"
                                     >
                                         {isSubmitting ? (
                                             <div className="w-5 h-5 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />

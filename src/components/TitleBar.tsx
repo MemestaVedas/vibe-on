@@ -90,7 +90,7 @@ export function TitleBar() {
     return (
         <div
             data-tauri-drag-region
-            className="h-10 flex items-center justify-between px-4 bg-[#080808] text-on-surface select-none z-[200] fixed top-0 right-0 left-0 transition-colors duration-300"
+            className="h-10 flex items-center justify-between px-4 bg-[#080808] text-on-surface select-none z-200 fixed top-0 right-0 left-0 transition-colors duration-300"
         >
             {/* macOS: Controls on Left, then App Name | Windows: App Name on Left */}
             {isMacOS ? (

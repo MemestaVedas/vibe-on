@@ -51,7 +51,7 @@ export function SearchBar() {
                 className="
                     w-44 h-7 pl-8 pr-7 
                     text-body-small
-                    border rounded-full outline-none
+                    border rounded-full outline-hidden
                     focus:ring-2 focus:w-56
                     transition-all duration-200
                 "

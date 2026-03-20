@@ -191,7 +191,7 @@ export function MiniPlayer() {
                     <div className="flex items-center bg-surface-container rounded-full p-0.5" data-tauri-drag-region>
                         <button
                             onClick={() => handleDeviceToggle('desktop')}
-                            className={`p-1.5 rounded-full transition-all ${audioOutput === 'desktop' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white/80'}`}
+                            className={`p-1.5 rounded-full transition-all ${audioOutput === 'desktop' ? 'bg-white/20 text-white shadow-xs' : 'text-white/50 hover:text-white/80'}`}
                             title="Play on PC"
                         >
                             <IconComputer size={14} />
@@ -199,7 +199,7 @@ export function MiniPlayer() {
                         <button
                             onClick={() => handleDeviceToggle('mobile')}
                             disabled={!connectedDevice}
-                            className={`p-1.5 rounded-full transition-all ${audioOutput === 'mobile' ? 'bg-white/20 text-white shadow-sm' : connectedDevice ? 'text-white/50 hover:text-white/80' : 'text-white/20 cursor-not-allowed'}`}
+                            className={`p-1.5 rounded-full transition-all ${audioOutput === 'mobile' ? 'bg-white/20 text-white shadow-xs' : connectedDevice ? 'text-white/50 hover:text-white/80' : 'text-white/20 cursor-not-allowed'}`}
                             title={connectedDevice ? `Play on ${connectedDevice.name}` : 'No mobile device connected'}
                         >
                             <IconMobileDevice size={14} />
@@ -226,7 +226,7 @@ export function MiniPlayer() {
                             {displayTitle}
                         </span>
                         <span
-                            className="text-sm font-medium text-white/80 truncate drop-shadow-sm"
+                            className="text-sm font-medium text-white/80 truncate drop-shadow-xs"
                             title={displayArtist}
                             data-tauri-drag-region
                         >

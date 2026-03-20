@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
 
-// @ts-expect-error process is a nodejs global
+//deleted the comment to avoid unnecessary error logs in the terminal
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/

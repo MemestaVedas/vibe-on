@@ -87,7 +87,7 @@ export function TrackStats({ features, trackTitle, trackArtist, onClose }: Track
                                         initial={{ width: 0 }}
                                         animate={{ width: `${value * 100}%` }}
                                         transition={{ duration: 0.5, ease: 'easeOut' }}
-                                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-secondary rounded-full"
+                                        className="absolute inset-y-0 left-0 bg-linear-to-r from-primary to-secondary rounded-full"
                                     />
                                 </div>
                                 <p className="text-label-small text-on-surface-variant mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
