@@ -22,6 +22,7 @@ export function TorrentManager() {
     const [activeTab, setActiveTab] = useState<'downloads' | 'browse'>('downloads');
     const [torrents, setTorrents] = useState<TorrentStatus[]>([]);
     const [initError, setInitError] = useState<string | null>(null);
+    const [isBackendReady, setIsBackendReady] = useState(false);
 
     const fetchTorrents = async () => {
         try {
@@ -38,8 +39,13 @@ export function TorrentManager() {
     };
 
     useEffect(() => {
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+
         const init = async () => {
             try {
+                setInitError(null);
+                setIsBackendReady(false);
+
                 // Use app data directory to avoid permission issues
                 const { appDataDir } = await import('@tauri-apps/api/path');
                 let baseDir: string;
@@ -66,16 +72,24 @@ export function TorrentManager() {
                 const path = `${baseDir}torrents`;
                 console.log('[Torrent] Initializing with path:', path);
                 await invoke('init_torrent_backend', { downloadDir: path });
+                setIsBackendReady(true);
                 fetchTorrents();
                 // Poll for updates
-                const interval = setInterval(fetchTorrents, 2000);
-                return () => clearInterval(interval);
+                pollInterval = setInterval(fetchTorrents, 2000);
             } catch (e) {
+                setIsBackendReady(false);
                 setInitError(String(e));
                 console.error("Backend init failed:", e);
             }
         };
+
         init();
+
+        return () => {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        };
     }, []);
 
     const formatSize = (bytes: number) => {
@@ -373,7 +387,7 @@ export function TorrentManager() {
                             exit={{ opacity: 0, x: 20 }}
                             className="h-full p-6 pt-2 overflow-hidden"
                         >
-                            <TorrentBrowser onAdded={handleDownloadAdded} />
+                            <TorrentBrowser onAdded={handleDownloadAdded} isBackendReady={isBackendReady} />
                         </motion.div>
                     )}
                 </AnimatePresence>

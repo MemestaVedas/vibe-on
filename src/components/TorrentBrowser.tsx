@@ -20,9 +20,10 @@ interface InspectResult {
 
 interface Props {
     onAdded: () => void;
+    isBackendReady: boolean;
 }
 
-export function TorrentBrowser({ onAdded }: Props) {
+export function TorrentBrowser({ onAdded, isBackendReady }: Props) {
     const [step, setStep] = useState<'input' | 'inspecting' | 'selection'>('input');
     const [inputType, setInputType] = useState<'search' | 'magnet' | 'file'>('search');
     const [magnetLink, setMagnetLink] = useState('');
@@ -73,6 +74,11 @@ export function TorrentBrowser({ onAdded }: Props) {
     };
 
     const handleInspect = async (magnetOverride?: string) => {
+        if (!isBackendReady) {
+            setError('Torrent backend is still starting. Please wait a moment and try again.');
+            return;
+        }
+
         setStep('inspecting');
         setError(null);
         try {
@@ -118,6 +124,11 @@ export function TorrentBrowser({ onAdded }: Props) {
     };
 
     const handleStartDownload = async () => {
+        if (!isBackendReady) {
+            setError('Torrent backend is still starting. Please wait a moment and try again.');
+            return;
+        }
+
         if (selectedIndices.length === 0) {
             setError('Please select at least one file to download');
             return;
@@ -183,6 +194,12 @@ export function TorrentBrowser({ onAdded }: Props) {
 
             {/* Persistent Input View (Search/Magnet/File) */}
             <div className={`flex-1 flex flex-col overflow-hidden ${(step === 'selection' || step === 'inspecting') ? 'pointer-events-none' : ''} transition-all duration-300`}>
+                {!isBackendReady && (
+                    <div className="mb-4 p-3 bg-surface-container-high text-on-surface-variant rounded-xl border border-outline-variant/20 text-sm">
+                        Preparing torrent backend. Search works now, but adding/inspecting torrents will be available in a moment.
+                    </div>
+                )}
+
                 <div className="flex gap-3 p-1 w-fit mb-6">
                     <button
                         onClick={() => setInputType('search')}
@@ -233,7 +250,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                             <div className="flex justify-end">
                                 <button
                                     onClick={() => handleInspect()}
-                                    disabled={!magnetLink}
+                                    disabled={!magnetLink || !isBackendReady}
                                     className="px-6 py-2 bg-primary text-on-primary rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                                 >
                                     Inspect
@@ -268,7 +285,7 @@ export function TorrentBrowser({ onAdded }: Props) {
                             <div className="flex justify-end">
                                 <button
                                     onClick={() => handleInspect()}
-                                    disabled={!fileBytes}
+                                    disabled={!fileBytes || !isBackendReady}
                                     className="px-6 py-2 bg-primary text-on-primary rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                                 >
                                     Inspect
@@ -444,7 +461,7 @@ export function TorrentBrowser({ onAdded }: Props) {
 
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleStartDownload(); }}
-                                                        disabled={selectedIndices.length === 0 || isStarting}
+                                                        disabled={selectedIndices.length === 0 || isStarting || !isBackendReady}
                                                         className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg shadow-primary/20"
                                                     >
                                                         {isStarting ? (
