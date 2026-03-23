@@ -124,7 +124,7 @@ Colors are derived from album artwork using `@material/material-color-utilities`
 | `surfaceContainerHighest` | T22 | `#353541` | Highest elevation |
 | `onSurface` | T90 | `#F4F4F6` | Primary text |
 | `onSurfaceVariant` | T80 | `#C6C5D0` | Secondary text |
-| `outline` | T60 | `#938F99` | Borders |
+| `outline-solid` | T60 | `#938F99` | Borders |
 | `outlineVariant` | T30 | `#484649` | Subtle dividers |
 | `error` | T80 | `#FF5252` | Error states |
 

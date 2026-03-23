@@ -117,7 +117,7 @@ export function SideLyrics({ variant = 'carousel' }: SideLyricsProps) {
                             className={`
                                 cursor-pointer p-3 rounded-lg transition-all duration-200 text-lg mb-2
                                 ${isActive
-                                    ? 'bg-surface-container-highest text-on-surface font-semibold shadow-sm scale-[1.02]'
+                                    ? 'bg-surface-container-highest text-on-surface font-semibold shadow-xs scale-[1.02]'
                                     : 'text-on-surface-variant/70 hover:bg-surface-container-high hover:text-on-surface'
                                 }
                             `}

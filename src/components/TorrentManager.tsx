@@ -259,7 +259,7 @@ export function TorrentManager() {
                                 torrents.map((t) => (
                                     <div
                                         key={t.id}
-                                        className="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/20 hover:border-primary/20 transition-colors shadow-sm group"
+                                        className="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/20 hover:border-primary/20 transition-colors shadow-xs group"
                                     >
                                         {/* Existing Card Content Structure reused exactly */}
                                         <div className="flex items-center gap-6">

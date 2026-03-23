@@ -264,7 +264,7 @@ export function RightPanel() {
                     {/* Main Art & Info */}
                     <div className="flex flex-col items-center gap-6 shrink-0 transition-all duration-300">
                         <div
-                            className="w-full h-[22rem] rounded-[2rem] bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform duration-200"
+                            className="w-full h-88 rounded-[2rem] bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform duration-200"
                             title={displayAlbum ? `Go to album: ${displayAlbum}` : "Album Art"}
                         >
                             <div className="w-full h-full" onClick={handleArtClick}>
@@ -343,7 +343,7 @@ export function RightPanel() {
                                                 e.stopPropagation();
                                                 toggleFavorite(trackPath);
                                             }}
-                                            className="p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all scale-90 hover:scale-100 cursor-pointer pointer-events-auto border-none outline-none flex items-center justify-center"
+                                            className="p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all scale-90 hover:scale-100 cursor-pointer pointer-events-auto border-none outline-hidden flex items-center justify-center"
                                             title={favorites.has(trackPath) ? "Remove from Favorites" : "Add to Favorites"}
                                         >
                                             <AnimatePresence mode="wait">

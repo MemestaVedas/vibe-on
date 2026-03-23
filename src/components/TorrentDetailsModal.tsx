@@ -21,7 +21,7 @@ export function TorrentDetailsModal({ torrent, details, isLoading, error, onClos
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
             onClick={onClose}
         >
             <motion.div
@@ -40,7 +40,7 @@ export function TorrentDetailsModal({ torrent, details, isLoading, error, onClos
                             </span>
                             <span className="text-sm text-on-surface-variant">{torrent.date}</span>
                         </div>
-                        <h2 className="text-xl font-bold text-on-surface leading-tight break-words">
+                        <h2 className="text-xl font-bold text-on-surface leading-tight wrap-break-word">
                             {torrent.title}
                         </h2>
 

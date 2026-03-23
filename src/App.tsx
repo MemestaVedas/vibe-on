@@ -154,7 +154,7 @@ function App() {
       <div className="fixed inset-0 top-10 flex p-3 overflow-hidden text-on-surface">
 
         {/* Sidebar - curves inward on right */}
-        <div className="shrink-0 h-full z-20 rounded-l-[2rem] rounded-r-none mr-[-1.5rem] pr-3 relative overflow-hidden">
+        <div className="shrink-0 h-full z-20 rounded-l-[2rem] rounded-r-none -mr-6 pr-3 relative overflow-hidden">
           {/* Sidebar background tint to harmonize with dynamic right panel */}
           {useSettingsStore.getState().rightPanelBg === 'dynamic' && (
             <div className="absolute inset-0 z-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06))' }} />
@@ -207,11 +207,11 @@ function App() {
         <aside
           className={`
             bg-surface-container z-40 overflow-hidden transition-all duration-300 rounded-r-[2rem] rounded-l-none pl-3
-            fixed right-3 top-[3.25rem] bottom-28 shadow-2xl ml-[-1.5rem]
+            fixed right-3 top-13 bottom-28 shadow-2xl -ml-6
             2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
 
             ${isRightPanelOpen
-              ? `translate-x-0 opacity-100 ${isRightPanelCollapsed ? 'w-[4.5rem]' : 'w-[25rem]'}`
+              ? `translate-x-0 opacity-100 ${isRightPanelCollapsed ? 'w-18' : 'w-100'}`
               : 'translate-x-[110%] opacity-0 pointer-events-none 2xl:w-0 2xl:translate-x-0'
             }
           `}

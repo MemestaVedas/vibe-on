@@ -129,7 +129,7 @@ export function ImmersiveView() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-[100] flex overflow-hidden select-none bg-black text-white"
+            className="fixed inset-0 z-100 flex overflow-hidden select-none bg-black text-white"
             style={{ fontFamily: 'Outfit, sans-serif' }}
         >
             {/* === TECHNICAL BACKGROUND === */}
@@ -191,7 +191,7 @@ export function ImmersiveView() {
                             >
                                 <motion.h1
                                     layoutId="track-title"
-                                    className="text-4xl md:text-5xl lg:text-7xl font-bold tracking-[-0.05em] leading-[0.85] uppercase mb-4 break-words max-w-full line-clamp-2"
+                                    className="text-4xl md:text-5xl lg:text-7xl font-bold tracking-[-0.05em] leading-[0.85] uppercase mb-4 wrap-break-word max-w-full line-clamp-2"
                                     style={{ color: colors.onSurface }}
                                 >
                                     {displayTitle}
@@ -286,7 +286,7 @@ export function ImmersiveView() {
                 whileHover={{ scale: 1.1, opacity: 1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={toggleImmersiveMode}
-                className="absolute top-8 right-8 z-[80] p-2 opacity-40 transition-opacity"
+                className="absolute top-8 right-8 z-80 p-2 opacity-40 transition-opacity"
                 style={{ color: colors.onSurface }}
             >
                 <svg viewBox="0 0 280 280" width={24} height={24} fill="currentColor">
@@ -411,7 +411,7 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
                                         {indexStr}
                                     </span>
 
-                                    <div className={`w-14 h-14 rounded-full overflow-hidden flex-shrink-0 border-2 ${isActive ? 'border-white/40' : 'border-white/5'}`}>
+                                    <div className={`w-14 h-14 rounded-full overflow-hidden shrink-0 border-2 ${isActive ? 'border-white/40' : 'border-white/5'}`}>
                                         <QueueThumb cover={track.cover_image} path={track.path} />
                                     </div>
 
@@ -478,7 +478,7 @@ function AmbientBackground({ coverUrl, colors }: { coverUrl: string | null, colo
                     />
                 )}
             </AnimatePresence>
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-60" />
+            <div className="absolute inset-0 bg-linear-to-t from-black via-transparent to-black opacity-60" />
         </div>
     );
 }
@@ -627,14 +627,14 @@ const LyricsPanel = React.memo(({ lines, colors }: any) => {
                             }}
                         >
                             {lyricsMode === 'romaji' ? (
-                                <p className="text-2xl lg:text-4xl font-semibold leading-tight uppercase tracking-tight break-words pr-12 lg:pr-24" style={{ color: colors.onSurface }}>{line.romaji || line.text}</p>
+                                <p className="text-2xl lg:text-4xl font-semibold leading-tight uppercase tracking-tight wrap-break-word pr-12 lg:pr-24" style={{ color: colors.onSurface }}>{line.romaji || line.text}</p>
                             ) : lyricsMode === 'both' && line.romaji ? (
                                 <div className="flex flex-col gap-2">
                                     <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-40 mb-1" style={{ color: colors.primary }}>{line.romaji}</p>
-                                    <p className="text-2xl lg:text-4xl font-semibold leading-tight tracking-tight break-words pr-12 lg:pr-24" style={{ color: colors.onSurface }}>{line.text}</p>
+                                    <p className="text-2xl lg:text-4xl font-semibold leading-tight tracking-tight wrap-break-word pr-12 lg:pr-24" style={{ color: colors.onSurface }}>{line.text}</p>
                                 </div>
                             ) : (
-                                <p className="text-2xl lg:text-4xl font-semibold leading-tight tracking-tight break-words pr-12 lg:pr-24" style={{ color: colors.onSurface }}>{line.text}</p>
+                                <p className="text-2xl lg:text-4xl font-semibold leading-tight tracking-tight wrap-break-word pr-12 lg:pr-24" style={{ color: colors.onSurface }}>{line.text}</p>
                             )}
                         </div>
                     );
@@ -686,7 +686,7 @@ function VerticalSquiggly({ isLeft }: { isLeft?: boolean }) {
 
 function ImmersiveLoader() {
     return (
-        <div className="absolute inset-0 z-[110] bg-black flex items-center justify-center bg-noise">
+        <div className="absolute inset-0 z-110 bg-black flex items-center justify-center bg-noise">
             <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         </div>
     );
@@ -694,7 +694,7 @@ function ImmersiveLoader() {
 
 function ImmersiveError({ error, onClear }: any) {
     return (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[110] bg-error text-on-error px-8 py-4 rounded-2xl shadow-elevation-3 flex items-center gap-4 font-black uppercase tracking-tighter">
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-110 bg-error text-on-error px-8 py-4 rounded-2xl shadow-elevation-3 flex items-center gap-4 font-black uppercase tracking-tighter">
             <span className="text-sm">ERR_SYSTEM_FAILURE: {error}</span>
             <button onClick={onClear} className="opacity-40 hover:opacity-100 transition-opacity p-2">
                 <svg viewBox="0 0 280 280" width={20} height={20} fill="currentColor">

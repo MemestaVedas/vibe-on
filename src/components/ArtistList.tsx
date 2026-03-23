@@ -231,7 +231,7 @@ const ArtistItem = ({
                 <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayArtist(artist); }} />
             </div>
 
-            <div className="flex flex-col items-center text-center gap-0.5 min-h-[3.5rem]">
+            <div className="flex flex-col items-center text-center gap-0.5 min-h-14">
                 <span className="text-title-medium font-semibold text-on-surface truncate w-full" title={displayArtistName}>
                     {displayArtistName}
                 </span>
@@ -346,7 +346,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                 <div className="flex-1" />
                 <button
                     onClick={() => playQueue(sortedTracks, 0)}
-                    className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-sm scale-90"
+                    className="h-10 px-6 bg-primary text-on-primary rounded-full font-medium hover:bg-primary/90 flex items-center gap-2 shadow-xs scale-90"
                 >
                     <IconPlay size={18} fill="currentColor" /> Play
                 </button>
@@ -395,7 +395,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                         </div>
                     </div>
                     <div className="w-full relative pointer-events-none">
-                        <FilledWavySeparator color="var(--md-sys-color-surface-container)" className="drop-shadow-sm -mt-[1px]" />
+                        <FilledWavySeparator color="var(--md-sys-color-surface-container)" className="drop-shadow-xs -mt-px" />
                     </div>
                 </div>
 
@@ -434,7 +434,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                 itemContent={(_i, item) => {
                                     if (item.type === 'header') {
                                         return (
-                                            <div className="py-4 mt-6 first:mt-0 sticky top-0 bg-surface z-[5]">
+                                            <div className="py-4 mt-6 first:mt-0 sticky top-0 bg-surface z-5">
                                                 <WavySeparator label={item.displayAlbum} />
                                             </div>
                                         );
@@ -502,7 +502,7 @@ function AlbumSidebarItem({
             onClick={onClick}
             className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container-high cursor-pointer transition-colors group"
         >
-            <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden bg-surface-container-highest shadow-sm">
+            <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden bg-surface-container-highest shadow-xs">
                 {coverUrl ? (
                     <img src={coverUrl} alt={name} className="w-full h-full object-cover" />
                 ) : (

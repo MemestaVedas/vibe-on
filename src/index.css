@@ -1,8 +1,168 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap')
+layer(base);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@plugin '@tailwindcss/typography';
+
+@theme {
+  --font-outfit: Outfit, sans-serif;
+
+  --text-display-hero: 96px;
+  --text-display-hero--line-height: 112px;
+  --text-display-hero--letter-spacing: -0.02em;
+  --text-display-hero--font-weight: 300;
+  --text-display-large: 57px;
+  --text-display-large--line-height: 64px;
+  --text-display-large--letter-spacing: -0.02em;
+  --text-display-large--font-weight: 400;
+  --text-display-medium: 52px;
+  --text-display-medium--line-height: 64px;
+  --text-display-medium--letter-spacing: -0.02em;
+  --text-display-medium--font-weight: 400;
+  --text-display-small: 44px;
+  --text-display-small--line-height: 52px;
+  --text-display-small--letter-spacing: -0.02em;
+  --text-display-small--font-weight: 400;
+  --text-headline-large: 32px;
+  --text-headline-large--line-height: 40px;
+  --text-headline-large--font-weight: 400;
+  --text-headline-medium: 28px;
+  --text-headline-medium--line-height: 36px;
+  --text-headline-medium--font-weight: 400;
+  --text-headline-small: 24px;
+  --text-headline-small--line-height: 32px;
+  --text-headline-small--font-weight: 400;
+  --text-title-large: 22px;
+  --text-title-large--line-height: 28px;
+  --text-title-large--font-weight: 400;
+  --text-title-medium: 16px;
+  --text-title-medium--line-height: 24px;
+  --text-title-medium--font-weight: 500;
+  --text-title-medium--letter-spacing: 0.01em;
+  --text-title-small: 14px;
+  --text-title-small--line-height: 20px;
+  --text-title-small--font-weight: 500;
+  --text-title-small--letter-spacing: 0.01em;
+  --text-label-large: 14px;
+  --text-label-large--line-height: 20px;
+  --text-label-large--font-weight: 500;
+  --text-label-large--letter-spacing: 0.01em;
+  --text-label-medium: 12px;
+  --text-label-medium--line-height: 16px;
+  --text-label-medium--font-weight: 500;
+  --text-label-medium--letter-spacing: 0.02em;
+  --text-label-small: 11px;
+  --text-label-small--line-height: 16px;
+  --text-label-small--font-weight: 500;
+  --text-label-small--letter-spacing: 0.02em;
+  --text-body-large: 16px;
+  --text-body-large--line-height: 24px;
+  --text-body-large--font-weight: 400;
+  --text-body-large--letter-spacing: 0.01em;
+  --text-body-medium: 14px;
+  --text-body-medium--line-height: 20px;
+  --text-body-medium--font-weight: 400;
+  --text-body-medium--letter-spacing: 0.01em;
+  --text-body-small: 12px;
+  --text-body-small--line-height: 16px;
+  --text-body-small--font-weight: 400;
+  --text-body-small--letter-spacing: 0.01em;
+
+  --color-surface: var(--md-sys-color-surface);
+  --color-on-surface: var(--md-sys-color-on-surface);
+  --color-on-surface-variant: var(--md-sys-color-on-surface-variant);
+  --color-surface-container-low: var(--md-sys-color-surface-container-low);
+  --color-surface-container: var(--md-sys-color-surface-container);
+  --color-surface-container-high: var(--md-sys-color-surface-container-high);
+  --color-surface-container-highest: #33333f;
+  --color-primary: var(--md-sys-color-primary);
+  --color-on-primary: var(--md-sys-color-on-primary);
+  --color-primary-container: var(--md-sys-color-primary-container);
+  --color-on-primary-container: var(--md-sys-color-on-primary-container);
+  --color-secondary: var(--md-sys-color-secondary);
+  --color-on-secondary: var(--md-sys-color-on-secondary);
+  --color-secondary-container: var(--md-sys-color-secondary-container);
+  --color-on-secondary-container: var(--md-sys-color-on-secondary-container);
+  --color-tertiary: var(--md-sys-color-tertiary);
+  --color-on-tertiary: var(--md-sys-color-on-tertiary);
+  --color-tertiary-container: var(--md-sys-color-tertiary-container);
+  --color-on-tertiary-container: var(--md-sys-color-on-tertiary-container);
+  --color-outline: var(--md-sys-color-outline);
+  --color-outline-variant: var(--md-sys-color-outline-variant);
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --radius-3xl: 48px;
+  --radius-4xl: 56px;
+  --radius-full: 9999px;
+
+  --shadow-elevation-1:
+    0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --shadow-elevation-2:
+    0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --shadow-elevation-3:
+    0px 4px 8px 3px rgba(0, 0, 0, 0.15), 0px 1px 3px rgba(0, 0, 0, 0.3);
+
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-spin-slow: spin 3s linear infinite;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3%3Ffilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+@utility bg-blueprint {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+@utility brutalist-shadow {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+@utility brutalist-border {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@utility glass-panel {
+  @apply bg-surface-container-high border-outline-variant;
+}
+
+@utility animate-scanline {
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(0, 0, 0, 0.5) 50%
+  );
+  background-size: 100% 4px;
+  animation: scanline 10s linear infinite;
+}
 
 @layer base {
     :root {
@@ -85,34 +245,6 @@
 }
 
 @layer utilities {
-    .bg-noise {
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3%3Ffilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    }
-
-    .bg-blueprint {
-        background-image:
-            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        background-size: 40px 40px;
-    }
-
-    .brutalist-shadow {
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-    }
-
-    .brutalist-border {
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .glass-panel {
-        @apply bg-surface-container-high border-outline-variant;
-    }
-
-    .animate-scanline {
-        background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.5) 50%);
-        background-size: 100% 4px;
-        animation: scanline 10s linear infinite;
-    }
 
     @keyframes scanline {
         0% {

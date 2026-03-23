@@ -173,7 +173,7 @@ function GradientHeroCard({ icon, label, value, startColor, endColor }: {
                     {icon}
                     <span className="text-body-small">{label}</span>
                 </div>
-                <p className="text-display-small font-bold drop-shadow-sm">{value}</p>
+                <p className="text-display-small font-bold drop-shadow-xs">{value}</p>
             </div>
         </motion.div>
     );

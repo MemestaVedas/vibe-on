@@ -132,7 +132,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search Nyaa..."
-                        className="flex-1 px-4 py-3 rounded-xl bg-surface-container-high text-on-surface border-none focus:ring-2 focus:ring-primary outline-none"
+                        className="flex-1 px-4 py-3 rounded-xl bg-surface-container-high text-on-surface border-none focus:ring-2 focus:ring-primary outline-hidden"
                         autoFocus
                     />
                     <button
@@ -153,7 +153,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                                 setCategory(e.target.value as 'audio' | 'all');
                                 if (query.trim()) setTimeout(() => handleSearch(), 0);
                             }}
-                            className="bg-surface-container-high text-on-surface text-sm font-bold px-3 py-2 rounded-xl border-none outline-none cursor-pointer"
+                            className="bg-surface-container-high text-on-surface text-sm font-bold px-3 py-2 rounded-xl border-none outline-hidden cursor-pointer"
                         >
                             <option value="audio">Music/Audio</option>
                             <option value="all">Everything</option>
@@ -182,7 +182,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                                 }}
                                 type="button"
                                 className={`
-                                    px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-sm
+                                    px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-xs
                                     ${isActive
                                         ? 'bg-secondary text-on-secondary shadow-md ring-2 ring-transparent'
                                         : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
@@ -240,7 +240,7 @@ export function TorrentSearch({ onSelectMagnet }: Props) {
                                             {result.category}
                                         </span>
                                     </div>
-                                    <h3 className="font-medium text-on-surface text-sm leading-snug break-words" title={result.title}>
+                                    <h3 className="font-medium text-on-surface text-sm leading-snug wrap-break-word" title={result.title}>
                                         {result.title}
                                     </h3>
                                 </div>

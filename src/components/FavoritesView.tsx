@@ -60,7 +60,7 @@ function FavoriteTrackRow({ track, onPlay, onRemove, onContextMenu, displayLangu
             onContextMenu={onContextMenu}
         >
             {/* Cover Art */}
-            <div className="w-12 h-12 rounded-xl overflow-hidden bg-surface-container-high flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl overflow-hidden bg-surface-container-high shrink-0">
                 {coverArt ? (
                     <img src={coverArt} alt={track.album} className="w-full h-full object-cover" />
                 ) : (

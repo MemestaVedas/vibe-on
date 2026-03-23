@@ -356,7 +356,7 @@ export function PlayerBar() {
                 </div>
             )}
 
-            <div className="flex items-center justify-center gap-3 w-full h-[6rem]">
+            <div className="flex items-center justify-center gap-3 w-full h-24">
                 <AnimatePresence>
                     {!isExpanded && (
                         <ExpressiveControlButton
@@ -387,7 +387,7 @@ export function PlayerBar() {
                     {isExpanded && expandedArtMode === 'background' && activeCoverUrl && (
                         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
                             <img src={activeCoverUrl} alt="" className="w-full h-full object-cover opacity-55 scale-105" />
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-container-high/60 to-surface-container-high" />
+                            <div className="absolute inset-0 bg-linear-to-r from-transparent via-surface-container-high/60 to-surface-container-high" />
                         </div>
                     )}
 
@@ -397,13 +397,13 @@ export function PlayerBar() {
                         <>
                             {!isExpanded ? (
                                 <div
-                                    className="absolute left-0 top-0 bottom-0 z-[1] pointer-events-none flex items-stretch text-secondary-container rounded-l-full"
+                                    className="absolute left-0 top-0 bottom-0 z-1 pointer-events-none flex items-stretch text-secondary-container rounded-l-full"
                                     style={{
                                         width: `${Math.min(100, (position_secs / (track.duration_secs || 1)) * 100)}%`
                                     }}
                                 >
                                     <div className="flex-1 bg-current" />
-                                    <div className="w-[12px] h-full shrink-0 overflow-hidden relative -ml-[1px]">
+                                    <div className="w-[12px] h-full shrink-0 overflow-hidden relative -ml-px">
                                         <motion.div
                                             className="w-full absolute top-0 left-0"
                                             style={{ height: 'calc(100% + 40px)', top: '-40px' }}
@@ -423,7 +423,7 @@ export function PlayerBar() {
                                 </div>
                             ) : (
                                 <div
-                                    className="absolute left-0 bottom-0 h-1 z-[1] bg-secondary-container transition-[width] duration-200 rounded-full"
+                                    className="absolute left-0 bottom-0 h-1 z-1 bg-secondary-container transition-[width] duration-200 rounded-full"
                                     style={{ width: `${Math.min(100, (position_secs / (track.duration_secs || 1)) * 100)}%` }}
                                 />
                             )}
@@ -433,7 +433,7 @@ export function PlayerBar() {
                     <div className="relative z-10 h-full flex items-center gap-4">
                         {(!isExpanded || expandedArtMode !== 'background' || !activeCoverUrl) && (
                             <div
-                                className={`relative shrink-0 overflow-hidden bg-surface-container-low shadow-sm ${albumArtStyle === 'vinyl' ? 'rounded-full' : 'rounded-xl'}`}
+                                className={`relative shrink-0 overflow-hidden bg-surface-container-low shadow-xs ${albumArtStyle === 'vinyl' ? 'rounded-full' : 'rounded-xl'}`}
                                 style={{ width: isExpanded ? '4rem' : '2.5rem', height: isExpanded ? '4rem' : '2.5rem' }}
                             >
                                 {activeCoverUrl ? (

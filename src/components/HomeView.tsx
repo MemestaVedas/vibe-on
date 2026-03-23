@@ -212,7 +212,7 @@ function QuickRecallItem({ track, onPlay, onClick }: { track: TrackDisplay, onPl
     return (
         <div
             onClick={onClick}
-            className="group flex items-center gap-4 bg-surface-container-low hover:bg-surface-container-high rounded-xl overflow-hidden cursor-pointer transition-colors shadow-sm"
+            className="group flex items-center gap-4 bg-surface-container-low hover:bg-surface-container-high rounded-xl overflow-hidden cursor-pointer transition-colors shadow-xs"
         >
             <div className="w-16 h-16 shrink-0 shadow-md">
                 <M3SquircleImage
