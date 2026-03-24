@@ -12,6 +12,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
+    http::{HeaderValue, Method},
     routing::get,
     Router,
 };
@@ -204,6 +205,32 @@ pub struct ConnectedClient {
     pub connected_at: std::time::Instant,
 }
 
+fn allowed_cors_origins() -> Vec<HeaderValue> {
+    let from_env = std::env::var("VIBE_ON_ALLOWED_ORIGINS").unwrap_or_default();
+    let parsed: Vec<HeaderValue> = from_env
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter_map(|value| match HeaderValue::from_str(value) {
+            Ok(header) => Some(header),
+            Err(_) => {
+                log::warn!("Ignoring invalid origin in VIBE_ON_ALLOWED_ORIGINS: {value}");
+                None
+            }
+        })
+        .collect();
+
+    if !parsed.is_empty() {
+        return parsed;
+    }
+
+    vec![
+        HeaderValue::from_static("http://localhost:1420"),
+        HeaderValue::from_static("http://127.0.0.1:1420"),
+        HeaderValue::from_static("tauri://localhost"),
+    ]
+}
+
 /// Start the HTTP/WebSocket server
 pub async fn start_server(
     app_handle: AppHandle,
@@ -340,6 +367,11 @@ pub async fn start_server(
     });
     
     // Build router
+    let cors = CorsLayer::new()
+        .allow_origin(allowed_cors_origins())
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers(Any);
+
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
@@ -363,12 +395,7 @@ pub async fn start_server(
         // WebSocket
         .route("/control", get(websocket_handler))
         // CORS
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(cors)
         .with_state(server_state.clone());
     
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
