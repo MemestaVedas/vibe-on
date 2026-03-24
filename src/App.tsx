@@ -38,6 +38,26 @@ import { Toast } from './components/Toast';
 import { PlaylistCreationWizard } from './components/PlaylistCreationWizard';
 import { usePlaylistStore } from './store/playlistStore';
 
+type LibraryScanProgressPayload = {
+  processed: number;
+  total: number;
+};
+
+type TauriListenEvent<TPayload> = {
+  payload: TPayload;
+};
+
+type TauriWindowBridge = Window & {
+  __TAURI__?: {
+    event?: {
+      listen: (
+        eventName: string,
+        handler: (event: TauriListenEvent<LibraryScanProgressPayload>) => void
+      ) => Promise<() => void>;
+    };
+  };
+};
+
 function App() {
   useMediaSession(); // Initialize System Media Controls
 
@@ -82,13 +102,12 @@ function App() {
     // Listen for library scan progress
     const showToast = useToastStore.getState().showToast;
 
-    // Use type assertion for window to avoid TS errors with __TAURI__
-    const tauriWindow = window as any;
-    if (tauriWindow.__TAURI__) {
+    const tauriWindow = window as TauriWindowBridge;
+    if (tauriWindow.__TAURI__?.event) {
       let scanStarted = false;
       let lastProgressPct = -1;
 
-      const unlistenProgress = tauriWindow.__TAURI__.event.listen('library-scan-progress', (event: any) => {
+      const unlistenProgress = tauriWindow.__TAURI__.event.listen('library-scan-progress', (event) => {
         const { processed, total } = event.payload;
 
         // Show a "scan started" toast on the very first event
@@ -114,7 +133,7 @@ function App() {
       window.addEventListener('resize', handleResize);
       return () => {
         window.removeEventListener('resize', handleResize);
-        unlistenProgress.then((f: any) => f());
+        unlistenProgress.then((unlisten) => unlisten());
       };
     } else {
       window.addEventListener('resize', handleResize);

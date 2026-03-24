@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
+type DiscoveryIntervalHandle = ReturnType<typeof setInterval>;
+type DiscoveryWindow = Window & { __mobileDiscoveryInterval?: DiscoveryIntervalHandle };
 
 export type MobileConnectionStatus = 'disconnected' | 'searching' | 'connecting' | 'connected';
 
@@ -223,14 +225,14 @@ export const useMobileStore = create<MobileStore>()(
 
                 // Set up interval (stored in window for cleanup)
                 const intervalId = setInterval(poll, 3000);
-                (window as unknown as { __mobileDiscoveryInterval?: number }).__mobileDiscoveryInterval = intervalId;
+                (window as DiscoveryWindow).__mobileDiscoveryInterval = intervalId;
             },
 
             stopDiscoveryPolling: () => {
-                const intervalId = (window as unknown as { __mobileDiscoveryInterval?: number }).__mobileDiscoveryInterval;
+                const intervalId = (window as DiscoveryWindow).__mobileDiscoveryInterval;
                 if (intervalId) {
                     clearInterval(intervalId);
-                    (window as unknown as { __mobileDiscoveryInterval?: number }).__mobileDiscoveryInterval = undefined;
+                    (window as DiscoveryWindow).__mobileDiscoveryInterval = undefined;
                 }
             },
 
