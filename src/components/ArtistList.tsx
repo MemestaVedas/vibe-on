@@ -332,17 +332,17 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
         <div className="h-full relative isolate bg-surface">
             {/* Sticky Header Overlay */}
             <div
-                className={`absolute top-0 left-0 right-0 h-20 bg-surface z-50 flex items-center px-6 gap-4 border-b border-surface-container-highest transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                className={`absolute top-0 left-0 right-0 h-20 bg-primary-container/90 z-50 flex items-center px-6 gap-4 border-b border-primary/25 backdrop-blur-sm transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             >
                 <button
                     onClick={onBack}
-                    className="p-2 -ml-2 rounded-full hover:bg-on-surface/5 transition-colors"
+                    className="p-2 -ml-2 rounded-full hover:bg-on-primary-container/10 transition-colors"
                 >
                     <svg viewBox="0 0 24 24" width={24} height={24} fill="currentColor">
                         <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                     </svg>
                 </button>
-                <span className="font-bold text-title-large text-on-surface truncate">{displayArtistName}</span>
+                <span className="font-bold text-title-large text-on-primary-container truncate">{displayArtistName}</span>
                 <div className="flex-1" />
                 <button
                     onClick={() => playQueue(sortedTracks, 0)}
@@ -434,7 +434,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                 itemContent={(_i, item) => {
                                     if (item.type === 'header') {
                                         return (
-                                            <div className="py-4 mt-6 first:mt-0 sticky top-0 bg-surface z-5">
+                                            <div className="py-4 mt-6 first:mt-0 sticky top-0 bg-primary-container/85 backdrop-blur-sm z-5">
                                                 <WavySeparator label={item.displayAlbum} />
                                             </div>
                                         );

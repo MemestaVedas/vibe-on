@@ -311,19 +311,19 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
         <div className="h-full relative isolate bg-surface">
             {/* Sticky Header Overlay */}
             <div
-                className={`absolute top-0 left-0 right-0 h-20 bg-surface z-50 flex items-center px-6 gap-4 border-b border-surface-container-highest transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                className={`absolute top-0 left-0 right-0 h-20 bg-primary-container/90 z-50 flex items-center px-6 gap-4 border-b border-primary/25 backdrop-blur-sm transition-opacity duration-300 ${showStickyHeader ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             >
                 <button
                     onClick={onBack}
-                    className="p-2 -ml-2 rounded-full hover:bg-on-surface/5 transition-colors"
+                    className="p-2 -ml-2 rounded-full hover:bg-on-primary-container/10 transition-colors"
                 >
                     <svg viewBox="0 0 24 24" width={24} height={24} fill="currentColor">
                         <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                     </svg>
                 </button>
                 <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-title-large text-on-surface truncate">{album.name}</span>
-                    <span className="text-body-small text-on-surface-variant truncate">{album.artist}</span>
+                    <span className="font-bold text-title-large text-on-primary-container truncate">{album.name}</span>
+                    <span className="text-body-small text-on-primary-container/80 truncate">{album.artist}</span>
                 </div>
                 <div className="flex-1" />
                 <button
@@ -391,7 +391,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                 itemContent={(_i, item, { displayLanguage }) => {
                     if (item.type === 'header') {
                         return (
-                            <div className="flex items-center gap-4 py-4 px-6 mt-2">
+                                            <div className="flex items-center gap-4 py-4 px-6 mt-2 sticky top-0 bg-primary-container/85 backdrop-blur-sm z-5">
                                 <IconAlbum size={20} className="text-primary" />
                                 <span className="text-title-medium font-bold text-primary">Disc {item.disc}</span>
                                 <div className="h-px flex-1 bg-surface-container-highest"></div>
