@@ -51,6 +51,13 @@ export function RightPanel() {
     const displayTitle = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'title', displayLanguage) : "Not Playing";
     const displayArtist = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'artist', displayLanguage) : "Pick a song";
     const displayAlbum = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'album', displayLanguage) : null;
+    const adaptiveTitleWeightClass = useMemo(() => {
+        if (!displayTitle) return 'font-semibold';
+        if (displayTitle.length <= 18) return 'font-black';
+        if (displayTitle.length <= 36) return 'font-bold';
+        if (displayTitle.length <= 56) return 'font-semibold';
+        return 'font-medium';
+    }, [displayTitle]);
     const trackDuration = displayTrack?.duration_secs ?? 0;
 
     // Clover Shape from TitleBar
@@ -217,7 +224,7 @@ export function RightPanel() {
                         <div className="rotate-180" style={{ writingMode: 'vertical-rl' }}>
                             <MarqueeText
                                 text={displayTitle}
-                                className="text-title-medium font-bold text-on-surface-variant tracking-wider pointer-events-none"
+                                className={`text-title-medium ${adaptiveTitleWeightClass} text-on-surface-variant tracking-wider pointer-events-none`}
                             />
                         </div>
                     </div>
@@ -301,7 +308,7 @@ export function RightPanel() {
                                 }}
                             />
                             <div className="absolute inset-x-0 bottom-0 z-20 p-4 pointer-events-none">
-                                <div className="text-[33px] font-bold text-on-primary leading-tight line-clamp-2">
+                                <div className={`text-[33px] ${adaptiveTitleWeightClass} text-on-primary leading-tight line-clamp-2`}>
                                     {displayTitle}
                                 </div>
                                 <div className="text-body-large text-on-secondary mt-1 truncate">

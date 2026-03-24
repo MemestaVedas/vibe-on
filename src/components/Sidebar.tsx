@@ -178,7 +178,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                 <div className={`flex flex-col gap-1 mt-2 ${isCollapsed ? 'items-center w-full' : ''}`}>
                     {!isCollapsed && (
                         <div className="px-4 py-2 flex items-center justify-between">
-                            <span className="text-label-large text-on-surface-variant font-medium">Playlists</span>
+                            <span className="text-label-large text-on-surface-variant font-semibold">Playlists</span>
                             <button
                                 onClick={() => usePlaylistStore.getState().openCreateWizard()}
                                 className="p-1 hover:bg-surface-container-high rounded-full text-on-surface-variant"
@@ -288,7 +288,7 @@ function NavItem({
                 <motion.span
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="text-title-medium whitespace-nowrap overflow-hidden text-ellipsis z-10 flex-1 text-left"
+                    className="text-title-medium font-semibold whitespace-nowrap overflow-hidden text-ellipsis z-10 flex-1 text-left"
                 >
                     {label}
                 </motion.span>
