@@ -637,64 +637,121 @@ fn get_queue_state(state: State<AppState>) -> serde_json::Value {
     })
 }
 
-/// Smart shuffle: Fisher-Yates with artist/album spacing constraints.
-/// Tries to avoid placing tracks from the same artist or album within `min_spacing` positions.
-/// Falls back to standard Fisher-Yates if constraints can't be satisfied.
+/// Smart shuffle with scope-aware spacing behavior.
+/// - album: shuffle inside current album queue
+/// - artist: shuffle inside current artist queue
+/// - global: weighted spacing to avoid artist/album clumps
 #[tauri::command]
 fn smart_shuffle_queue(
     tracks: Vec<serde_json::Value>,
     current_path: Option<String>,
     min_spacing: Option<usize>,
+    shuffle_scope: Option<String>,
 ) -> Vec<serde_json::Value> {
-    use rand::seq::SliceRandom;
+    use rand::prelude::{IndexedRandom, SliceRandom};
     use rand::rng;
+    use std::collections::HashSet;
 
-    let spacing = min_spacing.unwrap_or(3).min(tracks.len() / 2).max(1);
-    let mut pool: Vec<(usize, String, String)> = tracks
+    if tracks.len() <= 1 {
+        return tracks;
+    }
+
+    let normalize = |value: &str| value.trim().to_lowercase();
+    let scope = shuffle_scope.unwrap_or_else(|| "global".to_string()).to_lowercase();
+
+    let meta: Vec<(usize, String, String)> = tracks
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let artist = t.get("artist").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
-            let album = t.get("album").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            let artist = normalize(t.get("artist").and_then(|v| v.as_str()).unwrap_or(""));
+            let album = normalize(t.get("album").and_then(|v| v.as_str()).unwrap_or(""));
             (i, artist, album)
         })
         .collect();
 
-    // Fisher-Yates base shuffle
-    pool.shuffle(&mut rng());
+    let mut rng = rng();
 
-    // Greedy constraint pass: try to space same-artist/album tracks apart
-    let mut result: Vec<usize> = Vec::with_capacity(pool.len());
-    let mut remaining = pool;
-    let max_retries = remaining.len() * 3;
-    let mut retries = 0;
+    let default_spacing = match scope.as_str() {
+        "album" => 1,
+        "artist" => 2,
+        _ => 3,
+    };
+    let spacing = min_spacing.unwrap_or(default_spacing).max(1).min(tracks.len().saturating_sub(1).max(1));
 
-    while !remaining.is_empty() && retries < max_retries {
-        let mut placed = false;
-        for i in 0..remaining.len() {
-            let (idx, ref artist, ref album) = remaining[i];
-            let tail = &result[result.len().saturating_sub(spacing)..];
-            let conflicts = tail.iter().any(|&prev_idx| {
-                let (_, ref pa, ref pal) = pool_lookup(&tracks, prev_idx);
-                (!artist.is_empty() && *pa == *artist) || (!album.is_empty() && *pal == *album)
-            });
-            if !conflicts || remaining.len() <= spacing {
-                result.push(idx);
-                remaining.remove(i);
-                placed = true;
-                break;
+    let unique_artists = meta
+        .iter()
+        .map(|(_, artist, _)| artist.clone())
+        .collect::<HashSet<_>>()
+        .len();
+    let unique_albums = meta
+        .iter()
+        .map(|(_, _, album)| album.clone())
+        .collect::<HashSet<_>>()
+        .len();
+
+    let mut enforce_artist = scope != "album";
+    let mut enforce_album = scope == "global";
+
+    if unique_artists <= 1 {
+        enforce_artist = false;
+    }
+    if unique_albums <= 1 {
+        enforce_album = false;
+    }
+
+    let mut remaining: Vec<usize> = (0..tracks.len()).collect();
+    remaining.shuffle(&mut rng);
+    let mut result: Vec<usize> = Vec::with_capacity(remaining.len());
+
+    while !remaining.is_empty() {
+        let recent = &result[result.len().saturating_sub(spacing)..];
+        let mut best_penalty = usize::MAX;
+        let mut best_positions: Vec<usize> = Vec::new();
+
+        for (candidate_pos, candidate_idx) in remaining.iter().enumerate() {
+            let (_, artist, album) = &meta[*candidate_idx];
+            let mut penalty = 0usize;
+
+            if enforce_artist && !artist.is_empty() {
+                let artist_conflict = recent.iter().any(|prev| {
+                    let (_, prev_artist, _) = &meta[*prev];
+                    prev_artist == artist
+                });
+                if artist_conflict {
+                    penalty += 2;
+                }
+            }
+
+            if enforce_album && !album.is_empty() {
+                let album_conflict = recent.iter().any(|prev| {
+                    let (_, _, prev_album) = &meta[*prev];
+                    prev_album == album
+                });
+                if album_conflict {
+                    penalty += 1;
+                }
+            }
+
+            if penalty < best_penalty {
+                best_penalty = penalty;
+                best_positions.clear();
+                best_positions.push(candidate_pos);
+            } else if penalty == best_penalty {
+                best_positions.push(candidate_pos);
             }
         }
-        if !placed {
-            // Can't satisfy constraint — just place the first remaining item
-            let (idx, _, _) = remaining.remove(0);
-            result.push(idx);
-        }
-        retries += 1;
-    }
-    // Append any leftover
-    for (idx, _, _) in remaining {
-        result.push(idx);
+
+        let pick_slot = if best_positions.len() == 1 {
+            best_positions[0]
+        } else {
+            best_positions
+                .choose(&mut rng)
+                .copied()
+                .unwrap_or(best_positions[0])
+        };
+
+        let picked_idx = remaining.remove(pick_slot);
+        result.push(picked_idx);
     }
 
     // Move currently playing track to front
@@ -708,14 +765,6 @@ fn smart_shuffle_queue(
     }
 
     result.iter().map(|&i| tracks[i].clone()).collect()
-}
-
-/// Helper to extract artist/album from a track JSON value by original index.
-fn pool_lookup(tracks: &[serde_json::Value], idx: usize) -> (usize, String, String) {
-    let t = &tracks[idx];
-    let artist = t.get("artist").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
-    let album = t.get("album").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
-    (idx, artist, album)
 }
 
 #[tauri::command]

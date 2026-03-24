@@ -5,6 +5,7 @@ import { emit } from '@tauri-apps/api/event';
 import type { PlayerStatus, TrackDisplay } from '../types';
 
 type RepeatMode = 'off' | 'all' | 'one';
+type ShuffleScope = 'album' | 'artist' | 'global';
 
 export interface EqPreset {
     id: string;
@@ -61,6 +62,30 @@ const broadcastQueueUpdate = async (queue: TrackDisplay[]) => {
     } catch (e) {
         console.error('[PlayerStore] Failed to broadcast queue update:', e);
     }
+};
+
+const normalizeKey = (value?: string | null): string => (value || '').trim().toLowerCase();
+
+const inferShuffleScope = (tracks: TrackDisplay[]): ShuffleScope => {
+    if (tracks.length <= 1) return 'global';
+
+    const albumSet = new Set<string>();
+    const artistSet = new Set<string>();
+
+    tracks.forEach((track) => {
+        albumSet.add(normalizeKey(track.album));
+        artistSet.add(normalizeKey(track.artist));
+    });
+
+    if (albumSet.size === 1) return 'album';
+    if (artistSet.size === 1) return 'artist';
+    return 'global';
+};
+
+const scopeSpacing = (scope: ShuffleScope): number => {
+    if (scope === 'global') return 3;
+    if (scope === 'artist') return 2;
+    return 1;
 };
 
 interface PlayerStore {
@@ -477,6 +502,7 @@ export const usePlayerStore = create<PlayerStore>()(
                 } else {
                     // Smart shuffle via backend (Fisher-Yates + artist/album spacing)
                     const currentPath = status.track?.path;
+                    const shuffleScope = inferShuffleScope(queue);
                     try {
                         const shuffled = await invoke<TrackDisplay[]>('smart_shuffle_queue', {
                             tracks: queue.map(t => ({
@@ -488,7 +514,8 @@ export const usePlayerStore = create<PlayerStore>()(
                                 cover_image: t.cover_image,
                             })),
                             currentPath: currentPath || null,
-                            minSpacing: 3,
+                            minSpacing: scopeSpacing(shuffleScope),
+                            shuffleScope,
                         });
 
                         set({
@@ -530,6 +557,7 @@ export const usePlayerStore = create<PlayerStore>()(
 
                     const { isShuffled } = get();
                     let newQueue = [...tracks];
+                    const shuffleScope = inferShuffleScope(tracks);
 
                     if (isShuffled) {
                         // Smart shuffle via backend
@@ -544,7 +572,8 @@ export const usePlayerStore = create<PlayerStore>()(
                                     cover_image: t.cover_image,
                                 })),
                                 currentPath: trackToPlay.path,
-                                minSpacing: 3,
+                                minSpacing: scopeSpacing(shuffleScope),
+                                shuffleScope,
                             });
                         } catch {
                             // Fallback: naive Fisher-Yates
