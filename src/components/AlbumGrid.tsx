@@ -8,6 +8,7 @@ import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { IconMusicNote, IconPlay, IconAlbum } from './Icons';
 import { M3SquircleImage } from './ShapeComponents';
+import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
 import { FilledWavySeparator } from './WavySeparator';
 
