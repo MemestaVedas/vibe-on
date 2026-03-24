@@ -14,15 +14,17 @@
 //! - `reply_tx` — direct replies to the client that sent the command
 //! - `event_tx` — broadcast to every connected client (periodic status, track changes)
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use axum::{
     extract::{
+        Query,
         ws::{Message, WebSocket},
         State, WebSocketUpgrade,
     },
-    response::Response,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -283,8 +285,17 @@ impl From<ServerEvent> for ServerMessage {
 
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<ServerState>>,
 ) -> Response {
+    if let Some(expected_token) = state.config.control_token.as_ref() {
+        let provided_token = params.get("token").map(String::as_str).unwrap_or_default();
+        if provided_token != expected_token {
+            log::warn!("[WS] Rejected unauthenticated websocket control request");
+            return (StatusCode::UNAUTHORIZED, "Missing or invalid control token").into_response();
+        }
+    }
+
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 

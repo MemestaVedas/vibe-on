@@ -31,13 +31,21 @@ pub struct ServerConfig {
     pub port: u16,
     /// Server name for mDNS
     pub server_name: String,
+    /// Optional shared token required for WebSocket control access
+    pub control_token: Option<String>,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
+        let control_token = std::env::var("VIBE_ON_CONTROL_TOKEN")
+            .ok()
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty());
+
         Self {
             port: 5000,
             server_name: crate::p2p::get_device_name(),
+            control_token,
         }
     }
 }
