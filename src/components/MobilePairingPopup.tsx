@@ -39,9 +39,22 @@ export function MobilePairingPopup({ anchorRef }: MobilePairingPopupProps) {
     useEffect(() => {
         if (anchorRef.current && popupOpen) {
             const rect = anchorRef.current.getBoundingClientRect();
+            const popupWidth = popupRef.current?.offsetWidth || 320; // fallback to Tailwind w-80 (320px)
+
+            // Nudge the popup slightly to the right (-12px on the 'right' offset)
+            // and clamp so it never goes off-screen on either side.
+            const nudge = 12;
+            let right = window.innerWidth - rect.right - nudge;
+
+            // Ensure popup left edge stays at least 12px from viewport left,
+            // and right edge stays at least 12px from viewport right.
+            const minRight = 12; // popup aligned near right edge
+            const maxRight = window.innerWidth - popupWidth - 12; // keeps left >= 12px
+            right = Math.min(Math.max(right, minRight), maxRight);
+
             setPosition({
                 top: rect.bottom + 8,
-                right: window.innerWidth - rect.right,
+                right,
             });
         }
     }, [anchorRef, popupOpen]);
