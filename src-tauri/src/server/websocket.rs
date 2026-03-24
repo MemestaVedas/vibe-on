@@ -324,8 +324,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
                 event = event_rx.recv() => {
                     match event {
                         Ok(ev) => {
-                            let json = serde_json::to_string(&ServerMessage::from(ev)).unwrap();
-                            if sender.send(Message::Text(json)).await.is_err() { break; }
+                            match serde_json::to_string(&ServerMessage::from(ev)) {
+                                Ok(json) => {
+                                    if sender.send(Message::Text(json)).await.is_err() { break; }
+                                }
+                                Err(e) => {
+                                    log::warn!("[WS] Failed to serialize broadcast event: {}", e);
+                                }
+                            }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                             log::warn!("[WS] Client lagged, skipped {} messages", n);
@@ -337,15 +343,27 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
                 reply = reply_rx.recv() => {
                     match reply {
                         Some(msg) => {
-                            let json = serde_json::to_string(&msg).unwrap();
-                            if sender.send(Message::Text(json)).await.is_err() { break; }
+                            match serde_json::to_string(&msg) {
+                                Ok(json) => {
+                                    if sender.send(Message::Text(json)).await.is_err() { break; }
+                                }
+                                Err(e) => {
+                                    log::warn!("[WS] Failed to serialize direct reply: {}", e);
+                                }
+                            }
                         }
                         None => break,
                     }
                 }
                 _ = keepalive.tick() => {
-                    let json = serde_json::to_string(&ServerMessage::Pong).unwrap();
-                    if sender.send(Message::Text(json)).await.is_err() { break; }
+                    match serde_json::to_string(&ServerMessage::Pong) {
+                        Ok(json) => {
+                            if sender.send(Message::Text(json)).await.is_err() { break; }
+                        }
+                        Err(e) => {
+                            log::warn!("[WS] Failed to serialize keepalive pong: {}", e);
+                        }
+                    }
                 }
                 _ = stop_rx.recv() => break,
             }
