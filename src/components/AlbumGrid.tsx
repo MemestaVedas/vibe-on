@@ -8,7 +8,6 @@ import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { IconMusicNote, IconPlay, IconAlbum } from './Icons';
 import { M3SquircleImage } from './ShapeComponents';
-import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
 import { FilledWavySeparator } from './WavySeparator';
 
@@ -150,6 +149,7 @@ export function AlbumGrid() {
                 <VirtuosoGrid
                     style={{ height: '100%' }}
                     data={albums}
+                    computeItemKey={(_, album) => `${album.artist}-${album.name}`}
                     overscan={1200}
                     components={{
                         List: GridList,
@@ -203,15 +203,12 @@ const AlbumItem = ({
             className="group flex flex-col gap-4 p-4 rounded-[2rem] hover:bg-surface-container-high transition-colors cursor-pointer"
         >
             <div className="aspect-square w-full relative">
-                <motion.div
-                    layoutId={`cover-art-${album.name}-${album.artist}`}
-                    className="w-full h-full"
-                >
+                <div className="w-full h-full">
                     <M3SquircleImage
                         src={coverUrl}
                         fallback={<IconMusicNote size={64} />}
                     />
-                </motion.div>
+                </div>
                 <VerySunnyPlayButton onClick={(e) => { e.stopPropagation(); handlePlayAlbum(album); }} />
             </div>
 
