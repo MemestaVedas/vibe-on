@@ -148,7 +148,7 @@ function App() {
         onClose={closeCreateWizard}
       />
       {expandedArtMode === 'background' && <AmbientBackground />}
-      <TitleBar />
+      {!immersiveMode && <TitleBar />}
 
       {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
       <div className="fixed inset-0 top-10 flex p-3 overflow-hidden text-on-surface">

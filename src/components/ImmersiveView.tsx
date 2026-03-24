@@ -76,6 +76,40 @@ export function ImmersiveView() {
         }
     }, [activeTrack?.path, activeTrack?.title, activeTrack?.artist, fetchLyrics]);
 
+    // Enter real fullscreen while immersive view is mounted.
+    useEffect(() => {
+        const root = document.documentElement;
+
+        const requestFs = async () => {
+            if (!document.fullscreenElement && root.requestFullscreen) {
+                try {
+                    await root.requestFullscreen();
+                } catch (e) {
+                    console.warn('[ImmersiveView] Fullscreen request failed:', e);
+                }
+            }
+        };
+
+        const handleFullscreenChange = () => {
+            // If fullscreen is exited by user gesture, close immersive mode too.
+            if (!document.fullscreenElement) {
+                toggleImmersiveMode();
+            }
+        };
+
+        requestFs();
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            if (document.fullscreenElement && document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {
+                    // Ignore: fullscreen may already be exiting.
+                });
+            }
+        };
+    }, [toggleImmersiveMode]);
+
     // Keyboard Shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -134,8 +168,7 @@ export function ImmersiveView() {
         >
             {/* === TECHNICAL BACKGROUND === */}
             <AmbientBackground coverUrl={coverUrl} colors={colors} />
-            <div className="absolute inset-0 pointer-events-none z-10 bg-noise opacity-[0.03] mix-blend-overlay" />
-            <div className="absolute inset-0 pointer-events-none z-10 animate-scanline opacity-[0.02]" />
+            <div className="absolute inset-0 pointer-events-none z-10 bg-noise opacity-[0.02]" />
 
             {/* === MAIN 3-COLUMN LAYOUT === */}
             <div className="relative z-10 flex w-full h-full">
@@ -185,8 +218,9 @@ export function ImmersiveView() {
 
                         <div className="mt-8 lg:mt-12 w-full text-left relative">
                             <motion.div
-                                initial={{ x: -50, opacity: 0 }}
-                                animate={{ x: 0, opacity: 1 }}
+                                initial={{ y: 18, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
                                 className="inline-block relative max-w-full"
                             >
                                 <motion.h1
@@ -398,7 +432,7 @@ function SideQueue({ showQueue, queue, activeTrackPath, onPlay, colors, onClose,
                                     }}
                                     onDragEnd={() => setDragIndex(null)}
                                     className={`group p-3 rounded-full flex items-center gap-4 cursor-pointer transition-all border relative ${isActive
-                                        ? 'shadow-[0_0_20px_rgba(0,0,0,0.3)] border-white/20'
+                                        ? 'border-white/20'
                                         : 'border-transparent hover:border-white/10 hover:bg-white/5'
                                         } ${dragIndex === i ? 'ring-2 ring-white/30' : ''}`}
                                     style={{
@@ -468,17 +502,23 @@ function AmbientBackground({ coverUrl, colors }: { coverUrl: string | null, colo
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
             <div className="absolute inset-0 bg-surface" style={{ backgroundColor: colors.surface }} />
             <div className="absolute inset-0 bg-blueprint opacity-[0.05]" />
+            <div
+                className="absolute inset-0"
+                style={{
+                    background: `radial-gradient(1200px 800px at 18% 20%, ${colors.primary}20, transparent 60%), radial-gradient(900px 700px at 82% 78%, ${colors.tertiary}16, transparent 62%)`
+                }}
+            />
             <AnimatePresence mode="wait">
                 {coverUrl && (
                     <motion.img
                         key={coverUrl} src={coverUrl} alt=""
-                        initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 0.1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        initial={{ opacity: 0 }} animate={{ opacity: 0.08 }} exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
                         className="absolute inset-0 w-full h-full object-cover opacity-10 grayscale"
                     />
                 )}
             </AnimatePresence>
-            <div className="absolute inset-0 bg-linear-to-t from-black via-transparent to-black opacity-60" />
+            <div className="absolute inset-0 bg-linear-to-t from-black via-black/20 to-black opacity-55" />
         </div>
     );
 }
@@ -507,7 +547,7 @@ function AlbumArt({ coverUrl }: { coverUrl: string | null }) {
 function ControlButton({ onClick, icon, isActive, colors, subLabel }: any) {
     return (
         <motion.button
-            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.05)' }} whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.06, backgroundColor: 'rgba(255,255,255,0.04)' }} whileTap={{ scale: 0.94 }}
             onClick={onClick}
             className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-colors`}
             style={{ color: isActive ? colors.primary : colors.onSurface }}
@@ -528,14 +568,14 @@ function CloverButton({ onClick, icon, colors }: any) {
 
     return (
         <motion.button
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.94 }}
             onClick={handleClick}
             className="w-14 h-14 relative flex items-center justify-center group"
             style={{ color: colors.onSurface }}
         >
             <motion.div
-                className="absolute inset-0 drop-shadow-md group-hover:drop-shadow-lg transition-all duration-300"
+                className="absolute inset-0 transition-all duration-300"
                 style={{ color: 'rgba(255,255,255,0.08)' }}
                 animate={{ rotate: rotation }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
@@ -622,7 +662,6 @@ const LyricsPanel = React.memo(({ lines, colors }: any) => {
                             style={{
                                 opacity: isActive ? 1 : isNext ? 0.3 : 0.1,
                                 scale: isActive ? 1.05 : 1,
-                                filter: isActive ? 'none' : 'grayscale(1)',
                                 transform: isActive ? `translateX(${isActive ? '20px' : '0px'})` : 'none'
                             }}
                         >
