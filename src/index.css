@@ -75,7 +75,7 @@ layer(base);
   --color-surface-container-low: var(--md-sys-color-surface-container-low);
   --color-surface-container: var(--md-sys-color-surface-container);
   --color-surface-container-high: var(--md-sys-color-surface-container-high);
-  --color-surface-container-highest: #33333f;
+  --color-surface-container-highest: var(--md-sys-color-surface-container-highest);
   --color-primary: var(--md-sys-color-primary);
   --color-on-primary: var(--md-sys-color-on-primary);
   --color-primary-container: var(--md-sys-color-primary-container);
@@ -169,43 +169,39 @@ layer(base);
         /* Font Family */
         --font-outfit: 'M PLUS Rounded 1c', sans-serif;
 
-        /* M3 Dynamic Colors (Solid Technical Redirect) */
-        /* Surface - Deep Solid Dark (Onyx) */
-        --md-sys-color-surface: #0a0a0c;
-        --md-sys-color-on-surface: #fdfdfd;
+        /* Material 3 expressive dark fallback values */
+        --md-sys-color-surface: #121214;
+        --md-sys-color-on-surface: #e6e1e5;
 
         /* Surface Containers */
-        --md-sys-color-surface-container-low: #111114;
-        --md-sys-color-surface-container: #16161a;
-        --md-sys-color-surface-container-high: #1c1c21;
-        --md-sys-color-surface-container-highest: #24242b;
+        --md-sys-color-surface-container-low: #18181d;
+        --md-sys-color-surface-container: #1e1e24;
+        --md-sys-color-surface-container-high: #25252d;
+        --md-sys-color-surface-container-highest: #2f2f39;
 
-        /* Primary - Signal Orange (Industrial/Technical) */
-        --md-sys-color-primary: #ff5c00;
-        --md-sys-color-on-primary: #000000;
-        --md-sys-color-primary-container: #cc4a00;
-        --md-sys-color-on-primary-container: #ffffff;
+        /* Primary / Secondary / Tertiary */
+        --md-sys-color-primary: #d0bcff;
+        --md-sys-color-on-primary: #381e72;
+        --md-sys-color-primary-container: #4f378b;
+        --md-sys-color-on-primary-container: #eaddff;
 
-        /* Secondary - Signal Green (Radar/Tech) */
-        --md-sys-color-secondary: #00ff41;
-        --md-sys-color-on-secondary: #000000;
-        --md-sys-color-secondary-container: #008f11;
-        --md-sys-color-on-secondary-container: #ffffff;
+        --md-sys-color-secondary: #ccc2dc;
+        --md-sys-color-on-secondary: #332d41;
+        --md-sys-color-secondary-container: #4a4458;
+        --md-sys-color-on-secondary-container: #e8def8;
 
-        /* Tertiary - High-Vis Yellow */
-        --md-sys-color-tertiary: #ffff00;
-        --md-sys-color-on-tertiary: #000000;
-        --md-sys-color-tertiary-container: #cccc00;
-        --md-sys-color-on-tertiary-container: #000000;
+        --md-sys-color-tertiary: #efb8c8;
+        --md-sys-color-on-tertiary: #492532;
+        --md-sys-color-tertiary-container: #633b48;
+        --md-sys-color-on-tertiary-container: #ffd8e4;
 
         /* Error */
         --md-sys-color-error: #ff0000;
         --md-sys-color-on-error: #ffffff;
 
-        /* Outline - Sharp Technical */
-        --md-sys-color-on-surface-variant: #9a9a9f;
-        --md-sys-color-outline: #555555;
-        --md-sys-color-outline-variant: #222222;
+        --md-sys-color-on-surface-variant: #cac4d0;
+        --md-sys-color-outline: #938f99;
+        --md-sys-color-outline-variant: #49454f;
 
         /* Shape - Extreme Rounding (Soft Hardware/Retro-Futuristic) */
         --radius-large: 2.5rem;

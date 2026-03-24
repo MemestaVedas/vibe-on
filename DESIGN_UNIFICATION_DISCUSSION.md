@@ -33,3 +33,26 @@ Align desktop (vibe-on) and mobile (vibe-on-android) to one Material 3 expressiv
 
 ### User Judgment Principle
 Final usability judgment remains with end users; this round intentionally prioritizes consistency while preserving familiar interaction patterns.
+
+## Round 2 - Color + Widget Harmonization
+
+### Designer Position
+- Fallback colors should feel like Material 3 expressive, not a separate technical skin.
+- Desktop default theme and Android widget fallback must visually belong to the same family.
+- Keep dynamic album-based theming behavior; only align baseline/fallbacks.
+
+### Developer Position
+- Best low-risk path is token-level fallback alignment, not component redesign.
+- Aligning baseline surfaces and semantic roles (`primary`, `secondary`, containers, outlines) gives cross-platform consistency without changing interactions.
+- Widget fallback should use the same semantic palette as the app so no jarring color jump appears when extraction fails.
+
+### Discussion Outcome
+- Adopted one shared expressive dark fallback palette for desktop defaults and widget fallback.
+- Preserved dynamic theming from album art and all existing component layouts.
+- Kept Material 3 semantics intact while removing high-contrast technical fallback accents.
+
+### Round 2 Implemented Changes
+- Desktop CSS default Material tokens updated to expressive dark fallback colors.
+- Desktop `themeStore` fallback palette updated to the same token family.
+- Desktop `surface-container-highest` utility now references the proper token variable.
+- Android widget fallback colors in `WidgetUpdater` aligned to the same expressive palette.
