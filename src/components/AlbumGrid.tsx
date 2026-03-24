@@ -356,13 +356,13 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
 
                                 <div className="flex flex-col gap-3 mb-1 min-w-0 flex-1">
                                     <div>
-                                        <div className="text-label-medium font-medium text-on-surface-variant uppercase tracking-wider mb-1">Album</div>
-                                        <h1 className="text-display-small font-bold text-on-surface tracking-tight text-wrap leading-tight">{album.name}</h1>
+                                        <div className="text-label-medium font-medium text-on-primary-container/78 uppercase tracking-wider mb-1">Album</div>
+                                        <h1 className="text-display-small font-bold text-on-primary-container tracking-tight text-wrap leading-tight">{album.name}</h1>
                                     </div>
 
                                     <div className="flex items-center gap-3 text-title-medium">
-                                        <span className="font-semibold text-primary">{album.artist}</span>
-                                        <span className="text-on-surface-variant">• {album.tracks.length} tracks</span>
+                                        <span className="font-semibold text-on-primary-container">{album.artist}</span>
+                                        <span className="text-on-primary-container/82">• {album.tracks.length} tracks</span>
                                     </div>
 
                                     <div className="flex gap-4 mt-2">
@@ -374,7 +374,7 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                                         </button>
                                         <button
                                             onClick={onBack}
-                                            className="h-12 px-8 border border-outline rounded-full text-on-surface font-bold hover:bg-surface-container-high transition-colors text-title-medium bg-surface pointer-events-auto"
+                                            className="h-12 px-8 border border-on-primary-container/30 rounded-full text-on-primary-container font-bold hover:bg-on-primary-container/10 transition-colors text-title-medium bg-primary-container/40 pointer-events-auto"
                                         >
                                             Back
                                         </button>
@@ -392,8 +392,8 @@ function AlbumDetailView({ album, onBack }: { album: Album, onBack: () => void }
                     if (item.type === 'header') {
                         return (
                                             <div className="flex items-center gap-4 py-4 px-6 mt-2 sticky top-0 bg-primary-container/85 backdrop-blur-sm z-5">
-                                <IconAlbum size={20} className="text-primary" />
-                                <span className="text-title-medium font-bold text-primary">Disc {item.disc}</span>
+                                <IconAlbum size={20} className="text-on-primary-container" />
+                                <span className="text-title-medium font-bold text-on-primary-container">Disc {item.disc}</span>
                                 <div className="h-px flex-1 bg-surface-container-highest"></div>
                             </div>
                         );

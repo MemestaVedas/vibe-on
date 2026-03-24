@@ -370,11 +370,11 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
 
                         <div className="flex flex-col gap-4 min-w-0 flex-1 mb-2">
                             <div>
-                                <div className="text-label-large font-medium text-on-surface-variant uppercase tracking-widest mb-2">Artist</div>
-                                <h1 className="text-display-medium font-bold text-on-surface tracking-tight text-wrap leading-tight">{displayArtistName}</h1>
+                                <div className="text-label-large font-medium text-on-primary-container/78 uppercase tracking-widest mb-2">Artist</div>
+                                <h1 className="text-display-medium font-bold text-on-primary-container tracking-tight text-wrap leading-tight">{displayArtistName}</h1>
                             </div>
 
-                            <div className="text-headline-small text-on-surface-variant">
+                            <div className="text-headline-small text-on-primary-container/82">
                                 {artist.albumCount} {artist.albumCount === 1 ? 'Album' : 'Albums'} • {artist.tracks.length} Songs
                             </div>
 
@@ -387,7 +387,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                 </button>
                                 <button
                                     onClick={onBack}
-                                    className="h-12 px-8 border border-outline rounded-full text-on-surface font-bold hover:bg-surface-container-high transition-colors text-title-medium bg-surface pointer-events-auto"
+                                    className="h-12 px-8 border border-on-primary-container/30 rounded-full text-on-primary-container font-bold hover:bg-on-primary-container/10 transition-colors text-title-medium bg-primary-container/40 pointer-events-auto"
                                 >
                                     Back
                                 </button>
