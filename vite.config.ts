@@ -59,12 +59,15 @@ export default defineConfig(async () => ({
   build: {
     target: 'esnext',
     sourcemap: false,
+    chunkSizeWarningLimit: 750, // Increased tolerance; chunks >750KB will still warn
     rollupOptions: {
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
           'vendor-motion': ['motion/react'],
-          'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-fs'],
+          'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-opener', '@tauri-apps/plugin-clipboard-manager'],
+          'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          'ui-components': ['./src/components/SettingsPage.tsx', './src/components/StatisticsPage.tsx', './src/components/Statistics2.tsx', './src/components/TorrentManager.tsx'],
         },
       },
     },
