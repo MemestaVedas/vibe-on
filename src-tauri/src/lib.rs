@@ -1626,14 +1626,32 @@ async fn get_torrent_details(
 #[tauri::command]
 fn get_local_ip() -> Option<String> {
     use std::net::UdpSocket;
-    
-    // Create a UDP socket and "connect" to a public IP (doesn't actually send data)
-    // This lets us determine which local interface would be used
-    let socket = UdpSocket::bind("0.0.0.0:0").ok().and_then(|s| {
-        s.connect("8.8.8.8:80").ok().map(|_| s)
-    })?;
-    
-    socket.local_addr().ok().map(|addr| addr.ip().to_string())
+
+    // Prefer route-selected LAN IPv4.
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = socket.local_addr() {
+                let ip = addr.ip();
+                let ip_str = ip.to_string();
+                if ip.is_ipv4() && !ip.is_loopback() && !ip_str.starts_with("169.254.") {
+                    return Some(ip_str);
+                }
+            }
+        }
+    }
+
+    // Fallback: enumerate interfaces for a usable LAN IPv4.
+    if let Ok(ifaces) = if_addrs::get_if_addrs() {
+        for iface in &ifaces {
+            let ip = iface.addr.ip();
+            let ip_str = ip.to_string();
+            if ip.is_ipv4() && !ip.is_loopback() && !ip_str.starts_with("169.254.") {
+                return Some(ip_str);
+            }
+        }
+    }
+
+    None
 }
 
 #[tauri::command]

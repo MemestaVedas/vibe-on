@@ -197,11 +197,16 @@ export const useMobileStore = create<MobileStore>()(
                             return;
                         }
                     }
-                    // 3. Last resort fallback
-                    set({ localIP: 'localhost' });
+                    set({
+                        localIP: null,
+                        error: 'Could not determine LAN IP. Check network adapter and firewall settings.',
+                    });
                 } catch (e) {
                     console.error('Failed to fetch local IP:', e);
-                    set({ localIP: 'localhost' });
+                    set({
+                        localIP: null,
+                        error: 'Failed to determine LAN IP. Check network adapter and firewall settings.',
+                    });
                 }
             },
 
