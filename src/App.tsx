@@ -174,7 +174,7 @@ function App() {
         <div className="pc-shell-row">
 
         {/* Left column */}
-        <div className="pc-shell-left-slot shrink-0 overflow-hidden">
+        <div className="pc-shell-left-slot shrink-0 overflow-hidden bg-surface-container">
           {/* Sidebar background tint to harmonize with dynamic right panel */}
           {useSettingsStore.getState().rightPanelBg === 'dynamic' && (
             <div className="absolute inset-0 z-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06))' }} />
