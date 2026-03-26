@@ -280,7 +280,7 @@ layer(base);
     flex: 1;
     min-width: 0;
     z-index: 20;
-    border-radius: var(--shell-radius);
+    border-radius: 0;
     outline: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 28%, transparent);
   }
 
