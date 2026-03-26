@@ -281,6 +281,10 @@ layer(base);
     min-width: 0;
     z-index: 20;
     border-radius: var(--shell-radius);
+    border-top-left-radius: var(--shell-radius);
+    border-top-right-radius: var(--shell-radius);
+    border-bottom-left-radius: var(--shell-radius);
+    border-bottom-right-radius: var(--shell-radius);
     outline: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 28%, transparent);
   }
 
