@@ -154,10 +154,10 @@ export function RightPanel() {
     }, [queue, trackPath, playFile, displayLanguage, removeQueueItem, moveQueueItem, dragIndex]);
 
     return (
-                <div className="h-full flex flex-col overflow-hidden shell-right-surface relative z-50">
+                <div className="h-full flex flex-col overflow-hidden pc-shell-right-surface relative z-50">
                     {/* Background layer: solid or dynamic (blurred album art) */}
                     {rightPanelBg === 'dynamic' && coverUrl ? (
-                        <div className="absolute inset-0 z-0 overflow-hidden shell-right-surface pointer-events-none">
+                        <div className="absolute inset-0 z-0 overflow-hidden pc-shell-right-surface pointer-events-none">
                             <img
                                 src={coverUrl}
                                 alt="bg"
@@ -172,7 +172,7 @@ export function RightPanel() {
                             />
                         </div>
                     ) : (
-                        <div className="absolute inset-0 z-0 bg-surface-container shell-right-surface pointer-events-none" />
+                        <div className="absolute inset-0 z-0 bg-surface-container pc-shell-right-surface pointer-events-none" />
                     )}
             {isCollapsed ? (
                 /* COLLAPSED VIEW */
@@ -271,7 +271,7 @@ export function RightPanel() {
                     {/* Main Art & Info */}
                     <div className="flex flex-col items-center gap-6 shrink-0 transition-all duration-300">
                         <div
-                            className="w-full h-88 shell-content-card bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform duration-200"
+                            className="w-full h-88 pc-shell-content-card bg-surface-container-high shadow-elevation-2 relative group overflow-hidden shrink-0 cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform duration-200"
                             title={displayAlbum ? `Go to album: ${displayAlbum}` : "Album Art"}
                         >
                             <div className="w-full h-full" onClick={handleArtClick}>

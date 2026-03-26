@@ -215,10 +215,9 @@ layer(base);
 
         /* Desktop shell geometry */
         --shell-radius: 40px;
-        --shell-overlap: 34px;
-        --shell-gutter: 12px;
-        --shell-rail-overlap-padding: 14px;
-        --shell-inner-radius: 36px;
+        --shell-overlap: 30px;
+        --shell-gutter: 10px;
+        --shell-inner-radius: 34px;
         --shell-content-radius: 26px;
     }
 
@@ -249,48 +248,53 @@ layer(base);
 }
 
 @layer utilities {
-  .shell-stage {
+  .pc-shell-stage {
     padding: var(--shell-gutter);
   }
 
-  .shell-left-rail {
-    border-top-left-radius: var(--shell-radius);
-    border-bottom-left-radius: var(--shell-radius);
+  .pc-shell-row {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .pc-shell-left-slot {
+    position: relative;
+    z-index: 10;
+    height: 100%;
     margin-right: calc(var(--shell-overlap) * -1);
-    padding-right: var(--shell-rail-overlap-padding);
   }
 
-  .shell-right-rail {
-    border-top-right-radius: var(--shell-radius);
-    border-bottom-right-radius: var(--shell-radius);
+  .pc-shell-right-slot {
+    position: relative;
+    z-index: 10;
+    height: 100%;
     margin-left: calc(var(--shell-overlap) * -1);
-    padding-left: var(--shell-rail-overlap-padding);
   }
 
-  .shell-main-panel {
+  .pc-shell-center {
+    flex: 1;
+    min-width: 0;
+    z-index: 20;
     border-radius: var(--shell-radius);
     outline: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 28%, transparent);
   }
 
-  .shell-inner-panel {
-    border-radius: var(--shell-inner-radius);
-  }
-
-  .shell-left-surface {
+  .pc-shell-left-surface {
     border-top-left-radius: var(--shell-inner-radius);
     border-bottom-left-radius: var(--shell-inner-radius);
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
   }
 
-  .shell-right-surface {
+  .pc-shell-right-surface {
     border-top-right-radius: var(--shell-inner-radius);
     border-bottom-right-radius: var(--shell-inner-radius);
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
   }
 
-  .shell-content-card {
+  .pc-shell-content-card {
     border-radius: var(--shell-content-radius);
   }
 }

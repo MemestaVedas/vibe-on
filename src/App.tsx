@@ -169,11 +169,12 @@ function App() {
       {expandedArtMode === 'background' && <AmbientBackground />}
       {!immersiveMode && <TitleBar />}
 
-      {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
-      <div className="shell-stage fixed inset-0 top-10 flex overflow-hidden text-on-surface bg-black/20">
+      {/* Main Container - Clean 3-column shell */}
+      <div className="pc-shell-stage fixed inset-0 top-10 text-on-surface bg-black/20">
+        <div className="pc-shell-row">
 
-        {/* Sidebar - curves inward on right */}
-        <div className="shell-left-rail shrink-0 h-full z-20 rounded-r-none relative overflow-hidden">
+        {/* Left column */}
+        <div className="pc-shell-left-slot shrink-0 overflow-hidden">
           {/* Sidebar background tint to harmonize with dynamic right panel */}
           {useSettingsStore.getState().rightPanelBg === 'dynamic' && (
             <div className="absolute inset-0 z-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06))' }} />
@@ -181,8 +182,8 @@ function App() {
           <Sidebar view={view} onViewChange={setView} />
         </div>
 
-        {/* Center: Main Content Area - sits on top with higher z-index */}
-        <div className="shell-main-panel flex-1 flex flex-col min-w-0 relative bg-surface-container-low overflow-hidden z-30 transition-all duration-300 shadow-lg">
+        {/* Center panel */}
+        <div className="pc-shell-center flex flex-col relative bg-surface overflow-hidden transition-all duration-300 shadow-lg">
 
           {/* Main Content Area */}
           <main className="flex-1 flex flex-col min-h-0 relative">
@@ -218,25 +219,20 @@ function App() {
 
         </div>
 
-        {/* Right Panel - curves inward on left, overlaps main content */}
-        {/* Responsive Logic:
-            - xl+: Relative (pushes content), toggles width/opacity
-            - <xl: Fixed/Absolute overlay, toggles translate/opacity
-        */}
+        {/* Right column */}
         <aside
           className={`
-            shell-right-rail bg-surface-container z-40 overflow-hidden transition-all duration-300 rounded-l-none
-            fixed right-3 top-13 bottom-28 shadow-2xl
-            2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
+            pc-shell-right-slot bg-surface-container overflow-hidden transition-all duration-300 shadow-2xl
 
             ${isRightPanelOpen
-              ? `translate-x-0 opacity-100 ${isRightPanelCollapsed ? 'w-18' : 'w-100'}`
-              : 'translate-x-[110%] opacity-0 pointer-events-none 2xl:w-0 2xl:translate-x-0'
+              ? `opacity-100 ${isRightPanelCollapsed ? 'w-18' : 'w-100'}`
+              : 'w-0 opacity-0 pointer-events-none'
             }
           `}
         >
           <RightPanel />
         </aside>
+        </div>
       </div >
 
 
