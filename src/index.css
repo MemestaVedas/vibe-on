@@ -212,6 +212,14 @@ layer(base);
         --state-hover-opacity: 0.12;
         --state-focus-opacity: 0.15;
         --state-press-opacity: 0.2;
+
+        /* Desktop shell geometry */
+        --shell-radius: 40px;
+        --shell-overlap: 34px;
+        --shell-gutter: 12px;
+        --shell-rail-overlap-padding: 14px;
+        --shell-inner-radius: 36px;
+        --shell-content-radius: 26px;
     }
 
     body {
@@ -238,6 +246,53 @@ layer(base);
     *::-webkit-scrollbar {
         display: none;
     }
+}
+
+@layer utilities {
+  .shell-stage {
+    padding: var(--shell-gutter);
+  }
+
+  .shell-left-rail {
+    border-top-left-radius: var(--shell-radius);
+    border-bottom-left-radius: var(--shell-radius);
+    margin-right: calc(var(--shell-overlap) * -1);
+    padding-right: var(--shell-rail-overlap-padding);
+  }
+
+  .shell-right-rail {
+    border-top-right-radius: var(--shell-radius);
+    border-bottom-right-radius: var(--shell-radius);
+    margin-left: calc(var(--shell-overlap) * -1);
+    padding-left: var(--shell-rail-overlap-padding);
+  }
+
+  .shell-main-panel {
+    border-radius: var(--shell-radius);
+    outline: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 28%, transparent);
+  }
+
+  .shell-inner-panel {
+    border-radius: var(--shell-inner-radius);
+  }
+
+  .shell-left-surface {
+    border-top-left-radius: var(--shell-inner-radius);
+    border-bottom-left-radius: var(--shell-inner-radius);
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .shell-right-surface {
+    border-top-right-radius: var(--shell-inner-radius);
+    border-bottom-right-radius: var(--shell-inner-radius);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .shell-content-card {
+    border-radius: var(--shell-content-radius);
+  }
 }
 
 @layer utilities {

@@ -26,6 +26,13 @@ export function ThemeManager() {
 
         const root = document.documentElement;
 
+        // Diagnostic log for production troubleshooting
+        try {
+            console.debug('[ThemeManager] applying colors for', coverUrl, colors && colors.sourceColor);
+        } catch (e) {
+            // swallow if console not available in some runtimes
+        }
+
         // Primary
         root.style.setProperty('--md-sys-color-primary', colors.primary);
         root.style.setProperty('--md-sys-color-on-primary', colors.onPrimary);
@@ -60,6 +67,10 @@ export function ThemeManager() {
         // Outline
         root.style.setProperty('--md-sys-color-outline', colors.outline);
         root.style.setProperty('--md-sys-color-outline-variant', colors.outlineVariant);
+
+        try {
+            console.debug('[ThemeManager] applied colors to :root');
+        } catch (e) {}
 
     }, [colors, setColors]);
 

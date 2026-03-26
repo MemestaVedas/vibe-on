@@ -52,7 +52,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
             className={`
                 h-full flex flex-col
                 bg-surface-container 
-                z-20 border-r border-transparent rounded-[2rem] overflow-hidden shadow-xs
+                z-20 border-r border-transparent shell-left-surface overflow-hidden shadow-xs
             `}
         >
             {/* Toggle Button - Minimal header */}

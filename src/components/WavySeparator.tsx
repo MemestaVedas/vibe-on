@@ -62,22 +62,16 @@ function WavePattern({ color }: { color: string }) {
 }
 
 export function FilledWavySeparator({ color = "var(--md-sys-color-surface-container)", className = "" }: { color?: string, className?: string }) {
-    const patternId = useMemo(() => `wave-pattern-filled-${Math.random().toString(36).substr(2, 9)}`, []);
-
     return (
-        <svg width="100%" height="32" preserveAspectRatio="none" className={`block w-full ${className}`}>
-            <defs>
-                <pattern id={patternId} x="0" y="0" width="72" height="32" patternUnits="userSpaceOnUse">
-                    {/* Flat top at y=0, solid down to y=16
-                        Wave starts at 16. Goes down to 32, then up to 16. Width 72.
-                    */}
-                    <path
-                        d="M 0 0 L 0 20 Q 18 32 36 20 T 72 20 L 72 0 Z"
-                        fill={color}
-                    />
-                </pattern>
-            </defs>
-            <rect x="0" y="0" width="100%" height="32" fill={`url(#${patternId})`} />
+        <svg viewBox="0 0 100 24" preserveAspectRatio="none" height="24" width="100%" className={`block w-full ${className}`}>
+            {/* Single stroke-only squiggle across the full width (no filled block behind it) */}
+            <path
+                d="M0 12 Q25 4 50 12 T100 12"
+                fill="none"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+            />
         </svg>
     );
 }

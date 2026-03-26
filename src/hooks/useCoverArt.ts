@@ -30,10 +30,12 @@ export function useCoverArt(coverPathRaw: string | null | undefined, trackPath?:
             }
 
             // 2. Cached cover filename (no slashes = just a filename like "abc123.jpg")
-            //    Bypass native asset protocol, use backend HTTP server
+            //    If we also have trackPath, prefer requesting by track path so backend
+            //    can recover from stale/missing cached filenames and still resolve art.
             if (coverPath && !coverPath.includes('/')) {
                 if (!cancelled) {
-                    setImageUrl(`http://localhost:5000/cover/${encodeURIComponent(coverPath)}`);
+                    const resolvedPath = trackPath || coverPath;
+                    setImageUrl(`http://localhost:5000/cover/${encodeURIComponent(resolvedPath)}`);
                     return;
                 }
             }

@@ -170,10 +170,10 @@ function App() {
       {!immersiveMode && <TitleBar />}
 
       {/* Main Container - Floating Grid for Sidebar + Content + RightPanel */}
-      <div className="fixed inset-0 top-10 flex p-3 overflow-hidden text-on-surface">
+      <div className="shell-stage fixed inset-0 top-10 flex overflow-hidden text-on-surface bg-black/20">
 
         {/* Sidebar - curves inward on right */}
-        <div className="shrink-0 h-full z-20 rounded-l-[2rem] rounded-r-none -mr-6 pr-3 relative overflow-hidden">
+        <div className="shell-left-rail shrink-0 h-full z-20 rounded-r-none relative overflow-hidden">
           {/* Sidebar background tint to harmonize with dynamic right panel */}
           {useSettingsStore.getState().rightPanelBg === 'dynamic' && (
             <div className="absolute inset-0 z-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06))' }} />
@@ -182,7 +182,7 @@ function App() {
         </div>
 
         {/* Center: Main Content Area - sits on top with higher z-index */}
-        <div className="flex-1 flex flex-col min-w-0 relative bg-surface overflow-hidden z-30 transition-all duration-300 rounded-[2rem] shadow-lg">
+        <div className="shell-main-panel flex-1 flex flex-col min-w-0 relative bg-surface-container-low overflow-hidden z-30 transition-all duration-300 shadow-lg">
 
           {/* Main Content Area */}
           <main className="flex-1 flex flex-col min-h-0 relative">
@@ -225,8 +225,8 @@ function App() {
         */}
         <aside
           className={`
-            bg-surface-container z-40 overflow-hidden transition-all duration-300 rounded-r-[2rem] rounded-l-none pl-3
-            fixed right-3 top-13 bottom-28 shadow-2xl -ml-6
+            shell-right-rail bg-surface-container z-40 overflow-hidden transition-all duration-300 rounded-l-none
+            fixed right-3 top-13 bottom-28 shadow-2xl
             2xl:relative 2xl:right-auto 2xl:top-auto 2xl:bottom-auto 2xl:shadow-none 2xl:block
 
             ${isRightPanelOpen

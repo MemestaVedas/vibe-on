@@ -9,7 +9,7 @@ import type { TrackDisplay } from '../types';
 import { getDisplayText } from '../utils/textUtils';
 import { motion } from 'motion/react';
 import { ContextMenu } from './ContextMenu';
-import { WavySeparator, FilledWavySeparator } from './WavySeparator';
+import { WavySeparator } from './WavySeparator';
 
 interface Artist {
     name: string;
@@ -360,7 +360,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
             >
                 {/* Header Container */}
                 <div className="flex flex-col w-full relative z-10">
-                    <div className="pt-14 px-10 pb-8 flex gap-8 items-end bg-surface-container shrink-0">
+                    <div className="pt-6 px-10 pb-8 flex gap-8 items-end bg-surface shrink-0">
                         <div className="w-56 h-56 shrink-0 pointer-events-auto">
                             <M3ArchImage
                                 src={coverUrl}
@@ -394,8 +394,8 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                             </div>
                         </div>
                     </div>
-                    <div className="w-full relative pointer-events-none">
-                        <FilledWavySeparator color="var(--md-sys-color-surface-container)" className="drop-shadow-xs -mt-px" />
+                    <div className="w-full relative pointer-events-none text-on-surface-variant">
+                        <WavySeparator />
                     </div>
                 </div>
 
@@ -434,7 +434,7 @@ function ArtistDetailView({ artist, onBack }: { artist: Artist, onBack: () => vo
                                 itemContent={(_i, item) => {
                                     if (item.type === 'header') {
                                         return (
-                                            <div className="py-4 mt-6 first:mt-0 sticky top-0 bg-primary-container/85 backdrop-blur-sm z-5">
+                                            <div className="py-4 mt-6 first:mt-0 sticky top-0 z-5">
                                                 <WavySeparator label={item.displayAlbum} />
                                             </div>
                                         );

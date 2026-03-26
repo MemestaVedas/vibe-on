@@ -97,6 +97,7 @@ export function useImageColors(imageUrl: string | null | undefined): DynamicColo
         const generateTheme = async () => {
             // Cache hit — no work needed
             if (imageUrl && themeCache.has(imageUrl)) {
+                console.debug(`[useImageColors] cache hit for ${imageUrl}`);
                 if (active) setTheme(themeCache.get(imageUrl)!);
                 return;
             }
@@ -105,16 +106,25 @@ export function useImageColors(imageUrl: string | null | undefined): DynamicColo
                 let sourceColor = FALLBACK_SEED;
 
                 if (imageUrl) {
+                    console.debug(`[useImageColors] extracting colors for ${imageUrl}`);
                     // Create a small Image just for color extraction
                     const img = new Image();
                     img.crossOrigin = "Anonymous";
                     img.src = imageUrl;
                     await new Promise((resolve, reject) => {
-                        img.onload = resolve;
-                        img.onerror = reject;
+                        img.onload = () => {
+                            console.debug(`[useImageColors] image loaded: ${imageUrl}`);
+                            resolve(null);
+                        };
+                        img.onerror = (ev) => {
+                            console.debug(`[useImageColors] image failed to load: ${imageUrl}`, ev);
+                            reject(new Error('image load error'));
+                        };
                     });
 
                     sourceColor = await sourceColorFromImage(img);
+
+                    console.debug(`[useImageColors] sourceColor: 0x${sourceColor.toString(16)}`);
 
                     // Explicitly dereference — let GC reclaim the decoded bitmap
                     img.src = '';
@@ -133,6 +143,7 @@ export function useImageColors(imageUrl: string | null | undefined): DynamicColo
                         const oldest = themeCache.keys().next().value;
                         if (oldest) themeCache.delete(oldest);
                     }
+                    console.debug(`[useImageColors] caching theme for ${imageUrl}`);
                     themeCache.set(imageUrl, newTheme);
                 }
 
