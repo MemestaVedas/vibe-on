@@ -215,9 +215,10 @@ layer(base);
 
         /* Desktop shell geometry */
         --shell-radius: 40px;
-        --shell-overlap: 0px;
+        --shell-overlap: 22px;
         --shell-gutter: 10px;
         --shell-side-gap: 14px;
+        --shell-seam-gap: 12px;
         --shell-inner-radius: 34px;
         --shell-content-radius: 26px;
     }
@@ -257,20 +258,23 @@ layer(base);
     display: flex;
     height: 100%;
     overflow: hidden;
+    gap: var(--shell-side-gap);
   }
 
   .pc-shell-left-slot {
     position: relative;
     z-index: 10;
     height: 100%;
-    margin-right: var(--shell-side-gap);
+    margin-right: calc(var(--shell-overlap) * -1);
+    padding-right: var(--shell-seam-gap);
   }
 
   .pc-shell-right-slot {
     position: relative;
     z-index: 10;
     height: 100%;
-    margin-left: var(--shell-side-gap);
+    margin-left: calc(var(--shell-overlap) * -1);
+    padding-left: var(--shell-seam-gap);
   }
 
   .pc-shell-center {
