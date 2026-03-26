@@ -183,7 +183,7 @@ function App() {
         </div>
 
         {/* Center panel */}
-        <div className="pc-shell-center flex flex-col relative bg-surface overflow-hidden transition-all duration-300 shadow-lg">
+        <div className="pc-shell-center flex flex-col relative bg-surface overflow-hidden transition-all duration-300">
 
           {/* Main Content Area */}
           <main className="flex-1 flex flex-col min-h-0 relative">
@@ -222,7 +222,7 @@ function App() {
         {/* Right column */}
         <aside
           className={`
-            pc-shell-right-slot bg-surface-container overflow-hidden transition-all duration-300 shadow-2xl
+            pc-shell-right-slot bg-surface-container overflow-hidden transition-all duration-300
 
             ${isRightPanelOpen
               ? `opacity-100 ${isRightPanelCollapsed ? 'w-18' : 'w-100'}`
