@@ -285,15 +285,15 @@ layer(base);
   }
 
   .pc-shell-left-surface {
-    border-top-left-radius: var(--shell-inner-radius);
-    border-bottom-left-radius: var(--shell-inner-radius);
+    border-top-left-radius: var(--shell-radius);
+    border-bottom-left-radius: var(--shell-radius);
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
   }
 
   .pc-shell-right-surface {
-    border-top-right-radius: var(--shell-inner-radius);
-    border-bottom-right-radius: var(--shell-inner-radius);
+    border-top-right-radius: var(--shell-radius);
+    border-bottom-right-radius: var(--shell-radius);
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
   }
