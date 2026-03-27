@@ -42,10 +42,46 @@ export function RightPanel() {
     const openCreateDialog = usePlaylistStore(s => s.openCreateDialog);
     const isCollapsed = isRightPanelCollapsed;
 
-    // Find full track info from library for Romaji
+    // Find full track info by merging library entry and status.track so romaji/en fields
+    // from either source are respected. Prefer non-empty romaji/en when available.
     const displayTrack = useMemo(() => {
         if (!trackPath) return null;
-        return library.find(t => t.path === trackPath) || usePlayerStore.getState().status.track;
+
+        const libMatch = library.find(t => t.path === trackPath) || null;
+        const statusTrack = usePlayerStore.getState().status.track || null;
+
+        if (!libMatch && !statusTrack) return null;
+
+        const pick = (key: string) => {
+            const s = (statusTrack as any)?.[key];
+            if (s !== undefined && s !== null && String(s).trim() !== '') return s;
+            const l = (libMatch as any)?.[key];
+            if (l !== undefined && l !== null && String(l).trim() !== '') return l;
+            return undefined;
+        };
+
+        const merged: TrackDisplay = {
+            id: trackPath,
+            path: trackPath,
+            title: (pick('title') as string) || (statusTrack as any)?.title || (libMatch as any)?.title || '',
+            artist: (pick('artist') as string) || (statusTrack as any)?.artist || (libMatch as any)?.artist || '',
+            album: (pick('album') as string) || (statusTrack as any)?.album || (libMatch as any)?.album || '',
+            duration_secs: (statusTrack as any)?.duration_secs ?? (libMatch as any)?.duration_secs ?? 0,
+            cover_image: (statusTrack as any)?.cover_image ?? (libMatch as any)?.cover_image ?? null,
+            cover_url: (statusTrack as any)?.cover_url ?? (libMatch as any)?.cover_url,
+            disc_number: (statusTrack as any)?.disc_number ?? (libMatch as any)?.disc_number ?? null,
+            track_number: (statusTrack as any)?.track_number ?? (libMatch as any)?.track_number ?? null,
+
+            // Metadata translations
+            title_romaji: pick('title_romaji') as string | undefined | null,
+            title_en: pick('title_en') as string | undefined | null,
+            artist_romaji: pick('artist_romaji') as string | undefined | null,
+            artist_en: pick('artist_en') as string | undefined | null,
+            album_romaji: pick('album_romaji') as string | undefined | null,
+            album_en: pick('album_en') as string | undefined | null,
+        };
+
+        return merged;
     }, [trackPath, library]);
 
     const displayTitle = displayTrack ? getDisplayText(displayTrack as TrackDisplay, 'title', displayLanguage) : "Not Playing";

@@ -1,37 +1,35 @@
-import { TrackInfo } from '../types';
+import { TrackInfo, TrackDisplay } from '../types';
 
 export type DisplayLanguage = 'original' | 'romaji' | 'en';
 
 export const getDisplayText = (
-    track: TrackInfo | null,
+    track: TrackInfo | TrackDisplay | null,
     field: 'title' | 'artist' | 'album',
     language: DisplayLanguage
 ): string => {
     if (!track) return '';
 
-    const original = track[field];
+    const original = (track as any)[field] ?? '';
 
     if (language === 'original') return original;
 
     // Try Romaji
     if (language === 'romaji') {
-        const romajiKey = `${field}_romaji` as keyof TrackInfo;
-        const romaji = track[romajiKey] as string | undefined | null;
-        return romaji || original;
+        const romajiKey = `${field}_romaji` as keyof TrackDisplay;
+        const romaji = (track as any)[romajiKey] as string | undefined | null;
+        return (romaji && romaji.trim()) ? romaji : original;
     }
 
     // Try English / Translation
     if (language === 'en') {
-        const enKey = `${field}_en` as keyof TrackInfo;
-        const en = track[enKey] as string | undefined | null;
+        const enKey = `${field}_en` as keyof TrackDisplay;
+        const en = (track as any)[enKey] as string | undefined | null;
         // Fallback chain: EN -> Romaji -> Original
-        if (en) return en;
+        if (en && en.trim()) return en;
 
-        // Fallback to Romaji if EN missing? Or straight to Original?
-        // Plan said "fallback to Romaji -> Original"
-        const romajiKey = `${field}_romaji` as keyof TrackInfo;
-        const romaji = track[romajiKey] as string | undefined | null;
-        return romaji || original;
+        const romajiKey = `${field}_romaji` as keyof TrackDisplay;
+        const romaji = (track as any)[romajiKey] as string | undefined | null;
+        return (romaji && romaji.trim()) ? romaji : original;
     }
 
     return original;

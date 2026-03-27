@@ -427,23 +427,37 @@ export const usePlayerStore = create<PlayerStore>()(
             // --- Queue Actions ---
 
             setQueue: (tracks: TrackDisplay[]) => {
-                set({
-                    queue: tracks,
-                    originalQueue: tracks, // Backup for un-shuffle
-                    isShuffled: false
+                // Merge incoming tracks with library data so we preserve romaji/en fields when available
+                set((state) => {
+                    const merged = tracks.map(t => {
+                        const libMatch = state.library.find(l => l.path === t.path);
+                        return { ...t, ...(libMatch || {}), id: t.path } as TrackDisplay;
+                    });
+
+                    // Update state
+                    const next = {
+                        queue: merged,
+                        originalQueue: merged,
+                        isShuffled: false
+                    } as any;
+
+                    // Broadcast to mobile clients using normalized fields
+                    broadcastQueueUpdate(merged);
+
+                    return next;
                 });
-                // Broadcast to mobile clients
-                broadcastQueueUpdate(tracks);
             },
 
             addToQueue: (track: TrackDisplay) => {
                 set(state => {
-                    const newQueue = [...state.queue, track];
+                    const libMatch = state.library.find(l => l.path === track.path);
+                    const mergedTrack = { ...track, ...(libMatch || {}), id: track.path } as TrackDisplay;
+                    const newQueue = [...state.queue, mergedTrack];
                     // Broadcast updated queue to mobile clients
                     broadcastQueueUpdate(newQueue);
                     return {
                         queue: newQueue,
-                        originalQueue: [...state.originalQueue, track]
+                        originalQueue: [...state.originalQueue, mergedTrack]
                     };
                 });
             },
@@ -589,12 +603,24 @@ export const usePlayerStore = create<PlayerStore>()(
                         }
                     }
 
-                    set({
-                        queue: newQueue,
-                        originalQueue: tracks
+                    // Merge both original tracks and the resulting newQueue with library data
+                    const lib = get().library;
+                    const mergedOriginal = tracks.map(t => {
+                        const libMatch = lib.find(l => l.path === t.path);
+                        return { ...t, ...(libMatch || {}), id: t.path } as TrackDisplay;
                     });
 
-                    broadcastQueueUpdate(newQueue);
+                    const mergedNewQueue = newQueue.map(t => {
+                        const libMatch = lib.find(l => l.path === t.path);
+                        return { ...t, ...(libMatch || {}), id: t.path } as TrackDisplay;
+                    });
+
+                    set({
+                        queue: mergedNewQueue,
+                        originalQueue: mergedOriginal
+                    });
+
+                    broadcastQueueUpdate(mergedNewQueue);
 
                     await get().playFile(trackToPlay.path);
 
@@ -756,6 +782,13 @@ export const usePlayerStore = create<PlayerStore>()(
             refreshStatus: async () => {
                 try {
                     const status = await invoke<PlayerStatus>('get_player_state');
+                    // Merge returned track with library entry so romaji/en fields are available
+                    if (status && status.track && status.track.path) {
+                        const libMatch = get().library.find(l => l.path === status.track?.path);
+                        if (libMatch) {
+                            status.track = { ...status.track, ...libMatch } as any;
+                        }
+                    }
                     set({ status });
                 } catch (e) {
                     console.error('Failed to refresh status:', e);

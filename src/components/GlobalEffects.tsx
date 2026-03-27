@@ -55,8 +55,13 @@ export function GlobalEffects() {
                     try {
                         const qs = await invoke<any>('get_queue_state');
                         if (qs && Array.isArray(qs.queue)) {
-                            const tracks = qs.queue.map((t: any) => ({ ...t, id: t.path }));
                             const store = usePlayerStore.getState();
+                            // Merge incoming queue items with library entries so romaji/en fields are preserved
+                            const tracks = qs.queue.map((t: any) => {
+                                const libMatch = store.library.find((l: any) => l.path === t.path);
+                                return { ...t, ...(libMatch || {}), id: t.path };
+                            });
+
                             // Only update if queue actually changed (avoid clobbering user edits)
                             const backendPaths = tracks.map((t: any) => t.path).join(',');
                             const frontendPaths = store.queue.map(t => t.path).join(',');
