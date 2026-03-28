@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore } from '@/store/playerStore';
 
 /**
  * Loads cover art with a robust priority chain:

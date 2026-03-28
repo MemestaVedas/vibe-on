@@ -1,4 +1,4 @@
-import { TrackInfo, TrackDisplay } from '../types';
+import { TrackInfo, TrackDisplay } from '@/types';
 
 export type DisplayLanguage = 'original' | 'romaji' | 'en';
 

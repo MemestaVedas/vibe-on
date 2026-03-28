@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore } from '@/store/playerStore';
 import { useCoverArt } from './useCoverArt';
 
 export function useMediaSession() {

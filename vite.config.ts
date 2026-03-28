@@ -31,6 +31,7 @@ export default defineConfig(async () => ({
   ],
   resolve: {
     alias: {
+      "@": path.resolve(__dirname, "./src"),
       path: "path-browserify",
     },
   },
@@ -67,7 +68,7 @@ export default defineConfig(async () => ({
           'vendor-motion': ['motion/react'],
           'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-opener', '@tauri-apps/plugin-clipboard-manager'],
           'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
-          'ui-components': ['./src/components/SettingsPage.tsx', './src/components/StatisticsPage.tsx', './src/components/Statistics2.tsx', './src/components/TorrentManager.tsx'],
+          'ui-components': ['./src/components/system/SettingsPage.tsx', './src/components/stats/StatisticsPage.tsx', './src/components/stats/Statistics2.tsx', './src/components/torrent/TorrentManager.tsx'],
         },
       },
     },

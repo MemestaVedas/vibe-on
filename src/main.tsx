@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { FloatingLyricsApp } from "./components/FloatingLyricsApp";
+import { FloatingLyricsApp } from "@/components/system/FloatingLyricsApp";
 import "./index.css";
 
 const isLyricsWindow = window.location.search.includes('window=lyrics');

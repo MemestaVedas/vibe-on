@@ -1,41 +1,41 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { TrackList } from './components/TrackList';
-import { PlayerBar } from './components/PlayerBar';
-const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({ default: m.SettingsPage })));
-const StatisticsPage = lazy(() => import('./components/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
-const Statistics2 = lazy(() => import('./components/Statistics2').then(m => ({ default: m.Statistics2 })));
+import { TrackList } from '@/components/library/TrackList';
+import { PlayerBar } from '@/components/playback/PlayerBar';
+const SettingsPage = lazy(() => import('@/components/system/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const StatisticsPage = lazy(() => import('@/components/stats/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
+const Statistics2 = lazy(() => import('@/components/stats/Statistics2').then(m => ({ default: m.Statistics2 })));
 
 // Lazy-loaded views — defers ~130KB JS parsing until first visit
-const TorrentManager = lazy(() => import('./components/TorrentManager').then(m => ({ default: m.TorrentManager })));
-import { ImmersiveView } from './components/ImmersiveView';
-import { PlaylistView } from './components/PlaylistView';
-import { HomeView } from './components/HomeView';
-import { SkeletonAlbumGrid, SkeletonTrackList } from './components/Skeleton';
+const TorrentManager = lazy(() => import('@/components/torrent/TorrentManager').then(m => ({ default: m.TorrentManager })));
+import { ImmersiveView } from '@/components/playback/ImmersiveView';
+import { PlaylistView } from '@/components/playlist/PlaylistView';
+import { HomeView } from '@/components/library/HomeView';
+import { SkeletonAlbumGrid, SkeletonTrackList } from '@/components/common/Skeleton';
 
 
-import { GlobalEffects } from './components/GlobalEffects';
-import { MiniPlayer } from './components/MiniPlayer';
+import { GlobalEffects } from '@/components/system/GlobalEffects';
+import { MiniPlayer } from '@/components/playback/MiniPlayer';
 import { useNavigationStore } from './store/navigationStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useToastStore } from './store/toastStore';
-import { PlaylistDialog } from './components/PlaylistDialog';
+import { PlaylistDialog } from '@/components/playlist/PlaylistDialog';
 import { useMediaSession } from './hooks/useMediaSession';
 import { usePlayerStore } from './store/playerStore';
 import { AnimatePresence } from 'motion/react';
 import { useSettingsStore } from './store/settingsStore';
-import { ThemeManager } from './components/ThemeManager';
-import { AmbientBackground } from './components/AmbientBackground';
-import { TitleBar } from './components/TitleBar';
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
-import { AlbumGrid } from './components/AlbumGrid';
-import { ArtistList } from './components/ArtistList';
-import { FavoritesView } from './components/FavoritesView';
-import { RightPanel } from './components/RightPanel';
-import { LyricsPanel } from './components/LyricsPanel';
-import { Equalizer } from './components/Equalizer';
-import { Toast } from './components/Toast';
-import { PlaylistCreationWizard } from './components/PlaylistCreationWizard';
+import { ThemeManager } from '@/components/system/ThemeManager';
+import { AmbientBackground } from '@/components/layout/AmbientBackground';
+import { TitleBar } from '@/components/layout/TitleBar';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { Header } from '@/components/layout/Header';
+import { AlbumGrid } from '@/components/library/AlbumGrid';
+import { ArtistList } from '@/components/library/ArtistList';
+import { FavoritesView } from '@/components/library/FavoritesView';
+import { RightPanel } from '@/components/layout/RightPanel';
+import { LyricsPanel } from '@/components/playback/LyricsPanel';
+import { Equalizer } from '@/components/playback/Equalizer';
+import { Toast } from '@/components/system/Toast';
+import { PlaylistCreationWizard } from '@/components/playlist/PlaylistCreationWizard';
 import { usePlaylistStore } from './store/playlistStore';
 
 type LibraryScanProgressPayload = {

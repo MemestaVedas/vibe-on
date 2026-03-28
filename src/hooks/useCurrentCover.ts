@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore } from '@/store/playerStore';
 
 /**
  * Returns the cover image filename or URL for the currently playing track.

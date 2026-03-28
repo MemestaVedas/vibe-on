@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { AudioFeatures, KEY_LABELS } from '../../types/mood';
+import { AudioFeatures, KEY_LABELS } from '@/types/mood';
 
 interface TrackStatsProps {
     features: AudioFeatures;

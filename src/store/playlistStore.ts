@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import type { Playlist, PlaylistTrack } from '../types';
+import type { Playlist, PlaylistTrack } from '@/types';
 
 interface PlaylistState {
     playlists: Playlist[];

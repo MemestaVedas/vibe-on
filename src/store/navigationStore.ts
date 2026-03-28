@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-import type { AppView } from '../types';
+import type { AppView } from '@/types';
 
 
 

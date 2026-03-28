@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import type { LyricsLine } from '../types';
+import type { LyricsLine } from '@/types';
 
 interface CachedLyricsResponse {
     syncedLyrics: string | null;
@@ -130,7 +130,7 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
 
                     // Attempt conversion
                     set({ isTranslating: true, translationError: null });
-                    import('../utils/lyricsUtils').then(({ convertLyrics }) => {
+                    import('@/utils/lyricsUtils').then(({ convertLyrics }) => {
                         convertLyrics(parsed).then(converted => {
                             if (get().currentTrackId === trackPath) {
                                 set({ lines: converted, isTranslating: false });
@@ -286,7 +286,7 @@ export const useLyricsStore = create<LyricsStore>()((set, get) => ({
 
                 // Attempt conversion
                 set({ isTranslating: true, translationError: null });
-                import('../utils/lyricsUtils').then(({ convertLyrics }) => {
+                import('@/utils/lyricsUtils').then(({ convertLyrics }) => {
                     convertLyrics(parsed).then(converted => {
                         if (get().currentTrackId === trackPath) {
                             set({ lines: converted, isTranslating: false });

@@ -1,0 +1,301 @@
+import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { motion, AnimatePresence } from 'motion/react';
+import { TorrentDetailsModal } from '@/components/torrent/TorrentDetailsModal';
+
+function TorrentThumbnail({ url }: { url: string }) {
+    const [imgUrl, setImgUrl] = useState<string | null>(null);
+    const [hasAttempted, setHasAttempted] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!containerRef.current || hasAttempted) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                setHasAttempted(true);
+                observer.disconnect();
+                
+                invoke<{ description_html: string }>('get_torrent_details', { url })
+                    .then(data => {
+                        const div = document.createElement('div');
+                        div.innerHTML = data.description_html;
+                        const firstImg = div.querySelector('img');
+                        if (firstImg?.src) {
+                            setImgUrl(firstImg.src);
+                        } else {
+                            const match = /!\[.*?\]\((.*?)\)/.exec(data.description_html);
+                            if (match?.[1]) setImgUrl(match[1]);
+                        }
+                    })
+                    .catch(() => {});
+            }
+        });
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, [url, hasAttempted]);
+
+    return (
+        <div ref={containerRef} className="w-14 h-14 shrink-0 bg-surface-container-highest rounded-lg overflow-hidden flex items-center justify-center">
+            {imgUrl ? (
+                <img src={imgUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+            ) : (
+                <svg className="w-6 h-6 text-on-surface-variant/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            )}
+        </div>
+    );
+}
+
+export interface SearchResult {
+    title: string;
+    size: string;
+    seeds: number;
+    leechers: number;
+    magnet: string;
+    date: string;
+    category: string;
+    url: string;
+}
+
+interface Props {
+    onSelectMagnet: (magnet: string) => void;
+}
+
+export function TorrentSearch({ onSelectMagnet }: Props) {
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<SearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const [category, setCategory] = useState<'audio' | 'all'>('audio');
+    const [sortBy, setSortBy] = useState<'seeders' | 'size' | 'id' | 'downloads'>('seeders');
+    const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
+    const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+    const [details, setDetails] = useState<{ description_html: string, files_html: string } | null>(null);
+    const [detailsLoading, setDetailsLoading] = useState(false);
+    const [detailsError, setDetailsError] = useState<string | null>(null);
+
+    const handleSearch = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!query.trim()) return;
+
+        setIsSearching(true);
+        setError(null);
+        setResults([]);
+
+        try {
+            const data = await invoke<SearchResult[]>('search_torrents', {
+                query,
+                category,
+                sortBy,
+                sortOrder
+            });
+            setResults(data);
+        } catch (err) {
+            console.error(err);
+            setError(String(err));
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleResultClick = async (result: SearchResult) => {
+        setSelectedResult(result);
+        setDetails(null);
+        setDetailsError(null);
+        setDetailsLoading(true);
+
+        try {
+            const data = await invoke<{ description_html: string, files_html: string }>('get_torrent_details', {
+                url: result.url
+            });
+            setDetails(data);
+        } catch (err) {
+            console.error(err);
+            setDetailsError(String(err));
+        } finally {
+            setDetailsLoading(false);
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Search Bar */}
+            <div className="flex flex-col gap-3 mb-4 shrink-0">
+                <form onSubmit={handleSearch} className="flex gap-2 p-1">
+                    <input
+                        type="text"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search Nyaa..."
+                        className="flex-1 px-4 py-3 rounded-xl bg-surface-container-high text-on-surface border-none focus:ring-2 focus:ring-primary outline-hidden"
+                        autoFocus
+                    />
+                    <button
+                        type="submit"
+                        disabled={isSearching || !query.trim()}
+                        className="px-6 py-3 bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                        {isSearching ? '...' : 'Search'}
+                    </button>
+                </form>
+
+                {/* Controls Bar */}
+                <div className="flex items-center gap-3 overflow-x-auto pb-4 pt-1 px-1 scrollbar-none">
+                    <div className="flex items-center gap-2 pr-4 border-r border-surface-variant/30 shrink-0">
+                        <select
+                            value={category}
+                            onChange={(e) => {
+                                setCategory(e.target.value as 'audio' | 'all');
+                                if (query.trim()) setTimeout(() => handleSearch(), 0);
+                            }}
+                            className="bg-surface-container-high text-on-surface text-sm font-bold px-3 py-2 rounded-xl border-none outline-hidden cursor-pointer"
+                        >
+                            <option value="audio">Music/Audio</option>
+                            <option value="all">Everything</option>
+                        </select>
+                    </div>
+                
+                    <span className="text-sm font-medium text-on-surface-variant shrink-0 mr-1">Sort by:</span>
+                    {(['seeders', 'date', 'size', 'downloads'] as const).map((key) => {
+                        // Map UI label to value
+                        const val = key === 'date' ? 'id' : key;
+                        const label = key.charAt(0).toUpperCase() + key.slice(1);
+                        const isActive = sortBy === val;
+
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => {
+                                    if (isActive) {
+                                        setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+                                    } else {
+                                        setSortBy(val);
+                                        setSortOrder('desc');
+                                    }
+                                    // Trigger search immediately if query exists
+                                    if (query.trim()) setTimeout(() => handleSearch(), 0);
+                                }}
+                                type="button"
+                                className={`
+                                    px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-xs
+                                    ${isActive
+                                        ? 'bg-secondary text-on-secondary shadow-md ring-2 ring-transparent'
+                                        : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
+                                    }
+                                `}
+                            >
+                                {label}
+                                {isActive && (
+                                    <svg
+                                        className={`w-4 h-4 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`}
+                                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+                <div className="mb-4 p-3 bg-error/10 text-error rounded-xl text-sm border border-error/10">
+                    {error}
+                </div>
+            )}
+
+            {/* Results List */}
+            <div className="flex-1 overflow-y-auto pr-2 space-y-2 no-scrollbar">
+                {results.length === 0 && !isSearching && !error && (
+                    <div className="flex flex-col items-center justify-center h-48 opacity-50 text-on-surface-variant">
+                        <svg className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <p>Search for music or audio</p>
+                    </div>
+                )}
+
+                <AnimatePresence>
+                    {results.map((result, index) => (
+                        <motion.div
+                            key={index}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="p-4 bg-surface-container-high rounded-xl hover:bg-surface-container-highest transition-colors group flex flex-col gap-2 cursor-pointer"
+                            onClick={() => handleResultClick(result)}
+                        >
+                            <div className="flex justify-between items-start gap-4">
+                                <TorrentThumbnail url={result.url} />
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold uppercase tracking-wide">
+                                            {result.category}
+                                        </span>
+                                    </div>
+                                    <h3 className="font-medium text-on-surface text-sm leading-snug wrap-break-word" title={result.title}>
+                                        {result.title}
+                                    </h3>
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onSelectMagnet(result.magnet);
+                                    }}
+                                    className="shrink-0 px-4 py-2 bg-primary/10 text-primary text-sm font-bold rounded-xl hover:bg-primary hover:text-on-primary transition-colors"
+                                >
+                                    Download
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-xs text-on-surface-variant">
+                                <span className="flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                                    </svg>
+                                    {result.size}
+                                </span>
+                                <span className="flex items-center gap-1 text-green-500">
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                    </svg>
+                                    {result.seeds}
+                                </span>
+                                <span className="flex items-center gap-1 text-red-400">
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                    </svg>
+                                    {result.leechers}
+                                </span>
+                                <span className="opacity-60 ml-auto">{result.date}</span>
+                            </div>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
+
+            <AnimatePresence>
+                {selectedResult && (
+                    <TorrentDetailsModal
+                        torrent={selectedResult}
+                        details={details}
+                        isLoading={detailsLoading}
+                        error={detailsError}
+                        onClose={() => setSelectedResult(null)}
+                        onDownload={() => {
+                            onSelectMagnet(selectedResult.magnet);
+                            setSelectedResult(null);
+                        }}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}

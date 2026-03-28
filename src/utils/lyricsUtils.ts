@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { LyricsLine } from '../types';
+import { LyricsLine } from '@/types';
 
 // Japanese character detection regex ranges
 const JP_REGEX = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/;
