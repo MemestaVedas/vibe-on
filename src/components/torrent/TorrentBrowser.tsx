@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { downloadDir } from '@tauri-apps/api/path';
 import { TorrentSearch } from '@/components/torrent/TorrentSearch';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSettingsStore } from '@/store/settingsStore';
 
 interface TorrentFile {
     index: number;
@@ -40,7 +41,7 @@ export function TorrentBrowser({ onAdded, isBackendReady }: Props) {
     // Initialize (similar to useEffect on open)
     useEffect(() => {
         const initPath = async () => {
-            const configuredPath = await import('@/store/settingsStore').then(m => m.useSettingsStore.getState().downloadPath);
+            const configuredPath = useSettingsStore.getState().downloadPath;
 
             if (configuredPath) {
                 setDownloadPath(configuredPath);

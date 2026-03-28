@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WavySeparator } from '@/components/common/WavySeparator';
 import type { AppView } from '@/types';
+import { useShallow } from 'zustand/react/shallow';
 
 import {
     IconHome,
@@ -30,8 +31,17 @@ const sidebarSpring = {
 } as const;
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
-    const { library } = usePlayerStore();
-    const { isLeftSidebarCollapsed, toggleLeftSidebar } = useNavigationStore();
+    const libraryCount = usePlayerStore(state => state.library.length);
+    const favoriteCount = usePlayerStore(state => state.favorites.size);
+    const { isLeftSidebarCollapsed, toggleLeftSidebar, currentView, activePlaylistId, navigateToPlaylist } = useNavigationStore(
+        useShallow(state => ({
+            isLeftSidebarCollapsed: state.isLeftSidebarCollapsed,
+            toggleLeftSidebar: state.toggleLeftSidebar,
+            currentView: state.view,
+            activePlaylistId: state.activePlaylistId,
+            navigateToPlaylist: state.navigateToPlaylist,
+        }))
+    );
     const isCollapsed = isLeftSidebarCollapsed; // Alias for cleaner code below
 
     useEffect(() => {
@@ -40,9 +50,6 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
 
     const playlists = usePlaylistStore(state => state.playlists);
     const recentlyAddedToPlaylist = usePlaylistStore(state => state.recentlyAddedToPlaylist);
-    // Use store hook for reactivity instead of getState in render
-    const currentView = useNavigationStore(state => state.view);
-    const activePlaylistId = useNavigationStore(state => state.activePlaylistId);
 
     return (
         <motion.aside
@@ -85,7 +92,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                         label="Songs"
                         active={view === 'tracks'}
                         onClick={() => onViewChange('tracks')}
-                        count={library.length}
+                        count={libraryCount}
                         collapsed={isCollapsed}
                     />
                     <NavItem
@@ -107,7 +114,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                         label="Favorites"
                         active={view === 'favorites'}
                         onClick={() => onViewChange('favorites')}
-                        count={usePlayerStore.getState().favorites.size}
+                        count={favoriteCount}
                         collapsed={isCollapsed}
                     />
                 </div>
@@ -196,7 +203,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
                             label={playlist.name}
                             active={currentView === 'playlist' && activePlaylistId === playlist.id}
                             isGlowing={recentlyAddedToPlaylist === playlist.id}
-                            onClick={() => useNavigationStore.getState().navigateToPlaylist(playlist.id)}
+                            onClick={() => navigateToPlaylist(playlist.id)}
                             collapsed={isCollapsed}
                         />
                     ))}

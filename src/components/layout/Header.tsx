@@ -11,7 +11,7 @@ export function Header({ view }: HeaderProps) {
     // For views that have their own immersive layouts, we don't render a static positioned header
     // that takes up flex space. We just render an absolute drag region to allow window dragging.
     // This removes the blank gap that caused the "square outline-solid" inside the rounded window corners.
-    const immersiveViews = ['albums', 'artists', 'tracks', 'statistics', 'statistics2', 'favorites', 'playlist', 'home'];
+    const immersiveViews = ['albums', 'artists', 'tracks', 'statistics2', 'favorites', 'playlist', 'home'];
     if (immersiveViews.includes(view)) {
         return <header data-tauri-drag-region className="absolute top-0 left-0 right-0 h-10 z-100"></header>;
     }

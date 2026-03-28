@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { TorrentBrowser } from '@/components/torrent/TorrentBrowser';
-import { downloadDir } from '@tauri-apps/api/path';
+import { appDataDir, downloadDir, homeDir } from '@tauri-apps/api/path';
 import { motion, AnimatePresence } from 'motion/react';
 import { TorrentWavyProgress } from '@/components/torrent/TorrentWavyProgress';
 
@@ -47,7 +47,6 @@ export function TorrentManager() {
                 setIsBackendReady(false);
 
                 // Use app data directory to avoid permission issues
-                const { appDataDir } = await import('@tauri-apps/api/path');
                 let baseDir: string;
 
                 try {
@@ -59,7 +58,6 @@ export function TorrentManager() {
                         baseDir = await downloadDir() || '';
                     } catch {
                         // Final fallback - use home directory
-                        const { homeDir } = await import('@tauri-apps/api/path');
                         try {
                             const home = await homeDir();
                             baseDir = home ? `${home}.local/share/vibe-on/` : '/tmp/vibe-on/';

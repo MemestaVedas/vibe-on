@@ -1,12 +1,15 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { TrackList } from '@/components/library/TrackList';
 import { PlayerBar } from '@/components/playback/PlayerBar';
-const SettingsPage = lazy(() => import('@/components/system/SettingsPage').then(m => ({ default: m.SettingsPage })));
-const StatisticsPage = lazy(() => import('@/components/stats/StatisticsPage').then(m => ({ default: m.StatisticsPage })));
-const Statistics2 = lazy(() => import('@/components/stats/Statistics2').then(m => ({ default: m.Statistics2 })));
+const loadSettingsPage = () => import('@/components/system/SettingsPage').then(m => ({ default: m.SettingsPage }));
+const loadStatistics2 = () => import('@/components/stats/Statistics2').then(m => ({ default: m.Statistics2 }));
+const loadTorrentManager = () => import('@/components/torrent/TorrentManager').then(m => ({ default: m.TorrentManager }));
+
+const SettingsPage = lazy(loadSettingsPage);
+const Statistics2 = lazy(loadStatistics2);
 
 // Lazy-loaded views — defers ~130KB JS parsing until first visit
-const TorrentManager = lazy(() => import('@/components/torrent/TorrentManager').then(m => ({ default: m.TorrentManager })));
+const TorrentManager = lazy(loadTorrentManager);
 import { ImmersiveView } from '@/components/playback/ImmersiveView';
 import { PlaylistView } from '@/components/playlist/PlaylistView';
 import { HomeView } from '@/components/library/HomeView';
@@ -72,11 +75,52 @@ function App() {
     }))
   );
 
-  const { view, setView, isRightPanelOpen, setRightPanelOpen, isRightPanelCollapsed, setLeftSidebarCollapsed } = useNavigationStore();
-  
+  const { view, setView, isRightPanelOpen, setRightPanelOpen, isRightPanelCollapsed, setLeftSidebarCollapsed } = useNavigationStore(
+    useShallow(state => ({
+      view: state.view,
+      setView: state.setView,
+      isRightPanelOpen: state.isRightPanelOpen,
+      setRightPanelOpen: state.setRightPanelOpen,
+      isRightPanelCollapsed: state.isRightPanelCollapsed,
+      setLeftSidebarCollapsed: state.setLeftSidebarCollapsed,
+    }))
+  );
+
   // Playlist wizard state
-  const { isCreateWizardOpen, closeCreateWizard, createPlaylist } = usePlaylistStore();
+  const { isCreateWizardOpen, closeCreateWizard, createPlaylist } = usePlaylistStore(
+    useShallow(state => ({
+      isCreateWizardOpen: state.isCreateWizardOpen,
+      closeCreateWizard: state.closeCreateWizard,
+      createPlaylist: state.createPlaylist,
+    }))
+  );
   const library = usePlayerStore(s => s.library);
+  const expandedArtMode = useSettingsStore(state => state.expandedArtMode);
+  const rightPanelBg = useSettingsStore(state => state.rightPanelBg);
+  const miniPlayer = usePlayerStore(state => state.miniPlayer);
+
+  useEffect(() => {
+    const preloadLazyViews = () => {
+      void loadSettingsPage();
+      void loadStatistics2();
+      void loadTorrentManager();
+    };
+
+    const browserWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (browserWindow.requestIdleCallback) {
+      const idleId = browserWindow.requestIdleCallback(preloadLazyViews, { timeout: 1800 });
+      return () => {
+        browserWindow.cancelIdleCallback?.(idleId);
+      };
+    }
+
+    const timeoutId = window.setTimeout(preloadLazyViews, 1200);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -141,10 +185,6 @@ function App() {
     }
   }, [loadLibrary, setRightPanelOpen, setLeftSidebarCollapsed, syncAudioSettings, refreshStatus]);
 
-  const { expandedArtMode } = useSettingsStore();
-
-  const miniPlayer = usePlayerStore(state => state.miniPlayer);
-
   if (miniPlayer) {
     return (
       <>
@@ -176,7 +216,7 @@ function App() {
         {/* Left column */}
         <div className="pc-shell-left-slot shrink-0 overflow-hidden bg-surface-container">
           {/* Sidebar background tint to harmonize with dynamic right panel */}
-          {useSettingsStore.getState().rightPanelBg === 'dynamic' && (
+          {rightPanelBg === 'dynamic' && (
             <div className="absolute inset-0 z-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06))' }} />
           )}
           <Sidebar view={view} onViewChange={setView} />
@@ -205,7 +245,6 @@ function App() {
                   {view === 'albums' ? <SkeletonAlbumGrid /> : <SkeletonTrackList />}
                 </div>
               }>
-                {view === 'statistics' && <StatisticsPage />}
                 {view === 'statistics2' && <Statistics2 />}
                 {view === 'settings' && <SettingsPage />}
                 {view === 'torrents' && <TorrentManager />}

@@ -63,12 +63,28 @@ export default defineConfig(async () => ({
     chunkSizeWarningLimit: 750, // Increased tolerance; chunks >750KB will still warn
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-motion': ['motion/react'],
-          'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-opener', '@tauri-apps/plugin-clipboard-manager'],
-          'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
-          'ui-components': ['./src/components/system/SettingsPage.tsx', './src/components/stats/StatisticsPage.tsx', './src/components/stats/Statistics2.tsx', './src/components/torrent/TorrentManager.tsx'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return;
+          }
+
+          if (id.includes('react') || id.includes('scheduler')) {
+            return 'vendor-react';
+          }
+
+          if (id.includes('motion')) {
+            return 'vendor-motion';
+          }
+
+          if (id.includes('@tauri-apps')) {
+            return 'vendor-tauri';
+          }
+
+          if (id.includes('@dnd-kit')) {
+            return 'vendor-dnd';
+          }
+
+          return 'vendor-misc';
         },
       },
     },

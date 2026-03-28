@@ -70,12 +70,13 @@ describe('useNavigationStore', () => {
     it('should support valid view types', () => {
       const validViews = [
         'home',
-        'playlists',
+        'playlist',
         'favorites',
         'artists',
         'albums',
         'torrents',
-        'statistics',
+        'statistics2',
+        'tracks',
         'settings',
       ];
       

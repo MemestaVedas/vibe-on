@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import type { PlayerStatus, TrackDisplay } from '@/types';
+import { useToastStore } from './toastStore';
 
 type RepeatMode = 'off' | 'all' | 'one';
 type ShuffleScope = 'album' | 'artist' | 'global';
@@ -818,7 +819,7 @@ export const usePlayerStore = create<PlayerStore>()(
             scanFolder: async (path: string) => {
                 try {
                     set({ isLoading: true, error: null });
-                    const { showToast } = (await import('@/store/toastStore')).useToastStore.getState();
+                    const { showToast } = useToastStore.getState();
                     showToast('Scanning folder…');
                     const tracks = await invoke<TrackDisplay[]>('init_library', { path });
                     const tracksWithId = tracks.map(t => ({ ...t, id: t.path }));
@@ -838,7 +839,7 @@ export const usePlayerStore = create<PlayerStore>()(
                     });
                     showToast(`✓ ${tracksWithId.length} tracks imported`);
                 } catch (e) {
-                    const { showToast } = (await import('@/store/toastStore')).useToastStore.getState();
+                    const { showToast } = useToastStore.getState();
                     showToast(`✗ Import failed: ${String(e)}`);
                     set({ error: String(e), isLoading: false });
                 }
@@ -852,7 +853,7 @@ export const usePlayerStore = create<PlayerStore>()(
                         folders: state.folders.filter(f => f !== path),
                     }));
                     await get().loadLibrary();
-                    const { showToast } = (await import('@/store/toastStore')).useToastStore.getState();
+                    const { showToast } = useToastStore.getState();
                     showToast('Folder removed');
                 } catch (e) {
                     console.error('Failed to remove folder:', e);

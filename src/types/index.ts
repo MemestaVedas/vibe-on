@@ -71,4 +71,4 @@ export interface PlaybackEvent {
   output?: 'desktop' | 'mobile' | string;
 }
 
-export type AppView = 'home' | 'tracks' | 'albums' | 'artists' | 'settings' | 'favorites' | 'statistics' | 'statistics2' | 'torrents' | 'playlist';
+export type AppView = 'home' | 'tracks' | 'albums' | 'artists' | 'settings' | 'favorites' | 'statistics2' | 'torrents' | 'playlist';
