@@ -10,6 +10,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify:ws": "cargo test --manifest-path src-tauri/Cargo.toml --lib websocket::tests",
+    "verify:release": "npm run lint && npm run test && npm run build && npm run verify:ws",
     "preview": "vite preview",
     "tauri": "tauri"
   },

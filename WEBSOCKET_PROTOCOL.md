@@ -68,6 +68,10 @@ Desktop diagnostics behavior:
 - On `mobile_client_connected`, desktop stores protocol metadata and raises a compatibility warning if the client protocol major version differs from the desktop-supported major version.
 - Warning is cleared on `mobile_client_disconnected`.
 
+Verification commands:
+- `npm run verify:ws` validates protocol compatibility tests in `src-tauri`.
+- `npm run verify:release` runs lint + unit tests + build + websocket contract tests.
+
 #### `getStatus`
 Request the full current state snapshot.
 
