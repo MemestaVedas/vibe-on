@@ -15,6 +15,55 @@ import { SquigglySlider } from '@/components/common/SquigglySlider';
 import { Virtuoso } from 'react-virtuoso';
 import { getDisplayText } from '@/utils/textUtils';
 import { TrackDisplay } from '@/types';
+import { invoke } from '@tauri-apps/api/core';
+
+type QualityTrack = Partial<TrackDisplay> & {
+    sampleRateHz?: number | null;
+    bitrateKbps?: number | null;
+};
+
+type AudioQualityInfo = {
+    sample_rate_hz: number | null;
+    bitrate_kbps: number | null;
+    codec: string | null;
+};
+
+function inferCodecFromPath(path?: string | null): string | null {
+    if (!path) return null;
+    const fileName = path.split(/[\\/]/).pop() || path;
+    const ext = fileName.includes('.') ? fileName.split('.').pop() : null;
+    if (!ext) return null;
+    return ext.toUpperCase();
+}
+
+function formatTrackQuality(track: QualityTrack | null | undefined): string | null {
+    if (!track) return null;
+
+    const sampleRateRaw = track.sample_rate_hz ?? track.sampleRateHz;
+    const bitrateRaw = track.bitrate_kbps ?? track.bitrateKbps;
+    const codecRaw = track.codec;
+
+    const sampleRate = typeof sampleRateRaw === 'number' && sampleRateRaw > 0 ? sampleRateRaw : null;
+    const bitrateKbps = typeof bitrateRaw === 'number' && bitrateRaw > 0
+        ? (bitrateRaw > 10000 ? Math.round(bitrateRaw / 1000) : Math.round(bitrateRaw))
+        : null;
+    const codec = (typeof codecRaw === 'string' && codecRaw.trim().length > 0)
+        ? codecRaw.trim().toUpperCase()
+        : inferCodecFromPath(track.path);
+
+    const parts: string[] = [];
+    if (sampleRate) {
+        parts.push(`${(sampleRate / 1000).toFixed(sampleRate % 1000 === 0 ? 1 : 2)} kHz`);
+    }
+    if (bitrateKbps) {
+        parts.push(`${bitrateKbps} kbps`);
+    }
+    if (codec) {
+        parts.push(codec);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : null;
+}
 
 export function RightPanel() {
     // Granular selectors — only re-render for specific slice
@@ -41,6 +90,7 @@ export function RightPanel() {
     const { isRightPanelCollapsed } = useNavigationStore();
     const openCreateDialog = usePlaylistStore(s => s.openCreateDialog);
     const isCollapsed = isRightPanelCollapsed;
+    const [audioQuality, setAudioQuality] = useState<AudioQualityInfo | null>(null);
 
     // Find full track info by merging library entry and status.track so romaji/en fields
     // from either source are respected. Prefer non-empty romaji/en when available.
@@ -79,6 +129,9 @@ export function RightPanel() {
             artist_en: pick('artist_en') as string | undefined | null,
             album_romaji: pick('album_romaji') as string | undefined | null,
             album_en: pick('album_en') as string | undefined | null,
+            sample_rate_hz: (pick('sample_rate_hz') as number | undefined) ?? (pick('sampleRateHz') as number | undefined) ?? null,
+            bitrate_kbps: (pick('bitrate_kbps') as number | undefined) ?? (pick('bitrateKbps') as number | undefined) ?? null,
+            codec: (pick('codec') as string | undefined) ?? null,
         };
 
         return merged;
@@ -95,6 +148,38 @@ export function RightPanel() {
         return 'font-medium';
     }, [displayTitle]);
     const trackDuration = displayTrack?.duration_secs ?? 0;
+    const qualityText = useMemo(() => {
+        if (audioQuality) {
+            return formatTrackQuality({
+                path: trackPath || undefined,
+                sample_rate_hz: audioQuality.sample_rate_hz,
+                bitrate_kbps: audioQuality.bitrate_kbps,
+                codec: audioQuality.codec,
+            });
+        }
+        return formatTrackQuality(displayTrack as QualityTrack | null);
+    }, [audioQuality, displayTrack, trackPath]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        if (!trackPath) {
+            setAudioQuality(null);
+            return;
+        }
+
+        invoke<AudioQualityInfo>('get_audio_quality', { path: trackPath })
+            .then((info) => {
+                if (!cancelled) setAudioQuality(info);
+            })
+            .catch(() => {
+                if (!cancelled) setAudioQuality(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [trackPath]);
 
     // Clover Shape from TitleBar
     const CloverIcon = ({ children, active, color }: { children: React.ReactNode, active: boolean, color: string }) => (
@@ -427,16 +512,34 @@ export function RightPanel() {
                     </div>
 
                     {/* Seeker */}
-                    <div className="px-8 py-2 w-full">
-                        <SquigglySlider
-                            value={positionSecs}
-                            max={trackDuration || 100}
-                            onChange={handleSeek}
-                            isPlaying={playerState === 'Playing'}
-                            className="h-6 w-full cursor-pointer text-primary hover:text-primary-container transition-colors"
-                            accentColor="currentColor"
-                        />
-                    </div>
+                    {qualityText ? (
+                        <div className="px-8 py-2 w-full flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                                <SquigglySlider
+                                    value={positionSecs}
+                                    max={trackDuration || 100}
+                                    onChange={handleSeek}
+                                    isPlaying={playerState === 'Playing'}
+                                    className="h-6 w-full cursor-pointer text-primary hover:text-primary-container transition-colors"
+                                    accentColor="currentColor"
+                                />
+                            </div>
+                            <span className="shrink-0 max-w-40 truncate rounded-full border border-outline-variant/45 bg-surface-container-high px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-on-surface-variant">
+                                {qualityText}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="px-8 py-2 w-full">
+                            <SquigglySlider
+                                value={positionSecs}
+                                max={trackDuration || 100}
+                                onChange={handleSeek}
+                                isPlaying={playerState === 'Playing'}
+                                className="h-6 w-full cursor-pointer text-primary hover:text-primary-container transition-colors"
+                                accentColor="currentColor"
+                            />
+                        </div>
+                    )}
 
                     {/* Content Switcher: Lyrics or Queue */}
                     <div className="flex-1 min-h-0 relative">

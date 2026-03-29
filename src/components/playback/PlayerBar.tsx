@@ -60,6 +60,48 @@ function formatTime(seconds: number): string {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function inferCodecFromPath(path?: string | null): string | null {
+    if (!path) return null;
+    const fileName = path.split(/[\\/]/).pop() || path;
+    const ext = fileName.includes('.') ? fileName.split('.').pop() : null;
+    if (!ext) return null;
+    return ext.toUpperCase();
+}
+
+type QualityTrack = Partial<TrackDisplay> & {
+    sampleRateHz?: number | null;
+    bitrateKbps?: number | null;
+};
+
+function formatTrackQuality(track: QualityTrack | null | undefined): string | null {
+    if (!track) return null;
+
+    const sampleRateRaw = track.sample_rate_hz ?? track.sampleRateHz;
+    const bitrateRaw = track.bitrate_kbps ?? track.bitrateKbps;
+    const codecRaw = track.codec;
+
+    const sampleRate = typeof sampleRateRaw === 'number' && sampleRateRaw > 0 ? sampleRateRaw : null;
+    const bitrateKbps = typeof bitrateRaw === 'number' && bitrateRaw > 0
+        ? (bitrateRaw > 10000 ? Math.round(bitrateRaw / 1000) : Math.round(bitrateRaw))
+        : null;
+    const codec = (typeof codecRaw === 'string' && codecRaw.trim().length > 0)
+        ? codecRaw.trim().toUpperCase()
+        : inferCodecFromPath(track.path);
+
+    const parts: string[] = [];
+    if (sampleRate) {
+        parts.push(`${(sampleRate / 1000).toFixed(sampleRate % 1000 === 0 ? 1 : 2)} kHz`);
+    }
+    if (bitrateKbps) {
+        parts.push(`${bitrateKbps} kbps`);
+    }
+    if (codec) {
+        parts.push(codec);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : null;
+}
+
 const SMOOTH_SPRING = { type: 'spring', stiffness: 300, damping: 40, mass: 1 } as const;
 
 // Restored expressive side button design for collapsed mode prev/next.
@@ -129,6 +171,7 @@ export function PlayerBar() {
         if (!track) return null;
         return library.find(t => t.path === track.path) || track;
     }, [track, library]);
+    const trackQualityText = useMemo(() => formatTrackQuality(displayTrack as QualityTrack | null), [displayTrack]);
 
     const volume = usePlayerStore(s => s.status.volume);
     const pause = usePlayerStore(s => s.pause);
@@ -488,6 +531,11 @@ export function PlayerBar() {
                                         />
                                     </div>
                                     <span className="w-10">{track ? formatTime(track.duration_secs) : '0:00'}</span>
+                                    {trackQualityText && (
+                                        <span className="max-w-40 truncate rounded-full border border-white/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-on-surface/80">
+                                            {trackQualityText}
+                                        </span>
+                                    )}
                                 </div>
                             )}
                         </div>

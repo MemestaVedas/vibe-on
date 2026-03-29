@@ -12,6 +12,9 @@ export interface TrackInfo {
   cover_url?: string; // For streaming services
   disc_number?: number | null;
   track_number?: number | null;
+  sample_rate_hz?: number | null;
+  bitrate_kbps?: number | null;
+  codec?: string | null;
 }
 
 // Complete player status matching Rust struct

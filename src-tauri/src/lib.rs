@@ -1196,6 +1196,43 @@ fn get_track_metadata(path: String) -> Result<TrackInfo, String> {
     get_track_metadata_helper(&path).map(|(info, _)| info)
 }
 
+#[derive(serde::Serialize)]
+struct AudioQualityInfo {
+    sample_rate_hz: Option<u32>,
+    bitrate_kbps: Option<u32>,
+    codec: Option<String>,
+}
+
+#[tauri::command]
+fn get_audio_quality(path: String) -> Result<AudioQualityInfo, String> {
+    use lofty::prelude::*;
+    use lofty::probe::Probe;
+
+    let normalized_path = path.replace("\\", "/");
+    let path_obj = Path::new(&normalized_path);
+    if !path_obj.exists() {
+        return Err("Track path does not exist".to_string());
+    }
+
+    let codec = path_obj
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_uppercase());
+
+    let tagged = Probe::open(path_obj)
+        .map_err(|e| format!("Failed to probe file: {}", e))?
+        .read()
+        .map_err(|e| format!("Failed to read metadata: {}", e))?;
+
+    let props = tagged.properties();
+
+    Ok(AudioQualityInfo {
+        sample_rate_hz: props.sample_rate(),
+        bitrate_kbps: props.audio_bitrate(),
+        codec,
+    })
+}
+
 // ============================================================================
 // Lyrics Integration
 // ============================================================================
@@ -1984,6 +2021,7 @@ pub fn run() {
             get_stats_v2,
             scan_music_folder,
             get_track_metadata,
+            get_audio_quality,
             init_library,
             get_library_tracks,
             get_covers_dir,
