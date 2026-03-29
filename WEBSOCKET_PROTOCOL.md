@@ -64,6 +64,10 @@ Sent immediately after WebSocket opens to identify the client.
 }
 ```
 
+Desktop diagnostics behavior:
+- On `mobile_client_connected`, desktop stores protocol metadata and raises a compatibility warning if the client protocol major version differs from the desktop-supported major version.
+- Warning is cleared on `mobile_client_disconnected`.
+
 #### `getStatus`
 Request the full current state snapshot.
 

@@ -35,6 +35,7 @@ interface MobileStore {
     connectedDevice: ConnectedDevice | null;
     lastConnectedDevice: ConnectedDevice | null;
     error: string | null;
+    compatibilityWarning: string | null;
 
     // UI State
     popupOpen: boolean;
@@ -57,6 +58,7 @@ interface MobileStore {
     setConnectedDevice: (device: ConnectedDevice) => void;
     disconnect: () => void;
     setError: (error: string | null) => void;
+    setCompatibilityWarning: (warning: string | null) => void;
 
     // Network & Discovery
     fetchLocalIP: () => Promise<void>;
@@ -78,6 +80,7 @@ export const useMobileStore = create<MobileStore>()(
             connectedDevice: null,
             lastConnectedDevice: null,
             error: null,
+            compatibilityWarning: null,
             popupOpen: false,
 
             // UI Actions
@@ -176,6 +179,7 @@ export const useMobileStore = create<MobileStore>()(
             },
 
             setError: (error) => set({ error }),
+            setCompatibilityWarning: (compatibilityWarning) => set({ compatibilityWarning }),
 
             // Network & Discovery
             fetchLocalIP: async () => {

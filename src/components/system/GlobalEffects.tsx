@@ -9,6 +9,8 @@ import { emit } from '@tauri-apps/api/event';
 import { useShallow } from 'zustand/react/shallow';
 
 export function GlobalEffects() {
+    const SUPPORTED_PROTOCOL_MAJOR = 1;
+
     const { resume, pause } = usePlayerStore(useShallow(state => ({
         resume: state.resume,
         pause: state.pause
@@ -37,6 +39,16 @@ export function GlobalEffects() {
                         protocol_version,
                         negotiated_capabilities,
                     } = event.payload;
+
+                    const major = Number.parseInt(String(protocol_version || '1').split('.')[0] || '1', 10);
+                    if (!Number.isNaN(major) && major !== SUPPORTED_PROTOCOL_MAJOR) {
+                        useMobileStore.getState().setCompatibilityWarning(
+                            `Connected device protocol ${protocol_version} may be incompatible with desktop protocol major ${SUPPORTED_PROTOCOL_MAJOR}.`
+                        );
+                    } else {
+                        useMobileStore.getState().setCompatibilityWarning(null);
+                    }
+
                     const device = {
                         id: client_id,
                         name: client_name || 'Mobile Device',
@@ -55,6 +67,7 @@ export function GlobalEffects() {
                 listen('mobile_client_disconnected', (event: any) => {
                     console.log('[Mobile] Client disconnected event:', event.payload);
                     useMobileStore.getState().disconnect();
+                    useMobileStore.getState().setCompatibilityWarning(null);
                 }),
 
                 listen('refresh-player-state', async () => {
