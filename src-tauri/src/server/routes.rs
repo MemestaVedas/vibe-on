@@ -26,6 +26,10 @@ pub struct HealthResponse {
 pub struct ServerInfoResponse {
     pub name: String,
     pub version: String,
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: String,
+    #[serde(rename = "serverCapabilities")]
+    pub server_capabilities: Vec<String>,
     pub platform: String,
     #[serde(rename = "librarySize")]
     pub library_size: usize,
@@ -234,6 +238,8 @@ pub async fn get_server_info(
     Json(ServerInfoResponse {
         name: state.config.server_name.clone(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        protocol_version: super::WS_PROTOCOL_VERSION.to_string(),
+        server_capabilities: super::ws_server_capabilities(),
         platform: std::env::consts::OS.to_string(),
         library_size,
         port: state.config.port,

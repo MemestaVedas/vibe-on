@@ -72,6 +72,9 @@ Verification commands:
 - `npm run verify:ws` validates protocol compatibility tests in `src-tauri`.
 - `npm run verify:release` runs lint + unit tests + build + websocket contract tests.
 
+Server info preflight:
+- `GET /api/info` now includes `protocolVersion` and `serverCapabilities` so clients can preflight compatibility before opening a control session.
+
 #### `getStatus`
 Request the full current state snapshot.
 

@@ -8,6 +8,18 @@
 pub mod routes;
 pub mod websocket;
 
+pub const WS_PROTOCOL_VERSION: &str = "1.1";
+
+pub fn ws_server_capabilities() -> Vec<String> {
+    vec![
+        "lyrics.romaji".to_string(),
+        "library.paged".to_string(),
+        "playlists.basic".to_string(),
+        "queue.sync".to_string(),
+        "playback.output-switch".to_string(),
+    ]
+}
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 

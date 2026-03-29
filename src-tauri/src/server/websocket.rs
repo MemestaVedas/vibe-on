@@ -30,19 +30,7 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::{ConnectedClient, ServerEvent, ServerState};
-
-const WS_PROTOCOL_VERSION: &str = "1.1";
-
-fn server_capabilities() -> Vec<String> {
-    vec![
-        "lyrics.romaji".to_string(),
-        "library.paged".to_string(),
-        "playlists.basic".to_string(),
-        "queue.sync".to_string(),
-        "playback.output-switch".to_string(),
-    ]
-}
+use super::{ws_server_capabilities, ConnectedClient, ServerEvent, ServerState, WS_PROTOCOL_VERSION};
 
 fn normalize_capabilities(capabilities: Vec<String>) -> Vec<String> {
     let mut normalized: Vec<String> = capabilities
@@ -472,7 +460,7 @@ async fn handle_client_message(
         } => {
             let client_protocol_version = protocol_version.unwrap_or_else(|| "1.0".to_string());
             let client_capabilities = normalize_capabilities(capabilities);
-            let server_capabilities_list = server_capabilities();
+            let server_capabilities_list = ws_server_capabilities();
             let negotiated_capabilities = negotiate_capabilities(&client_capabilities, &server_capabilities_list);
 
             log::info!(
@@ -505,7 +493,7 @@ async fn handle_client_message(
             let _ = reply_tx.send(ServerMessage::Connected {
                 client_id: client_id.to_string(),
                 protocol_version: WS_PROTOCOL_VERSION.to_string(),
-                server_capabilities: server_capabilities(),
+                server_capabilities: ws_server_capabilities(),
                 negotiated_capabilities,
             }).await;
 
