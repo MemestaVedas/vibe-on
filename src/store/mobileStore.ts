@@ -21,6 +21,8 @@ export interface ConnectedDevice {
     port: number;
     platform: string;
     connectedAt: number;
+    protocolVersion?: string;
+    negotiatedCapabilities?: string[];
 }
 
 interface MobileStore {

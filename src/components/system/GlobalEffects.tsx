@@ -31,7 +31,12 @@ export function GlobalEffects() {
                 // Mobile Events
                 listen('mobile_client_connected', (event: any) => {
                     console.log('[Mobile] Client connected event:', event.payload);
-                    const { client_id, client_name } = event.payload;
+                    const {
+                        client_id,
+                        client_name,
+                        protocol_version,
+                        negotiated_capabilities,
+                    } = event.payload;
                     const device = {
                         id: client_id,
                         name: client_name || 'Mobile Device',
@@ -39,6 +44,10 @@ export function GlobalEffects() {
                         port: 0,
                         connectedAt: Date.now(),
                         platform: 'android',
+                        protocolVersion: protocol_version || '1.0',
+                        negotiatedCapabilities: Array.isArray(negotiated_capabilities)
+                            ? negotiated_capabilities
+                            : [],
                     };
                     useMobileStore.getState().setConnectedDevice(device);
                 }),
