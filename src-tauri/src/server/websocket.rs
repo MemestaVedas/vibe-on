@@ -1201,6 +1201,69 @@ fn build_track_details(app_state: &tauri::State<'_, crate::AppState>) -> Vec<sup
     Vec::new()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{ClientMessage, ServerMessage};
+
+    #[test]
+    fn hello_supports_legacy_payload() {
+        let json = r#"{"type":"hello","clientName":"Android"}"#;
+        let parsed: ClientMessage = serde_json::from_str(json).expect("legacy hello should deserialize");
+        match parsed {
+            ClientMessage::Hello {
+                client_name,
+                protocol_version,
+                capabilities,
+            } => {
+                assert_eq!(client_name, "Android");
+                assert_eq!(protocol_version, None);
+                assert!(capabilities.is_empty());
+            }
+            _ => panic!("expected hello variant"),
+        }
+    }
+
+    #[test]
+    fn hello_supports_protocol_and_capabilities() {
+        let json = r#"{
+            "type":"hello",
+            "clientName":"Android",
+            "protocolVersion":"1.1",
+            "capabilities":["queue.sync","lyrics.romaji"]
+        }"#;
+        let parsed: ClientMessage = serde_json::from_str(json).expect("modern hello should deserialize");
+        match parsed {
+            ClientMessage::Hello {
+                client_name,
+                protocol_version,
+                capabilities,
+            } => {
+                assert_eq!(client_name, "Android");
+                assert_eq!(protocol_version.as_deref(), Some("1.1"));
+                assert_eq!(capabilities, vec!["queue.sync".to_string(), "lyrics.romaji".to_string()]);
+            }
+            _ => panic!("expected hello variant"),
+        }
+    }
+
+    #[test]
+    fn connected_serializes_protocol_metadata() {
+        let msg = ServerMessage::Connected {
+            client_id: "abc-123".to_string(),
+            protocol_version: "1.1".to_string(),
+            server_capabilities: vec!["queue.sync".to_string()],
+            negotiated_capabilities: vec!["queue.sync".to_string()],
+        };
+
+        let json = serde_json::to_value(msg).expect("connected message should serialize");
+        assert_eq!(json["type"], "connected");
+        assert_eq!(json["clientId"], "abc-123");
+        assert_eq!(json["protocolVersion"], "1.1");
+        assert_eq!(json["serverCapabilities"], serde_json::json!(["queue.sync"]));
+        assert_eq!(json["negotiatedCapabilities"], serde_json::json!(["queue.sync"]));
+    }
+}
+
 /// Build the playlists list.
 fn build_playlists_list(app_state: &tauri::State<'_, crate::AppState>) -> Vec<PlaylistResponse> {
     let db_guard = app_state.db.lock().unwrap();
