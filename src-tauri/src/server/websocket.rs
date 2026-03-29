@@ -32,6 +32,37 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use super::{ConnectedClient, ServerEvent, ServerState};
 
+const WS_PROTOCOL_VERSION: &str = "1.1";
+
+fn server_capabilities() -> Vec<String> {
+    vec![
+        "lyrics.romaji".to_string(),
+        "library.paged".to_string(),
+        "playlists.basic".to_string(),
+        "queue.sync".to_string(),
+        "playback.output-switch".to_string(),
+    ]
+}
+
+fn normalize_capabilities(capabilities: Vec<String>) -> Vec<String> {
+    let mut normalized: Vec<String> = capabilities
+        .into_iter()
+        .map(|cap| cap.trim().to_ascii_lowercase())
+        .filter(|cap| !cap.is_empty())
+        .collect();
+    normalized.sort();
+    normalized.dedup();
+    normalized
+}
+
+fn negotiate_capabilities(client_caps: &[String], server_caps: &[String]) -> Vec<String> {
+    server_caps
+        .iter()
+        .filter(|cap| client_caps.iter().any(|client_cap| client_cap == *cap))
+        .cloned()
+        .collect()
+}
+
 // ─── Client → Server Messages ────────────────────────────────────────────────
 
 /// Every JSON message the mobile client can send.
@@ -43,6 +74,10 @@ pub enum ClientMessage {
     Hello {
         #[serde(alias = "clientName")]
         client_name: String,
+        #[serde(alias = "protocolVersion")]
+        protocol_version: Option<String>,
+        #[serde(default)]
+        capabilities: Vec<String>,
     },
     GetStatus,
 
@@ -134,6 +169,12 @@ pub enum ServerMessage {
     Connected {
         #[serde(rename = "clientId")]
         client_id: String,
+        #[serde(rename = "protocolVersion")]
+        protocol_version: String,
+        #[serde(rename = "serverCapabilities")]
+        server_capabilities: Vec<String>,
+        #[serde(rename = "negotiatedCapabilities")]
+        negotiated_capabilities: Vec<String>,
     },
 
     /// Current track metadata.
@@ -404,6 +445,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
         let _ = app_handle.emit("mobile_client_disconnected", serde_json::json!({
             "client_id": client.id,
             "client_name": client.name,
+            "protocol_version": client.protocol_version,
+            "client_capabilities": client.client_capabilities,
+            "negotiated_capabilities": client.negotiated_capabilities,
         }));
         log::info!("[WS] Client disconnected: {} ({})", client.name, client.id);
     }
@@ -421,23 +465,48 @@ async fn handle_client_message(
 
     match msg {
         // ── Handshake ────────────────────────────────────────────────────
-        ClientMessage::Hello { client_name } => {
-            log::info!("[WS] Hello from '{}' ({})", client_name, client_id);
+        ClientMessage::Hello {
+            client_name,
+            protocol_version,
+            capabilities,
+        } => {
+            let client_protocol_version = protocol_version.unwrap_or_else(|| "1.0".to_string());
+            let client_capabilities = normalize_capabilities(capabilities);
+            let server_capabilities_list = server_capabilities();
+            let negotiated_capabilities = negotiate_capabilities(&client_capabilities, &server_capabilities_list);
+
+            log::info!(
+                "[WS] Hello from '{}' ({}) protocol={} caps={}",
+                client_name,
+                client_id,
+                client_protocol_version,
+                client_capabilities.join(",")
+            );
 
             state.clients.write().await.push(ConnectedClient {
                 id: client_id.to_string(),
                 name: client_name.clone(),
                 remote_ip: String::new(),
+                protocol_version: client_protocol_version.clone(),
+                client_capabilities: client_capabilities.clone(),
+                negotiated_capabilities: negotiated_capabilities.clone(),
                 connected_at: std::time::Instant::now(),
             });
 
             let _ = state.app_handle.emit("mobile_client_connected", serde_json::json!({
                 "client_id": client_id,
                 "client_name": client_name,
+                "protocol_version": client_protocol_version,
+                "client_capabilities": client_capabilities,
+                "server_capabilities": server_capabilities_list,
+                "negotiated_capabilities": negotiated_capabilities.clone(),
             }));
 
             let _ = reply_tx.send(ServerMessage::Connected {
                 client_id: client_id.to_string(),
+                protocol_version: WS_PROTOCOL_VERSION.to_string(),
+                server_capabilities: server_capabilities(),
+                negotiated_capabilities,
             }).await;
 
             // Send full current state to this client only

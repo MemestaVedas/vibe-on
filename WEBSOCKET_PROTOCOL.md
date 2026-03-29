@@ -36,10 +36,33 @@ All messages are JSON with a `"type"` field (camelCase).
 Sent immediately after WebSocket opens to identify the client.
 
 ```json
-{ "type": "hello", "clientName": "Android" }
+{
+  "type": "hello",
+  "clientName": "Android",
+  "protocolVersion": "1.1",
+  "capabilities": [
+    "lyrics.romaji",
+    "library.paged",
+    "playlists.basic",
+    "queue.sync",
+    "playback.output-switch"
+  ]
+}
 ```
 
 **Server responds with:** `connected` + `mediaSession` + `status` + `queueUpdate` (direct)
+
+`connected` now includes protocol metadata:
+
+```json
+{
+  "type": "connected",
+  "clientId": "uuid",
+  "protocolVersion": "1.1",
+  "serverCapabilities": ["lyrics.romaji", "library.paged", "playlists.basic", "queue.sync", "playback.output-switch"],
+  "negotiatedCapabilities": ["lyrics.romaji", "library.paged", "playlists.basic", "queue.sync", "playback.output-switch"]
+}
+```
 
 #### `getStatus`
 Request the full current state snapshot.

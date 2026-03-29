@@ -210,6 +210,9 @@ pub struct ConnectedClient {
     pub id: String,
     pub name: String,
     pub remote_ip: String,
+    pub protocol_version: String,
+    pub client_capabilities: Vec<String>,
+    pub negotiated_capabilities: Vec<String>,
     pub connected_at: std::time::Instant,
 }
 
