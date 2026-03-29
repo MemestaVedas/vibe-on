@@ -75,6 +75,9 @@ Verification commands:
 Server info preflight:
 - `GET /api/info` now includes `protocolVersion` and `serverCapabilities` so clients can preflight compatibility before opening a control session.
 
+Structured errors:
+- `error` messages can now include an optional `code` field (for example `ERR_BAD_MESSAGE`, `ERR_QUEUE_EMPTY`, `ERR_LYRICS_FETCH`) to improve client-side diagnostics.
+
 #### `getStatus`
 Request the full current state snapshot.
 

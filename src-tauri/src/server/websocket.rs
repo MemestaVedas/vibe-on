@@ -254,7 +254,11 @@ pub enum ServerMessage {
     Ack { action: String },
 
     /// Error description.
-    Error { message: String },
+    Error {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        code: Option<String>,
+    },
 
     /// Keepalive response.
     Pong,
@@ -304,7 +308,10 @@ impl From<ServerEvent> for ServerMessage {
             }
             ServerEvent::StreamStopped => ServerMessage::StreamStopped,
             ServerEvent::StatsUpdated { timestamp } => ServerMessage::StatsUpdated { timestamp },
-            ServerEvent::Error { message } => ServerMessage::Error { message },
+            ServerEvent::Error { message } => ServerMessage::Error {
+                message,
+                code: None,
+            },
             ServerEvent::Pong => ServerMessage::Pong,
         }
     }
@@ -412,6 +419,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
                         log::warn!("[WS] Bad message from {}: {}", client_id, e);
                         let _ = reply_tx.send(ServerMessage::Error {
                             message: format!("Invalid message: {}", e),
+                            code: Some("ERR_BAD_MESSAGE".to_string()),
                         }).await;
                     }
                 }
@@ -531,6 +539,7 @@ async fn handle_client_message(
             } else {
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "Queue is empty".to_string(),
+                    code: Some("ERR_QUEUE_EMPTY".to_string()),
                 }).await;
             }
         }
@@ -598,6 +607,7 @@ async fn handle_client_message(
             } else {
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "Album not found or empty".to_string(),
+                    code: Some("ERR_ALBUM_NOT_FOUND".to_string()),
                 }).await;
             }
         }
@@ -613,6 +623,7 @@ async fn handle_client_message(
             } else {
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "Artist not found or empty".to_string(),
+                    code: Some("ERR_ARTIST_NOT_FOUND".to_string()),
                 }).await;
             }
         }
@@ -711,6 +722,7 @@ async fn handle_client_message(
                             log::warn!("Failed to fetch lyrics: {}", e);
                             let _ = reply.blocking_send(ServerMessage::Error {
                                 message: "Lyrics not found".to_string(),
+                                code: Some("ERR_LYRICS_FETCH".to_string()),
                             });
                         }
                     }
@@ -718,6 +730,7 @@ async fn handle_client_message(
             } else {
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "No track playing".to_string(),
+                    code: Some("ERR_NO_ACTIVE_TRACK".to_string()),
                 }).await;
             }
         }
@@ -751,6 +764,7 @@ async fn handle_client_message(
             } else {
                 let _ = reply_tx.send(ServerMessage::Error {
                     message: "No track currently playing".to_string(),
+                    code: Some("ERR_NO_ACTIVE_TRACK".to_string()),
                 }).await;
             }
         }
@@ -826,7 +840,10 @@ async fn handle_client_message(
             if ok {
                 let _ = reply_tx.send(ServerMessage::Ack { action: "addToPlaylist".to_string() }).await;
             } else {
-                let _ = reply_tx.send(ServerMessage::Error { message: "Failed to add track".to_string() }).await;
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "Failed to add track".to_string(),
+                    code: Some("ERR_PLAYLIST_ADD_TRACK".to_string()),
+                }).await;
             }
         }
 
@@ -838,7 +855,10 @@ async fn handle_client_message(
             if ok {
                 let _ = reply_tx.send(ServerMessage::Ack { action: "removeFromPlaylist".to_string() }).await;
             } else {
-                let _ = reply_tx.send(ServerMessage::Error { message: "Failed to remove track".to_string() }).await;
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "Failed to remove track".to_string(),
+                    code: Some("ERR_PLAYLIST_REMOVE_TRACK".to_string()),
+                }).await;
             }
         }
 
@@ -850,7 +870,10 @@ async fn handle_client_message(
             if ok {
                 let _ = reply_tx.send(ServerMessage::Ack { action: "reorderPlaylistTracks".to_string() }).await;
             } else {
-                let _ = reply_tx.send(ServerMessage::Error { message: "Failed to reorder tracks".to_string() }).await;
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "Failed to reorder tracks".to_string(),
+                    code: Some("ERR_PLAYLIST_REORDER".to_string()),
+                }).await;
             }
         }
 
