@@ -145,6 +145,9 @@ fn broadcast_state_to_ws(state: &AppState) {
         track_id, title, artist, album, duration, cover_url,
         title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
         is_playing, position, timestamp,
+        sample_rate_hz: None,
+        bitrate_kbps: None,
+        codec: None,
     });
     let _ = tx.send(server::ServerEvent::Status {
         volume: volume as f64, shuffle, repeat_mode, output,

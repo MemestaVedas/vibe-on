@@ -15,6 +15,7 @@
 //! - `event_tx` — broadcast to every connected client (periodic status, track changes)
 
 use std::collections::{HashMap, VecDeque};
+use std::path::Path;
 use std::sync::Arc;
 
 use axum::{
@@ -180,6 +181,9 @@ pub enum ServerMessage {
         artist_en: Option<String>,
         album_romaji: Option<String>,
         album_en: Option<String>,
+        sample_rate_hz: Option<u32>,
+        bitrate_kbps: Option<u32>,
+        codec: Option<String>,
         is_playing: bool,
         position: f64,
         timestamp: u64,
@@ -283,10 +287,12 @@ impl From<ServerEvent> for ServerMessage {
             ServerEvent::MediaSession {
                 track_id, title, artist, album, duration, cover_url,
                 title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+                sample_rate_hz, bitrate_kbps, codec,
                 is_playing, position, timestamp,
             } => ServerMessage::MediaSession {
                 track_id, title, artist, album, duration, cover_url,
                 title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+                sample_rate_hz, bitrate_kbps, codec,
                 is_playing, position, timestamp,
             },
             ServerEvent::PositionUpdate { position, is_playing, volume, .. } => ServerMessage::PlaybackState {
@@ -1093,6 +1099,7 @@ async fn build_state_events(
 ) -> (ServerEvent, ServerEvent) {
     let (track_id, title, artist, album, duration, cover_url,
          title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+         sample_rate_hz, bitrate_kbps, codec,
          is_playing, position, volume) = {
         app_state.player.lock().ok().map(|g| {
             g.as_ref().map(|player| {
@@ -1101,24 +1108,32 @@ async fn build_state_events(
                 let pos = s.position_secs;
                 let vol = s.volume;
                 if let Some(ref t) = s.track {
+                    let (sample_rate_hz, bitrate_kbps, codec) = extract_audio_quality(&t.path);
                     (t.path.clone(), t.title.clone(), t.artist.clone(), t.album.clone(),
                      t.duration_secs,
                      Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
                      t.title_romaji.clone(), t.title_en.clone(),
                      t.artist_romaji.clone(), t.artist_en.clone(),
                      t.album_romaji.clone(), t.album_en.clone(),
+                     sample_rate_hz, bitrate_kbps, codec,
                      playing, pos, vol)
                 } else {
                     (String::new(), String::new(), String::new(), String::new(), 0.0, None,
-                     None, None, None, None, None, None, false, 0.0, vol)
+                     None, None, None, None, None, None,
+                     None, None, None,
+                     false, 0.0, vol)
                 }
             }).unwrap_or_else(|| {
                 (String::new(), String::new(), String::new(), String::new(), 0.0, None,
-                 None, None, None, None, None, None, false, 0.0, 1.0)
+                 None, None, None, None, None, None,
+                 None, None, None,
+                 false, 0.0, 1.0)
             })
         }).unwrap_or_else(|| {
             (String::new(), String::new(), String::new(), String::new(), 0.0, None,
-             None, None, None, None, None, None, false, 0.0, 1.0)
+             None, None, None, None, None, None,
+             None, None, None,
+             false, 0.0, 1.0)
         })
     };
 
@@ -1135,6 +1150,7 @@ async fn build_state_events(
         ServerEvent::MediaSession {
             track_id, title, artist, album, duration, cover_url,
             title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
+            sample_rate_hz, bitrate_kbps, codec,
             is_playing, position, timestamp,
         },
         ServerEvent::Status {
@@ -1144,6 +1160,27 @@ async fn build_state_events(
             output,
         },
     )
+}
+
+fn extract_audio_quality(path: &str) -> (Option<u32>, Option<u32>, Option<String>) {
+    use lofty::prelude::*;
+    use lofty::probe::Probe;
+
+    let normalized = path.replace("\\", "/");
+    let path_obj = Path::new(&normalized);
+
+    let codec = path_obj
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_uppercase());
+
+    let tagged = match Probe::open(path_obj).and_then(|probe| probe.read()) {
+        Ok(tagged) => tagged,
+        Err(_) => return (None, None, codec),
+    };
+
+    let props = tagged.properties();
+    (props.sample_rate(), props.audio_bitrate(), codec)
 }
 
 /// Read the current queue & index, mapping to `TrackSummary`.

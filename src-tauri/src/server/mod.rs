@@ -130,6 +130,11 @@ pub enum ServerEvent {
         album_romaji: Option<String>,
         #[serde(rename = "albumEn")]
         album_en: Option<String>,
+        #[serde(rename = "sampleRateHz")]
+        sample_rate_hz: Option<u32>,
+        #[serde(rename = "bitrateKbps")]
+        bitrate_kbps: Option<u32>,
+        codec: Option<String>,
         #[serde(rename = "isPlaying")]
         is_playing: bool,
         position: f64,
