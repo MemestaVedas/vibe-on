@@ -57,6 +57,9 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
     song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     song.artist.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const selectedCount = selectedSongs.size;
+  const allFilteredSelected = filteredSongs.length > 0 && filteredSongs.every(song => selectedSongs.has(song.path));
+  const hasFilteredSelection = filteredSongs.some(song => selectedSongs.has(song.path));
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,6 +101,20 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
       newSelected.add(path);
     }
     setSelectedSongs(newSelected);
+  };
+
+  const setFilteredSelection = (selected: boolean) => {
+    setSelectedSongs(prev => {
+      const next = new Set(prev);
+      filteredSongs.forEach(song => {
+        if (selected) {
+          next.add(song.path);
+        } else {
+          next.delete(song.path);
+        }
+      });
+      return next;
+    });
   };
 
   const handleSubmit = async () => {
@@ -270,6 +287,28 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
                     </div>
 
                     {/* Song List */}
+                    <div className="flex items-center justify-between px-1 pb-1">
+                      <span className="text-label-medium text-on-surface-variant">{selectedCount} selected</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFilteredSelection(true)}
+                          disabled={filteredSongs.length === 0 || allFilteredSelected}
+                          className="h-8 px-3 rounded-full text-label-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFilteredSelection(false)}
+                          disabled={!hasFilteredSelection}
+                          className="h-8 px-3 rounded-full text-label-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {filteredSongs.length === 0 ? (
                         <div className="text-center py-8 text-on-surface-variant">
@@ -323,8 +362,8 @@ export function PlaylistCreationWizard({ isOpen, allSongs, onCreatePlaylist, onC
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={currentStep === 0 ? !playlistName.trim() : selectedSongs.size === 0 || isSubmitting}
-                className={`h-12 px-6 rounded-full text-label-large font-medium text-on-primary flex items-center gap-2 transition-all ${(currentStep === 0 ? !playlistName.trim() : selectedSongs.size === 0 || isSubmitting)
+                disabled={currentStep === 0 ? !playlistName.trim() : isSubmitting}
+                className={`h-12 px-6 rounded-full text-label-large font-medium text-on-primary flex items-center gap-2 transition-all ${(currentStep === 0 ? !playlistName.trim() : isSubmitting)
                   ? 'bg-primary/50 cursor-not-allowed'
                   : 'bg-primary hover:bg-primary/90 shadow-elevation-3'
                   }`}

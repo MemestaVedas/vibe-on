@@ -2,7 +2,7 @@ import { useEffect, memo, useState } from 'react';
 import { usePlaylistStore } from '@/store/playlistStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { usePlayerStore } from '@/store/playerStore';
-import { IconMusicNote, IconPlay, IconTrash } from '@/components/common/Icons';
+import { IconAlbum, IconHeart, IconMusicNote, IconPlay, IconTrash } from '@/components/common/Icons';
 import { WavySeparator } from '@/components/common/WavySeparator';
 import { M3CircleImage, M3SquircleImage } from '@/components/common/ShapeComponents';
 import { Virtuoso } from 'react-virtuoso';
@@ -26,6 +26,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { PlaylistTrack, TrackDisplay } from '@/types';
+
+function androidColorIntToCss(color?: number | null): string | undefined {
+    if (typeof color !== 'number') return undefined;
+    const hex = (color >>> 0).toString(16).padStart(8, '0');
+    return `#${hex.slice(2)}`;
+}
 
 function formatDuration(seconds: number): string {
     const mins = Math.floor(seconds / 60);
@@ -204,16 +210,42 @@ export function PlaylistView() {
         playQueue(queueTracks, index);
     };
 
+    const playlistColor = androidColorIntToCss(playlist?.color);
+    const isIconMode = playlist?.customization_type?.toLowerCase() === 'icon';
+    const isImageMode = playlist?.customization_type?.toLowerCase() === 'image' && !!playlist?.image_uri;
+
+    const playlistIcon = (() => {
+        switch (playlist?.icon_name) {
+            case 'Heart':
+            case 'Favorite':
+                return <IconHeart size={48} filled className="text-white" />;
+            case 'Album':
+                return <IconAlbum size={48} className="text-white" />;
+            default:
+                return <IconMusicNote size={48} className={isIconMode ? 'text-white' : 'text-on-secondary-container'} />;
+        }
+    })();
+
     return (
         <div className="flex flex-col h-full bg-surface">
             {/* Header */}
             <div className="px-8 py-6 flex items-end justify-between bg-surface-container-low/50">
                 <div className="flex items-center gap-6">
                     <div className="w-32 h-32 shadow-lg">
-                        <M3SquircleImage
-                            src={null}
-                            fallback={<IconMusicNote size={48} className="text-on-secondary-container" />}
-                        />
+                        {isImageMode ? (
+                            <M3SquircleImage src={playlist?.image_uri ?? null} fallback={playlistIcon} />
+                        ) : (
+                            <div
+                                className="w-full h-full rounded-[28px] flex items-center justify-center"
+                                style={{
+                                    backgroundColor: isIconMode
+                                        ? (playlistColor ?? 'var(--md-sys-color-primary)')
+                                        : 'var(--md-sys-color-secondary-container)',
+                                }}
+                            >
+                                {playlistIcon}
+                            </div>
+                        )}
                     </div>
                     <div className="flex flex-col gap-2">
                         <span className="text-label-medium text-on-surface-variant uppercase tracking-wider">Playlist</span>
