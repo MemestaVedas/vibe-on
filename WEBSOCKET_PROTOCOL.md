@@ -325,6 +325,28 @@ Request tracks for a specific playlist.
 
 **Server responds with:** `playlistTracks` (direct)
 
+#### `createPlaylist`
+Create a playlist with optional initial songs and customization metadata.
+
+```json
+{
+  "type": "createPlaylist",
+  "name": "Late Night Mix",
+  "songs": ["C:/Music/song1.flac", "C:/Music/song2.flac"],
+  "customizationType": "icon",
+  "color": "#E8B4F5",
+  "iconName": "Heart",
+  "imageUri": null
+}
+```
+
+Notes:
+- `songs` is optional.
+- `customizationType` supports `default`, `icon`, and `image`.
+- `color`, `iconName`, and `imageUri` are optional and depend on customization type.
+
+**Server responds with:** `ack` (direct) or `error`
+
 #### `addToPlaylist`
 Add a track to a playlist.
 
