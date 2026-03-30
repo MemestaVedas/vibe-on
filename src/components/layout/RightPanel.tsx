@@ -524,7 +524,7 @@ export function RightPanel() {
                                     accentColor="currentColor"
                                 />
                             </div>
-                            <span className="shrink-0 max-w-40 truncate rounded-full border border-outline-variant/45 bg-surface-container-high px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-on-surface-variant">
+                            <span className="shrink-0 max-w-44 truncate rounded-full border border-outline/60 bg-surface-container-highest/95 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface">
                                 {qualityText}
                             </span>
                         </div>
