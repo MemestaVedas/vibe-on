@@ -128,6 +128,19 @@ pub enum ClientMessage {
         #[serde(alias = "trackIds")]
         track_ids: Vec<i64>,
     },
+    CreatePlaylist {
+        name: String,
+        #[serde(default)]
+        songs: Vec<String>,
+        #[serde(alias = "customizationType")]
+        customization_type: Option<String>,
+        #[serde(default)]
+        color: Option<i64>,
+        #[serde(alias = "iconName")]
+        icon_name: Option<String>,
+        #[serde(alias = "imageUri")]
+        image_uri: Option<String>,
+    },
 
     // Stats sync (mobile → PC)
     ReportPlaybackEvent {
@@ -275,6 +288,14 @@ pub struct PlaylistResponse {
     pub name: String,
     #[serde(rename = "trackCount")]
     pub track_count: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub customization_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_uri: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -883,6 +904,41 @@ async fn handle_client_message(
             }
         }
 
+        ClientMessage::CreatePlaylist {
+            name,
+            songs,
+            customization_type,
+            color,
+            icon_name,
+            image_uri,
+        } => {
+            let created = {
+                let db_guard = app_state.db.lock().unwrap();
+                db_guard.as_ref().and_then(|db| {
+                    db.create_playlist_with_options(
+                        &name,
+                        customization_type.as_deref(),
+                        color,
+                        icon_name.as_deref(),
+                        image_uri.as_deref(),
+                        songs,
+                    )
+                    .ok()
+                })
+            };
+
+            if created.is_some() {
+                let _ = reply_tx.send(ServerMessage::Ack { action: "createPlaylist".to_string() }).await;
+                let playlists = build_playlists_list(&app_state);
+                let _ = reply_tx.send(ServerMessage::Playlists { playlists }).await;
+            } else {
+                let _ = reply_tx.send(ServerMessage::Error {
+                    message: "Failed to create playlist".to_string(),
+                    code: Some("ERR_PLAYLIST_CREATE".to_string()),
+                }).await;
+            }
+        }
+
         // ── Keepalive ────────────────────────────────────────────────────
         ClientMessage::Ping => {
             let _ = reply_tx.send(ServerMessage::Pong).await;
@@ -1323,6 +1379,10 @@ fn build_playlists_list(app_state: &tauri::State<'_, crate::AppState>) -> Vec<Pl
                     id: p.id,
                     name: p.name,
                     track_count: count,
+                    customization_type: p.customization_type,
+                    color: p.cover_color,
+                    icon_name: p.cover_icon,
+                    image_uri: p.cover_image_uri,
                     created_at: p.created_at,
                     updated_at: p.updated_at,
                 }

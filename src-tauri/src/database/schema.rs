@@ -30,6 +30,10 @@ CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
 CREATE TABLE IF NOT EXISTS playlists (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    customization_type TEXT NOT NULL DEFAULT 'default',
+    cover_color INTEGER,
+    cover_icon TEXT,
+    cover_image_uri TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

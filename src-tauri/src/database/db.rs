@@ -58,6 +58,12 @@ impl DatabaseManager {
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN album_romaji TEXT", []);
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN album_en TEXT", []);
 
+        // Migration: Add playlist customization columns
+        let _ = conn.execute("ALTER TABLE playlists ADD COLUMN customization_type TEXT NOT NULL DEFAULT 'default'", []);
+        let _ = conn.execute("ALTER TABLE playlists ADD COLUMN cover_color INTEGER", []);
+        let _ = conn.execute("ALTER TABLE playlists ADD COLUMN cover_icon TEXT", []);
+        let _ = conn.execute("ALTER TABLE playlists ADD COLUMN cover_image_uri TEXT", []);
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             covers_dir,
@@ -577,12 +583,45 @@ impl DatabaseManager {
     // Playlist Methods
 
     pub fn create_playlist(&self, name: &str) -> Result<String> {
+        self.create_playlist_with_options(name, None, None, None, None, Vec::new())
+    }
+
+    pub fn create_playlist_with_options(
+        &self,
+        name: &str,
+        customization_type: Option<&str>,
+        cover_color: Option<i64>,
+        cover_icon: Option<&str>,
+        cover_image_uri: Option<&str>,
+        songs: Vec<String>,
+    ) -> Result<String> {
         let conn = self.conn.lock().unwrap();
         let id = Uuid::new_v4().to_string();
+
+        let normalized_customization = customization_type
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "default".to_string());
+
         conn.execute(
-            "INSERT INTO playlists (id, name) VALUES (?1, ?2)",
-            params![id, name],
+            "INSERT INTO playlists (id, name, customization_type, cover_color, cover_icon, cover_image_uri) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                id,
+                name,
+                normalized_customization,
+                cover_color,
+                cover_icon,
+                cover_image_uri,
+            ],
         )?;
+
+        for (index, track_path) in songs.iter().enumerate() {
+            conn.execute(
+                "INSERT INTO playlist_tracks (playlist_id, track_path, position) VALUES (?1, ?2, ?3)",
+                params![id, track_path, index as i32],
+            )?;
+        }
+
         Ok(id)
     }
 
@@ -604,16 +643,20 @@ impl DatabaseManager {
     pub fn get_playlists(&self) -> Result<Vec<DbPlaylist>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt =
-            conn.prepare("SELECT id, name, created_at, updated_at FROM playlists ORDER BY name")?;
+            conn.prepare("SELECT id, name, customization_type, cover_color, cover_icon, cover_image_uri, created_at, updated_at FROM playlists ORDER BY name")?;
 
         let playlist_iter = stmt.query_map([], |row| {
             // Handle timestamps as strings for now, or use chrono if added later
-            let created_at: String = row.get(2).unwrap_or_default();
-            let updated_at: String = row.get(3).unwrap_or_default();
+            let created_at: String = row.get(6).unwrap_or_default();
+            let updated_at: String = row.get(7).unwrap_or_default();
 
             Ok(DbPlaylist {
                 id: row.get(0)?,
                 name: row.get(1)?,
+                customization_type: row.get(2).unwrap_or(Some("default".to_string())),
+                cover_color: row.get(3).unwrap_or(None),
+                cover_icon: row.get(4).unwrap_or(None),
+                cover_image_uri: row.get(5).unwrap_or(None),
                 created_at,
                 updated_at,
             })
@@ -922,6 +965,10 @@ impl DatabaseManager {
 pub struct DbPlaylist {
     pub id: String,
     pub name: String,
+    pub customization_type: Option<String>,
+    pub cover_color: Option<i64>,
+    pub cover_icon: Option<String>,
+    pub cover_image_uri: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

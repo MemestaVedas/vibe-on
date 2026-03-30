@@ -1825,13 +1825,26 @@ async fn stop_mobile_playback(state: State<'_, AppState>, app_handle: AppHandle)
 #[tauri::command]
 async fn create_playlist(
     name: String,
+    songs: Option<Vec<String>>,
+    customization_type: Option<String>,
+    color: Option<i64>,
+    image_uri: Option<String>,
+    icon_name: Option<String>,
     state: State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<String, String> {
     get_or_init_db(&state, &app_handle)?;
     let db_guard = state.db.lock().unwrap();
     if let Some(ref db) = *db_guard {
-        db.create_playlist(&name).map_err(|e| e.to_string())
+        db.create_playlist_with_options(
+            &name,
+            customization_type.as_deref(),
+            color,
+            icon_name.as_deref(),
+            image_uri.as_deref(),
+            songs.unwrap_or_default(),
+        )
+        .map_err(|e| e.to_string())
     } else {
         Err("Database not initialized".to_string())
     }

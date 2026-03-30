@@ -57,6 +57,10 @@ export interface LyricsData {
 export interface Playlist {
   id: string;
   name: string;
+  customization_type?: string | null;
+  color?: number | null;
+  icon_name?: string | null;
+  image_uri?: string | null;
   created_at: string;
   updated_at: string;
 }
