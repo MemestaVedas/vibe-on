@@ -2,6 +2,7 @@ import { useEffect, memo, useState } from 'react';
 import { usePlaylistStore } from '@/store/playlistStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { usePlayerStore } from '@/store/playerStore';
+import { useToastStore } from '@/store/toastStore';
 import { IconAlbum, IconHeart, IconMusicNote, IconPlay, IconTrash } from '@/components/common/Icons';
 import { WavySeparator } from '@/components/common/WavySeparator';
 import { M3CircleImage, M3SquircleImage } from '@/components/common/ShapeComponents';
@@ -139,8 +140,22 @@ const PlaylistTrackRow = memo(function PlaylistTrackRow({ track, index, isActive
 
 export function PlaylistView() {
     const { activePlaylistId, setView } = useNavigationStore();
-    const { playlists, currentPlaylistTracks, fetchPlaylistTracks, removeTrackFromPlaylist, renamePlaylist, deletePlaylist, reorderPlaylistTracks, isLoading } = usePlaylistStore();
+    const {
+        playlists,
+        currentPlaylistTracks,
+        fetchPlaylistTracks,
+        removeTrackFromPlaylist,
+        renamePlaylist,
+        deletePlaylist,
+        reorderPlaylistTracks,
+        isFetchingTracks,
+        isMutatingPlaylist,
+        isReorderingTracks,
+        error,
+        clearError,
+    } = usePlaylistStore();
     const { playQueue, status } = usePlayerStore();
+    const showToast = useToastStore(s => s.showToast);
     const [localTracks, setLocalTracks] = useState<PlaylistTrack[]>([]);
 
     // Find current playlist object
@@ -165,10 +180,17 @@ export function PlaylistView() {
         setLocalTracks(currentPlaylistTracks);
     }, [currentPlaylistTracks]);
 
+    useEffect(() => {
+        if (!error) return;
+        showToast(error);
+        clearError();
+    }, [error, showToast, clearError]);
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (over && active.id !== over.id && playlist) {
+            const previousOrder = [...localTracks];
             const oldIndex = localTracks.findIndex((track) => track.playlist_track_id === active.id);
             const newIndex = localTracks.findIndex((track) => track.playlist_track_id === over.id);
 
@@ -177,7 +199,14 @@ export function PlaylistView() {
 
             // Persist to backend
             const trackIds = newOrder.map(t => t.playlist_track_id);
-            await reorderPlaylistTracks(playlist.id, trackIds);
+            const success = await reorderPlaylistTracks(playlist.id, trackIds);
+            if (!success) {
+                setLocalTracks(previousOrder);
+                showToast('Could not save track order. Restored previous order.');
+                return;
+            }
+
+            showToast('Playlist order updated');
         }
     };
 
@@ -185,17 +214,23 @@ export function PlaylistView() {
         return <div className="p-8 text-center text-on-surface-variant">Playlist not found</div>;
     }
 
-    const handleRename = () => {
+    const handleRename = async () => {
         const newName = prompt("Rename playlist:", playlist.name);
         if (newName && newName !== playlist.name) {
-            renamePlaylist(playlist.id, newName);
+            const success = await renamePlaylist(playlist.id, newName);
+            if (success) {
+                showToast('Playlist renamed');
+            }
         }
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (confirm(`Delete playlist "${playlist.name}"?`)) {
-            deletePlaylist(playlist.id);
-            setView('tracks'); // Go back to tracks
+            const success = await deletePlaylist(playlist.id);
+            if (success) {
+                showToast('Playlist deleted');
+                setView('tracks'); // Go back to tracks
+            }
         }
     };
 
@@ -274,6 +309,7 @@ export function PlaylistView() {
                         onClick={handleDelete}
                         className="p-2.5 rounded-full hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors"
                         title="Delete Playlist"
+                        disabled={isMutatingPlaylist}
                     >
                         <IconTrash size={24} />
                     </button>
@@ -286,7 +322,7 @@ export function PlaylistView() {
 
             {/* List */}
             <div className="flex-1">
-                {isLoading ? (
+                {isFetchingTracks ? (
                     <div className="flex justify-center p-8 text-on-surface-variant animate-pulse">Loading tracks...</div>
                 ) : localTracks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-48 text-on-surface-variant/60 gap-4">
@@ -294,6 +330,12 @@ export function PlaylistView() {
                         <p>No tracks in this playlist yet.</p>
                     </div>
                 ) : (
+                    <div className="h-full relative">
+                        {isReorderingTracks && (
+                            <div className="absolute top-3 right-6 z-10 text-label-small text-on-surface-variant bg-surface-container-high/90 px-3 py-1 rounded-full shadow-sm">
+                                Saving order...
+                            </div>
+                        )}
                     <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
@@ -326,6 +368,7 @@ export function PlaylistView() {
                             />
                         </SortableContext>
                     </DndContext>
+                    </div>
                 )}
             </div>
         </div>
