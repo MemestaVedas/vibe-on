@@ -157,6 +157,9 @@ export function PlaylistView() {
     const { playQueue, status } = usePlayerStore();
     const showToast = useToastStore(s => s.showToast);
     const [localTracks, setLocalTracks] = useState<PlaylistTrack[]>([]);
+    const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+    const [renameValue, setRenameValue] = useState('');
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
     // Find current playlist object
     const playlist = playlists.find(p => p.id === activePlaylistId);
@@ -214,23 +217,30 @@ export function PlaylistView() {
         return <div className="p-8 text-center text-on-surface-variant">Playlist not found</div>;
     }
 
+    const openRenameDialog = () => {
+        setRenameValue(playlist.name);
+        setIsRenameDialogOpen(true);
+    };
+
     const handleRename = async () => {
-        const newName = prompt("Rename playlist:", playlist.name);
-        if (newName && newName !== playlist.name) {
-            const success = await renamePlaylist(playlist.id, newName);
-            if (success) {
-                showToast('Playlist renamed');
-            }
+        if (!renameValue.trim() || renameValue.trim() === playlist.name) {
+            setIsRenameDialogOpen(false);
+            return;
         }
+
+        const success = await renamePlaylist(playlist.id, renameValue);
+        if (success) {
+            showToast('Playlist renamed');
+        }
+        setIsRenameDialogOpen(false);
     };
 
     const handleDelete = async () => {
-        if (confirm(`Delete playlist "${playlist.name}"?`)) {
-            const success = await deletePlaylist(playlist.id);
-            if (success) {
-                showToast('Playlist deleted');
-                setView('tracks'); // Go back to tracks
-            }
+        const success = await deletePlaylist(playlist.id);
+        if (success) {
+            showToast('Playlist deleted');
+            setIsDeleteDialogOpen(false);
+            setView('tracks'); // Go back to tracks
         }
     };
 
@@ -286,7 +296,7 @@ export function PlaylistView() {
                         <span className="text-label-medium text-on-surface-variant uppercase tracking-wider">Playlist</span>
                         <h1
                             className="text-display-small font-bold text-on-surface cursor-pointer hover:underline decoration-on-surface/20"
-                            onClick={handleRename}
+                            onClick={openRenameDialog}
                             title="Click to rename"
                         >
                             {playlist.name}
@@ -306,7 +316,7 @@ export function PlaylistView() {
                         <IconPlay size={20} fill="currentColor" /> Play
                     </button>
                     <button
-                        onClick={handleDelete}
+                        onClick={() => setIsDeleteDialogOpen(true)}
                         className="p-2.5 rounded-full hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors"
                         title="Delete Playlist"
                         disabled={isMutatingPlaylist}
@@ -371,6 +381,69 @@ export function PlaylistView() {
                     </div>
                 )}
             </div>
+
+            {isRenameDialogOpen && (
+                <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40" onClick={() => setIsRenameDialogOpen(false)} />
+                    <div className="relative w-full max-w-md rounded-2xl bg-surface-container p-6 shadow-elevation-4 border border-outline-variant/20">
+                        <h2 className="text-title-large font-semibold text-on-surface">Rename Playlist</h2>
+                        <p className="text-body-medium text-on-surface-variant mt-1">Pick a new name for this playlist.</p>
+
+                        <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            className="mt-4 w-full h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface border border-outline-variant/30 outline-hidden focus:ring-2 focus:ring-primary/30"
+                            placeholder="Playlist name"
+                            autoFocus
+                        />
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                onClick={() => setIsRenameDialogOpen(false)}
+                                className="h-10 px-4 rounded-full text-primary hover:bg-primary/10"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRename}
+                                disabled={isMutatingPlaylist || !renameValue.trim()}
+                                className="h-10 px-4 rounded-full bg-primary text-on-primary disabled:opacity-50"
+                            >
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isDeleteDialogOpen && (
+                <div className="fixed inset-0 z-10000 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40" onClick={() => setIsDeleteDialogOpen(false)} />
+                    <div className="relative w-full max-w-md rounded-2xl bg-surface-container p-6 shadow-elevation-4 border border-outline-variant/20">
+                        <h2 className="text-title-large font-semibold text-on-surface">Delete Playlist</h2>
+                        <p className="text-body-medium text-on-surface-variant mt-1">
+                            Delete "{playlist.name}"? This cannot be undone.
+                        </p>
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                onClick={() => setIsDeleteDialogOpen(false)}
+                                className="h-10 px-4 rounded-full text-primary hover:bg-primary/10"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                disabled={isMutatingPlaylist}
+                                className="h-10 px-4 rounded-full bg-error text-on-error disabled:opacity-50"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
