@@ -1,4 +1,4 @@
-import { useMemo, useState, memo, useCallback } from 'react';
+import { useMemo, useState, memo, useCallback, useDeferredValue } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { usePlayerStore } from '@/store/playerStore';
 import { useCoverArt } from '@/hooks/useCoverArt';
@@ -16,6 +16,36 @@ function formatDuration(seconds: number): string {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+function parseAlbum(albumName: string, discNum: number | null | undefined) {
+    const regex = /^(.*?)(?:\\|\/|\s-\s|\s*[\(\[]\s*|\s+-\s+)(?:Disc|CD)\s*(\d+)(.*)$/i;
+    const match = albumName.match(regex);
+
+    let base = albumName.trim();
+    let parsedDisc = discNum || 1;
+    let subtitle = '';
+
+    if (match && match[1]) {
+        base = match[1].trim();
+        parsedDisc = parseInt(match[2], 10);
+        let sub = match[3] || '';
+        sub = sub.replace(/^[-:\s]+/, '');
+        sub = sub.replace(/[\)\]\s]+$/, '');
+        subtitle = sub;
+    }
+
+    return { base, parsedDisc, subtitle };
+}
+
+type SectionedTrackRow = {
+    track: TrackDisplay;
+    index: number;
+    showAlbumSeparator: boolean;
+    showDiscSeparator: boolean;
+    albumBase: string;
+    discNumber: number;
+    discSubtitle: string;
+};
 
 function Equalizer() {
     return (
@@ -149,6 +179,7 @@ export function TrackList() {
     const currentPath = usePlayerStore(state => state.status.track?.path);
     const isPlaying = usePlayerStore(state => state.status.state === 'Playing');
     const searchQuery = usePlayerStore(state => state.searchQuery);
+    const deferredSearchQuery = useDeferredValue(searchQuery);
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackDisplay } | null>(null);
@@ -160,9 +191,9 @@ export function TrackList() {
 
     // Filter library based on search query
     const filteredLibrary = useMemo(() => {
-        if (!searchQuery.trim()) return library;
+        if (!deferredSearchQuery.trim()) return library;
 
-        const query = searchQuery.toLowerCase();
+        const query = deferredSearchQuery.toLowerCase();
 
         // Check for prefixes
         if (query.startsWith('artist:')) {
@@ -194,7 +225,35 @@ export function TrackList() {
             (track.artist_en && track.artist_en.toLowerCase().includes(query)) ||
             (track.album_en && track.album_en.toLowerCase().includes(query))
         );
-    }, [library, searchQuery]);
+    }, [library, deferredSearchQuery]);
+
+    const sectionedTracks = useMemo<SectionedTrackRow[]>(() => {
+        let prevAlbumBase: string | null = null;
+        let prevDisc = 0;
+        let prevSubtitle = '';
+
+        return filteredLibrary.map((track, index) => {
+            const parsedAlbum = parseAlbum(track.album, track.disc_number);
+            const showAlbumSeparator = prevAlbumBase === null || prevAlbumBase !== parsedAlbum.base;
+            const showDiscSeparator = showAlbumSeparator
+                ? parsedAlbum.parsedDisc > 1 || parsedAlbum.subtitle !== ''
+                : prevDisc !== parsedAlbum.parsedDisc || prevSubtitle !== parsedAlbum.subtitle;
+
+            prevAlbumBase = parsedAlbum.base;
+            prevDisc = parsedAlbum.parsedDisc;
+            prevSubtitle = parsedAlbum.subtitle;
+
+            return {
+                track,
+                index,
+                showAlbumSeparator,
+                showDiscSeparator,
+                albumBase: parsedAlbum.base,
+                discNumber: parsedAlbum.parsedDisc,
+                discSubtitle: parsedAlbum.subtitle
+            };
+        });
+    }, [filteredLibrary]);
 
     if (isLoading) {
         return (
@@ -233,51 +292,23 @@ export function TrackList() {
             <div className="flex-1">
                 <Virtuoso
                     style={{ height: '100%' }}
-                    data={filteredLibrary}
+                    data={sectionedTracks}
                     overscan={1200}
-                    itemContent={(index, track) => {
-                        const prevTrack = index > 0 ? filteredLibrary[index - 1] : null;
-
-                        const parseAlbum = (albumName: string, discNum: number | null | undefined) => {
-                            const regex = /^(.*?)(?:\\|\/|\s-\s|\s*[\(\[]\s*|\s+-\s+)(?:Disc|CD)\s*(\d+)(.*)$/i;
-                            const match = albumName.match(regex);
-
-                            let base = albumName.trim();
-                            let parsedDisc = discNum || 1;
-                            let subtitle = '';
-
-                            if (match && match[1]) {
-                                base = match[1].trim();
-                                parsedDisc = parseInt(match[2], 10);
-                                let sub = match[3] || '';
-                                sub = sub.replace(/^[-:\s]+/, '');
-                                sub = sub.replace(/[\)\]\s]+$/, '');
-                                subtitle = sub;
-                            }
-
-                            return { base, parsedDisc, subtitle };
-                        };
-
-                        const curr = parseAlbum(track.album, track.disc_number);
-                        const prev = prevTrack ? parseAlbum(prevTrack.album, prevTrack.disc_number) : null;
-
-                        const isAlbumChange = !prev || prev.base !== curr.base;
-                        const isDiscChange = isAlbumChange
-                            ? (curr.parsedDisc > 1 || curr.subtitle !== '')
-                            : (prev.parsedDisc !== curr.parsedDisc || prev.subtitle !== curr.subtitle);
+                    itemContent={(_, row) => {
+                        const { track, index, showAlbumSeparator, showDiscSeparator, albumBase, discNumber, discSubtitle } = row;
 
                         return (
                             <div key={track.id}>
-                                {isAlbumChange && (
+                                {showAlbumSeparator && (
                                     <div className="px-6">
-                                        <WavySeparator label={curr.base} color="var(--md-sys-color-primary)" />
+                                        <WavySeparator label={albumBase} color="var(--md-sys-color-primary)" />
                                     </div>
                                 )}
-                                {isDiscChange && (
+                                {showDiscSeparator && (
                                     <div className="flex items-center gap-4 py-4 px-6 mt-2">
                                         <IconAlbum size={20} className="text-primary" />
                                         <span className="text-title-medium font-bold text-primary">
-                                            Disc {curr.parsedDisc} {curr.subtitle ? `- ${curr.subtitle}` : ''}
+                                            Disc {discNumber} {discSubtitle ? `- ${discSubtitle}` : ''}
                                         </span>
                                         <div className="h-px flex-1 bg-surface-container-highest"></div>
                                     </div>
