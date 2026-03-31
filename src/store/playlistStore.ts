@@ -1,6 +1,72 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import type { Playlist, PlaylistTrack } from '@/types';
+import { useToastStore } from '@/store/toastStore';
+
+function cssHexToAndroidColorInt(color: string): number | null {
+    const hex = color.trim().replace('#', '');
+    const isRgb = /^[0-9a-fA-F]{6}$/.test(hex);
+    const isArgb = /^[0-9a-fA-F]{8}$/.test(hex);
+
+    if (!isRgb && !isArgb) {
+        return null;
+    }
+
+    // Backend expects Android ARGB int; CSS hex is usually RGB.
+    const argb = (isRgb ? `FF${hex}` : hex).toUpperCase();
+    return Number.parseInt(argb, 16) >>> 0;
+}
+
+function normalizePlaylist(raw: any): Playlist | null {
+    if (!raw || typeof raw !== 'object') {
+        return null;
+    }
+
+    const id = typeof raw.id === 'string' ? raw.id : '';
+    const name = typeof raw.name === 'string' ? raw.name : '';
+    if (!id || !name) {
+        return null;
+    }
+
+    const color =
+        typeof raw.color === 'number'
+            ? raw.color
+            : typeof raw.cover_color === 'number'
+                ? raw.cover_color
+                : null;
+
+    const customizationType =
+        typeof raw.customization_type === 'string'
+            ? raw.customization_type
+            : typeof raw.customizationType === 'string'
+                ? raw.customizationType
+                : null;
+
+    const iconName =
+        typeof raw.icon_name === 'string'
+            ? raw.icon_name
+            : typeof raw.cover_icon === 'string'
+                ? raw.cover_icon
+                : null;
+
+    const imageUri =
+        typeof raw.image_uri === 'string'
+            ? raw.image_uri
+            : typeof raw.cover_image_uri === 'string'
+                ? raw.cover_image_uri
+                : null;
+
+    return {
+        id,
+        name,
+        customization_type: customizationType,
+        color,
+        icon_name: iconName,
+        image_uri: imageUri,
+        created_at: typeof raw.created_at === 'string' ? raw.created_at : typeof raw.createdAt === 'string' ? raw.createdAt : '',
+        updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : typeof raw.updatedAt === 'string' ? raw.updatedAt : '',
+    };
+}
 
 interface PlaylistState {
     playlists: Playlist[];
@@ -59,10 +125,15 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
     fetchPlaylists: async () => {
         set({ isLoading: true, isFetchingPlaylists: true, error: null });
         try {
-            const playlists = await invoke<Playlist[]>('get_playlists');
+            const rawPlaylists = await invoke<any[]>('get_playlists');
+            const playlists = (Array.isArray(rawPlaylists) ? rawPlaylists : [])
+                .map(normalizePlaylist)
+                .filter((p): p is Playlist => p !== null);
             set({ playlists, isLoading: false, isFetchingPlaylists: false });
         } catch (e) {
-            set({ error: String(e), isLoading: false, isFetchingPlaylists: false });
+            const message = String(e);
+            set({ error: message, isLoading: false, isFetchingPlaylists: false });
+            useToastStore.getState().showToast(`Failed to load playlists: ${message}`);
         }
     },
 
@@ -91,14 +162,20 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
             // Add customization if provided
             if (customization) {
                 payload.customizationType = customization.type || 'default';
+                const normalizedColor =
+                    typeof customization.color === 'number'
+                        ? customization.color
+                        : typeof customization.color === 'string'
+                            ? cssHexToAndroidColorInt(customization.color)
+                            : null;
                 
                 if (customization.type === 'image' && customization.imageUri) {
                     payload.imageUri = customization.imageUri;
                 } else if (customization.type === 'icon') {
-                    payload.color = customization.color;
+                    payload.color = normalizedColor;
                     payload.iconName = customization.iconName;
-                } else if (customization.type === 'default' && customization.color) {
-                    payload.color = customization.color;
+                } else if (customization.type === 'default' && normalizedColor !== null) {
+                    payload.color = normalizedColor;
                 }
             }
             

@@ -63,6 +63,8 @@ impl DatabaseManager {
         let _ = conn.execute("ALTER TABLE playlists ADD COLUMN cover_color INTEGER", []);
         let _ = conn.execute("ALTER TABLE playlists ADD COLUMN cover_icon TEXT", []);
         let _ = conn.execute("ALTER TABLE playlists ADD COLUMN cover_image_uri TEXT", []);
+        let _ = conn.execute("ALTER TABLE playlists ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", []);
+        let _ = conn.execute("ALTER TABLE playlists ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", []);
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
