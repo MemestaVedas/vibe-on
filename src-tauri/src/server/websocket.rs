@@ -96,6 +96,7 @@ pub enum ClientMessage {
     // Library
     GetLibrary,
     GetLyrics,
+    GenerateMissingAlbumColors,
 
     // Mobile streaming
     StartMobilePlayback,
@@ -697,6 +698,45 @@ async fn handle_client_message(
         ClientMessage::GetLibrary => {
             let tracks = build_track_details(&app_state);
             let _ = reply_tx.send(ServerMessage::Library { tracks }).await;
+        }
+
+        ClientMessage::GenerateMissingAlbumColors => {
+            const FALLBACK_MAIN_COLOR: i64 = 0xFF6366F1_u32 as i64;
+
+            let result = {
+                let db_guard = app_state.db.lock().unwrap();
+                db_guard
+                    .as_ref()
+                    .ok_or_else(|| "Database not initialized".to_string())
+                    .and_then(|db| {
+                        db.backfill_missing_album_main_colors(FALLBACK_MAIN_COLOR)
+                            .map_err(|e| e.to_string())
+                    })
+            };
+
+            match result {
+                Ok(stats) => {
+                    log::info!(
+                        "[WS] Backfilled missing album colors: updated={}, already_colored={}, total={}",
+                        stats.updated,
+                        stats.already_colored,
+                        stats.total_albums
+                    );
+                    let _ = reply_tx
+                        .send(ServerMessage::Ack {
+                            action: "generateMissingAlbumColors".to_string(),
+                        })
+                        .await;
+                }
+                Err(message) => {
+                    let _ = reply_tx
+                        .send(ServerMessage::Error {
+                            message,
+                            code: Some("ERR_ALBUM_COLOR_BACKFILL".to_string()),
+                        })
+                        .await;
+                }
+            }
         }
 
         // ── Lyrics ───────────────────────────────────────────────────────

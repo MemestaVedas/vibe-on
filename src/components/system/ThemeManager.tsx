@@ -18,7 +18,10 @@ export function ThemeManager() {
     const coverUrl = useCoverArt(coverImage, track?.path, true);
 
     // Prefer persisted album seed color and avoid image re-extraction when available.
-    const colors = useImageColors(coverUrl, track?.album_main_color);
+    const colors = useImageColors(coverUrl, track?.album_main_color, {
+        albumName: track?.album,
+        artistName: track?.artist,
+    });
 
     // Update global theme store & CSS Variables
     useEffect(() => {

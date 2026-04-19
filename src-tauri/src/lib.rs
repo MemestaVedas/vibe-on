@@ -16,6 +16,7 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State, Listener};
+use serde::Serialize;
 
 use audio::state::PlayerStatus;
 #[cfg(target_os = "windows")]
@@ -178,6 +179,57 @@ fn get_or_init_db(state: &AppState, app_handle: &AppHandle) -> Result<(), String
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+async fn set_album_main_color(
+    album: String,
+    artist: String,
+    main_color: i64,
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    get_or_init_db(&state, &app_handle)?;
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard.as_ref().ok_or_else(|| "Database not initialized".to_string())?;
+    db.update_album_main_color(&album, &artist, main_color)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AlbumColorBackfillResult {
+    total_albums: usize,
+    already_colored: usize,
+    updated: usize,
+    fallback_color: i64,
+}
+
+#[tauri::command]
+async fn generate_missing_album_main_colors(
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<AlbumColorBackfillResult, String> {
+    const FALLBACK_MAIN_COLOR: i64 = 0xFF6366F1_u32 as i64;
+
+    get_or_init_db(&state, &app_handle)?;
+
+    let db_guard = state.db.lock().unwrap();
+    let db = db_guard
+        .as_ref()
+        .ok_or_else(|| "Database not initialized".to_string())?;
+
+    let stats = db
+        .backfill_missing_album_main_colors(FALLBACK_MAIN_COLOR)
+        .map_err(|e| e.to_string())?;
+
+    Ok(AlbumColorBackfillResult {
+        total_albums: stats.total_albums,
+        already_colored: stats.already_colored,
+        updated: stats.updated,
+        fallback_color: FALLBACK_MAIN_COLOR,
+    })
 }
 
 // ============================================================================
@@ -2063,6 +2115,8 @@ pub fn run() {
             resume_torrent,
             search_torrents,
             get_torrent_details,
+            set_album_main_color,
+            generate_missing_album_main_colors,
             start_mobile_server,
             stop_mobile_server,
             get_server_status,

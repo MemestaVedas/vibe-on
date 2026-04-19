@@ -4,6 +4,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { usePlayerStore } from '@/store/playerStore';
 import { open } from '@tauri-apps/plugin-dialog';
 import { ask } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import packageJson from '../../../package.json';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -14,6 +15,13 @@ interface SettingsTab {
     label: string;
     icon: React.ReactNode;
 }
+
+type AlbumColorBackfillResult = {
+    totalAlbums: number;
+    alreadyColored: number;
+    updated: number;
+    fallbackColor: number;
+};
 
 export function SettingsPage() {
     const [activeTab, setActiveTab] = useState<TabId>('appearance');
@@ -102,6 +110,7 @@ export function SettingsPage() {
 }
 
 function SettingsContent({ tab }: { tab: TabId }) {
+    const [isBackfillingAlbumColors, setIsBackfillingAlbumColors] = useState(false);
     const {
         albumArtStyle, setAlbumArtStyle,
         expandedArtMode, setExpandedArtMode,
@@ -459,6 +468,42 @@ function SettingsContent({ tab }: { tab: TabId }) {
                                     className="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 transition-colors text-sm font-medium"
                                 >
                                     Clear Data
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-6 pt-6 border-t border-white/10">
+                                <div className="flex-1">
+                                    <h3 className="text-base font-medium text-on-surface">Generate Missing Album Colors</h3>
+                                    <p className="text-sm text-on-surface-variant">Backfill colors only for albums that do not have one yet.</p>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        if (isBackfillingAlbumColors) return;
+                                        setIsBackfillingAlbumColors(true);
+                                        try {
+                                            const result = await invoke<AlbumColorBackfillResult>('generate_missing_album_main_colors');
+                                            await ask(
+                                                `Updated ${result.updated} album(s). ${result.alreadyColored} album(s) already had colors (out of ${result.totalAlbums} total).`,
+                                                {
+                                                    title: 'Album Colors Backfilled',
+                                                    kind: 'info',
+                                                }
+                                            );
+                                        } catch (e) {
+                                            console.error('Failed to backfill album colors:', e);
+                                            await ask('Failed to generate missing album colors. Please try again.', {
+                                                title: 'Backfill Failed',
+                                                kind: 'error',
+                                            });
+                                        } finally {
+                                            setIsBackfillingAlbumColors(false);
+                                        }
+                                    }}
+                                    disabled={isBackfillingAlbumColors}
+                                    className="px-4 py-2 rounded-lg bg-primary/20 hover:bg-primary/30 disabled:opacity-60 disabled:cursor-not-allowed text-primary transition-colors text-sm font-medium"
+                                    style={{ color: primary, backgroundColor: `${primary}33` }}
+                                >
+                                    {isBackfillingAlbumColors ? 'Generating...' : 'Generate'}
                                 </button>
                             </div>
                         </div>

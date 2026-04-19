@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, Result};
 use serde::Serialize;
+use image::ImageReader;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -22,6 +23,12 @@ pub struct DbArtist {
     pub name: String,
     pub album_count: usize,
     pub track_count: usize,
+}
+
+pub struct AlbumColorBackfillStats {
+    pub total_albums: usize,
+    pub already_colored: usize,
+    pub updated: usize,
 }
 
 pub struct DatabaseManager {
@@ -206,6 +213,100 @@ impl DatabaseManager {
             params![main_color, normalized_album, normalized_artist],
         )?;
         Ok(())
+    }
+
+    pub fn backfill_missing_album_main_colors(
+        &self,
+        default_main_color: i64,
+    ) -> Result<AlbumColorBackfillStats> {
+        let conn = self.conn.lock().unwrap();
+
+        let total_albums: usize = conn.query_row("SELECT COUNT(*) FROM albums", [], |row| row.get(0))?;
+        let mut updated = 0usize;
+
+        let mut stmt = conn.prepare(
+            "SELECT name, artist, cover_image_path
+             FROM albums
+             WHERE main_color IS NULL",
+        )?;
+
+        let candidates = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })?;
+
+        for candidate in candidates {
+            let (album, artist, cover_image_path) = candidate?;
+            let color = cover_image_path
+                .as_deref()
+                .and_then(|path| self.derive_color_from_cover(path))
+                .unwrap_or(default_main_color);
+
+            conn.execute(
+                "UPDATE albums SET main_color = ?1 WHERE name = ?2 AND artist = ?3 AND main_color IS NULL",
+                params![color, album, artist],
+            )?;
+            updated += 1;
+        }
+
+        Ok(AlbumColorBackfillStats {
+            total_albums,
+            already_colored: total_albums.saturating_sub(updated),
+            updated,
+        })
+    }
+
+    fn derive_color_from_cover(&self, cover_image_path: &str) -> Option<i64> {
+        let trimmed = cover_image_path.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        let candidate_path = {
+            let file_path = PathBuf::from(trimmed);
+            if file_path.is_absolute() {
+                file_path
+            } else {
+                self.covers_dir.join(trimmed)
+            }
+        };
+
+        let image = ImageReader::open(candidate_path).ok()?.decode().ok()?;
+        let rgba = image.to_rgba8();
+
+        let mut red_sum: u64 = 0;
+        let mut green_sum: u64 = 0;
+        let mut blue_sum: u64 = 0;
+        let mut sample_count: u64 = 0;
+
+        let step = ((rgba.width().max(rgba.height()) / 32).max(1)) as usize;
+        for (index, pixel) in rgba.pixels().enumerate() {
+            if index % step != 0 {
+                continue;
+            }
+
+            let [red, green, blue, alpha] = pixel.0;
+            if alpha < 24 {
+                continue;
+            }
+
+            red_sum += red as u64;
+            green_sum += green as u64;
+            blue_sum += blue as u64;
+            sample_count += 1;
+        }
+
+        if sample_count == 0 {
+            return None;
+        }
+
+        let red = (red_sum / sample_count) as i64;
+        let green = (green_sum / sample_count) as i64;
+        let blue = (blue_sum / sample_count) as i64;
+        Some((0xFF_i64 << 24) | (red << 16) | (green << 8) | blue)
     }
 
     pub fn get_tracks_paginated(&self, limit: usize, offset: usize) -> Result<Vec<TrackInfo>> {

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
     Hct,
+    sourceColorFromImage,
     SchemeTonalSpot,
     hexFromArgb
 } from '@material/material-color-utilities';
@@ -35,6 +37,11 @@ export interface DynamicColors {
     outlineVariant: string;
     sourceColor: string;
 }
+
+type AlbumColorPersistence = {
+    albumName?: string | null;
+    artistName?: string | null;
+};
 
 const FALLBACK_SEED = 0xFF6366F1;
 
@@ -86,7 +93,28 @@ function parseSeedColor(seedColor?: number | null): number | null {
     return seedColor >>> 0;
 }
 
-export function useImageColors(imageUrl: string | null | undefined, seedColor?: number | null): DynamicColors {
+function extractSourceColorFromImage(imageUrl: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = 'Anonymous';
+        image.decoding = 'async';
+        image.onload = async () => {
+            try {
+                resolve(await sourceColorFromImage(image));
+            } catch (error) {
+                reject(error);
+            }
+        };
+        image.onerror = () => reject(new Error(`Failed to load image for color extraction: ${imageUrl}`));
+        image.src = imageUrl;
+    });
+}
+
+export function useImageColors(
+    imageUrl: string | null | undefined,
+    seedColor?: number | null,
+    persistence?: AlbumColorPersistence
+): DynamicColors {
     const seedOverride = parseSeedColor(seedColor);
     const cacheKey = seedOverride != null
         ? `${imageUrl || 'no-image'}::seed:${seedOverride}`
@@ -116,6 +144,20 @@ export function useImageColors(imageUrl: string | null | undefined, seedColor?: 
 
                 if (seedOverride != null) {
                     sourceColor = seedOverride;
+                } else if (imageUrl) {
+                    sourceColor = await extractSourceColorFromImage(imageUrl);
+
+                    const albumName = persistence?.albumName?.trim();
+                    const artistName = persistence?.artistName?.trim();
+                    if (albumName && artistName) {
+                        void invoke('set_album_main_color', {
+                            album: albumName,
+                            artist: artistName,
+                            mainColor: sourceColor,
+                        }).catch((error) => {
+                            console.debug('[useImageColors] failed to persist album main color', error);
+                        });
+                    }
                 }
 
                 if (!active) return;
@@ -142,7 +184,7 @@ export function useImageColors(imageUrl: string | null | undefined, seedColor?: 
         generateTheme();
 
         return () => { active = false; };
-    }, [cacheKey, imageUrl, seedOverride]);
+    }, [cacheKey, imageUrl, seedOverride, persistence?.albumName, persistence?.artistName]);
 
     return useMemo(() => {
         if (theme) return theme;

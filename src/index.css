@@ -227,6 +227,14 @@ layer(base);
         @apply bg-surface text-on-surface font-outfit antialiased overflow-hidden;
     }
 
+    button:not(:disabled),
+    a,
+    summary,
+    [role='button'],
+    [tabindex]:not([tabindex='-1']) {
+      cursor: pointer;
+    }
+
     * {
         scrollbar-width: none;
         -ms-overflow-style: none;
