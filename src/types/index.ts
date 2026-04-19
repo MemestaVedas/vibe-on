@@ -9,6 +9,7 @@ export interface TrackInfo {
   album: string;
   duration_secs: number;
   cover_image?: string | null;
+  album_main_color?: number | null;
   cover_url?: string; // For streaming services
   disc_number?: number | null;
   track_number?: number | null;

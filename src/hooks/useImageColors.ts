@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-    sourceColorFromImage,
     Hct,
     SchemeTonalSpot,
     hexFromArgb
@@ -82,11 +81,21 @@ function buildThemeFromSeed(sourceColor: number): DynamicColors {
 // Main Hook
 // ============================================================================
 
-export function useImageColors(imageUrl: string | null | undefined): DynamicColors {
+function parseSeedColor(seedColor?: number | null): number | null {
+    if (typeof seedColor !== 'number' || !Number.isFinite(seedColor)) return null;
+    return seedColor >>> 0;
+}
+
+export function useImageColors(imageUrl: string | null | undefined, seedColor?: number | null): DynamicColors {
+    const seedOverride = parseSeedColor(seedColor);
+    const cacheKey = seedOverride != null
+        ? `${imageUrl || 'no-image'}::seed:${seedOverride}`
+        : imageUrl || null;
+
     const [theme, setTheme] = useState<DynamicColors | null>(() => {
         // Check cache synchronously on mount
-        if (imageUrl && themeCache.has(imageUrl)) {
-            return themeCache.get(imageUrl)!;
+        if (cacheKey && themeCache.has(cacheKey)) {
+            return themeCache.get(cacheKey)!;
         }
         return null;
     });
@@ -96,40 +105,17 @@ export function useImageColors(imageUrl: string | null | undefined): DynamicColo
 
         const generateTheme = async () => {
             // Cache hit — no work needed
-            if (imageUrl && themeCache.has(imageUrl)) {
-                console.debug(`[useImageColors] cache hit for ${imageUrl}`);
-                if (active) setTheme(themeCache.get(imageUrl)!);
+            if (cacheKey && themeCache.has(cacheKey)) {
+                console.debug(`[useImageColors] cache hit for ${cacheKey}`);
+                if (active) setTheme(themeCache.get(cacheKey)!);
                 return;
             }
 
             try {
                 let sourceColor = FALLBACK_SEED;
 
-                if (imageUrl) {
-                    console.debug(`[useImageColors] extracting colors for ${imageUrl}`);
-                    // Create a small Image just for color extraction
-                    const img = new Image();
-                    img.crossOrigin = "Anonymous";
-                    img.src = imageUrl;
-                    await new Promise((resolve, reject) => {
-                        img.onload = () => {
-                            console.debug(`[useImageColors] image loaded: ${imageUrl}`);
-                            resolve(null);
-                        };
-                        img.onerror = (ev) => {
-                            console.debug(`[useImageColors] image failed to load: ${imageUrl}`, ev);
-                            reject(new Error('image load error'));
-                        };
-                    });
-
-                    sourceColor = await sourceColorFromImage(img);
-
-                    console.debug(`[useImageColors] sourceColor: 0x${sourceColor.toString(16)}`);
-
-                    // Explicitly dereference — let GC reclaim the decoded bitmap
-                    img.src = '';
-                    (img as any).onload = null;
-                    (img as any).onerror = null;
+                if (seedOverride != null) {
+                    sourceColor = seedOverride;
                 }
 
                 if (!active) return;
@@ -137,14 +123,14 @@ export function useImageColors(imageUrl: string | null | undefined): DynamicColo
                 const newTheme = buildThemeFromSeed(sourceColor);
 
                 // Cache the result
-                if (imageUrl) {
+                if (cacheKey) {
                     // Evict oldest if full
                     if (themeCache.size >= MAX_THEME_CACHE) {
                         const oldest = themeCache.keys().next().value;
                         if (oldest) themeCache.delete(oldest);
                     }
-                    console.debug(`[useImageColors] caching theme for ${imageUrl}`);
-                    themeCache.set(imageUrl, newTheme);
+                    console.debug(`[useImageColors] caching theme for ${cacheKey}`);
+                    themeCache.set(cacheKey, newTheme);
                 }
 
                 setTheme(newTheme);
@@ -156,7 +142,7 @@ export function useImageColors(imageUrl: string | null | undefined): DynamicColo
         generateTheme();
 
         return () => { active = false; };
-    }, [imageUrl]);
+    }, [cacheKey, imageUrl, seedOverride]);
 
     return useMemo(() => {
         if (theme) return theme;

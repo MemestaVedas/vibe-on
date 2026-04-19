@@ -71,6 +71,8 @@ pub struct TrackDetail {
     pub track_number: Option<u32>,
     #[serde(rename = "coverUrl")]
     pub cover_url: Option<String>,
+    #[serde(rename = "albumMainColor")]
+    pub album_main_color: Option<i64>,
     #[serde(rename = "titleRomaji")]
     pub title_romaji: Option<String>,
     #[serde(rename = "titleEn")]
@@ -94,6 +96,8 @@ pub struct AlbumInfo {
     pub artist: String,
     #[serde(rename = "coverUrl")]
     pub cover_url: Option<String>,
+    #[serde(rename = "albumMainColor")]
+    pub album_main_color: Option<i64>,
     #[serde(rename = "trackCount")]
     pub track_count: usize,
 }
@@ -303,6 +307,7 @@ pub async fn get_playback_state(
                     disc_number: t.disc_number,
                     track_number: t.track_number,
                     cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                    album_main_color: t.album_main_color,
                     title_romaji: t.title_romaji.clone(),
                     title_en: t.title_en.clone(),
                     artist_romaji: t.artist_romaji.clone(),
@@ -383,6 +388,7 @@ pub async fn get_library(
             disc_number: t.disc_number,
             track_number: t.track_number,
             cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+            album_main_color: t.album_main_color,
             title_romaji: t.title_romaji,
             title_en: t.title_en,
             artist_romaji: t.artist_romaji,
@@ -432,6 +438,7 @@ pub async fn search_library(
             disc_number: t.disc_number,
             track_number: t.track_number,
             cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+            album_main_color: t.album_main_color,
             title_romaji: t.title_romaji.clone(),
             title_en: t.title_en.clone(),
             artist_romaji: t.artist_romaji.clone(),
@@ -459,6 +466,7 @@ pub async fn search_library(
             name,
             artist,
             cover_url: Some(format!("/cover/{}", urlencoding::encode(&path))),
+            album_main_color: None,
             track_count: count,
         })
         .collect();
@@ -507,6 +515,7 @@ pub async fn get_albums(
             name: a.name,
             artist: a.artist,
             cover_url: a.cover_image_path.map(|p| format!("/cover/{}", urlencoding::encode(&p))),
+            album_main_color: a.main_color,
             track_count: a.track_count,
         })
         .collect();
@@ -542,6 +551,7 @@ pub async fn get_album_detail(
             disc_number: t.disc_number,
             track_number: t.track_number,
             cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+            album_main_color: t.album_main_color,
             title_romaji: t.title_romaji,
             title_en: t.title_en,
             artist_romaji: t.artist_romaji,
@@ -560,6 +570,7 @@ pub async fn get_album_detail(
         name: name.clone(),
         artist: artist.clone(),
         cover_url: tracks.first().and_then(|t| t.cover_url.clone()),
+        album_main_color: tracks.first().and_then(|t| t.album_main_color),
         track_count: tracks.len(),
     };
     
@@ -621,6 +632,7 @@ pub async fn get_artist_detail(
             disc_number: t.disc_number,
             track_number: t.track_number,
             cover_url: Some(format!("/cover/{}", urlencoding::encode(&t.path))),
+            album_main_color: t.album_main_color,
             title_romaji: t.title_romaji.clone(),
             title_en: t.title_en.clone(),
             artist_romaji: t.artist_romaji.clone(),
@@ -647,6 +659,7 @@ pub async fn get_artist_detail(
             name: album_name,
             artist: name.clone(),
             cover_url: Some(format!("/cover/{}", urlencoding::encode(&path))),
+            album_main_color: None,
             track_count: count,
         })
         .collect();

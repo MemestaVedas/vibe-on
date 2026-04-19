@@ -188,6 +188,7 @@ pub enum ServerMessage {
         album: String,
         duration: f64,
         cover_url: Option<String>,
+        album_main_color: Option<i64>,
         title_romaji: Option<String>,
         title_en: Option<String>,
         artist_romaji: Option<String>,
@@ -307,11 +308,13 @@ impl From<ServerEvent> for ServerMessage {
         match event {
             ServerEvent::MediaSession {
                 track_id, title, artist, album, duration, cover_url,
+                album_main_color,
                 title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
                 sample_rate_hz, bitrate_kbps, codec,
                 is_playing, position, timestamp,
             } => ServerMessage::MediaSession {
                 track_id, title, artist, album, duration, cover_url,
+                album_main_color,
                 title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
                 sample_rate_hz, bitrate_kbps, codec,
                 is_playing, position, timestamp,
@@ -1153,7 +1156,7 @@ async fn build_state_events(
     state: &Arc<ServerState>,
     app_state: &tauri::State<'_, crate::AppState>,
 ) -> (ServerEvent, ServerEvent) {
-    let (track_id, title, artist, album, duration, cover_url,
+    let (track_id, title, artist, album, duration, cover_url, album_main_color,
          title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
          sample_rate_hz, bitrate_kbps, codec,
          is_playing, position, volume) = {
@@ -1168,25 +1171,26 @@ async fn build_state_events(
                     (t.path.clone(), t.title.clone(), t.artist.clone(), t.album.clone(),
                      t.duration_secs,
                      Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                     t.album_main_color,
                      t.title_romaji.clone(), t.title_en.clone(),
                      t.artist_romaji.clone(), t.artist_en.clone(),
                      t.album_romaji.clone(), t.album_en.clone(),
                      sample_rate_hz, bitrate_kbps, codec,
                      playing, pos, vol)
                 } else {
-                    (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+                    (String::new(), String::new(), String::new(), String::new(), 0.0, None, None,
                      None, None, None, None, None, None,
                      None, None, None,
                      false, 0.0, vol)
                 }
             }).unwrap_or_else(|| {
-                (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+                (String::new(), String::new(), String::new(), String::new(), 0.0, None, None,
                  None, None, None, None, None, None,
                  None, None, None,
                  false, 0.0, 1.0)
             })
         }).unwrap_or_else(|| {
-            (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+            (String::new(), String::new(), String::new(), String::new(), 0.0, None, None,
              None, None, None, None, None, None,
              None, None, None,
              false, 0.0, 1.0)
@@ -1205,6 +1209,7 @@ async fn build_state_events(
     (
         ServerEvent::MediaSession {
             track_id, title, artist, album, duration, cover_url,
+            album_main_color,
             title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
             sample_rate_hz, bitrate_kbps, codec,
             is_playing, position, timestamp,
@@ -1250,6 +1255,7 @@ fn read_queue(app_state: &tauri::State<'_, crate::AppState>) -> (Vec<super::Trac
         album: t.album.clone(),
         duration_secs: t.duration_secs,
         cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+        album_main_color: t.album_main_color,
         title_romaji: t.title_romaji.clone(),
         title_en: t.title_en.clone(),
         artist_romaji: t.artist_romaji.clone(),
@@ -1417,6 +1423,7 @@ fn track_to_detail(t: &crate::audio::TrackInfo) -> super::routes::TrackDetail {
         disc_number: t.disc_number,
         track_number: t.track_number,
         cover_url: Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+        album_main_color: t.album_main_color,
         title_romaji: t.title_romaji.clone(),
         title_en: t.title_en.clone(),
         artist_romaji: t.artist_romaji.clone(),

@@ -118,6 +118,8 @@ pub enum ServerEvent {
         duration: f64,
         #[serde(rename = "coverUrl")]
         cover_url: Option<String>,
+        #[serde(rename = "albumMainColor")]
+        album_main_color: Option<i64>,
         #[serde(rename = "titleRomaji")]
         title_romaji: Option<String>,
         #[serde(rename = "titleEn")]
@@ -206,6 +208,8 @@ pub struct TrackSummary {
     pub duration_secs: f64,
     #[serde(rename = "coverUrl")]
     pub cover_url: Option<String>,
+    #[serde(rename = "albumMainColor")]
+    pub album_main_color: Option<i64>,
     #[serde(rename = "titleRomaji")]
     pub title_romaji: Option<String>,
     #[serde(rename = "titleEn")]

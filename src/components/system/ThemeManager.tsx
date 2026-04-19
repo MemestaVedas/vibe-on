@@ -17,8 +17,8 @@ export function ThemeManager() {
     // Get cover URL from the tiny thumbnail cache
     const coverUrl = useCoverArt(coverImage, track?.path, true);
 
-    // Extract colors using M3 Logic (results are cached by imageUrl)
-    const colors = useImageColors(coverUrl);
+    // Prefer persisted album seed color and avoid image re-extraction when available.
+    const colors = useImageColors(coverUrl, track?.album_main_color);
 
     // Update global theme store & CSS Variables
     useEffect(() => {

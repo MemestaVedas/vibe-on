@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS albums (
     name TEXT NOT NULL,
     artist TEXT NOT NULL,
     cover_image_path TEXT,
+    main_color INTEGER,
     UNIQUE(name, artist)
 );
 

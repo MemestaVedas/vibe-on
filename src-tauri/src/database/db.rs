@@ -14,6 +14,7 @@ pub struct DbAlbum {
     pub name: String,
     pub artist: String,
     pub cover_image_path: Option<String>,
+    pub main_color: Option<i64>,
     pub track_count: usize,
 }
 
@@ -57,6 +58,9 @@ impl DatabaseManager {
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN artist_en TEXT", []);
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN album_romaji TEXT", []);
         let _ = conn.execute("ALTER TABLE tracks ADD COLUMN album_en TEXT", []);
+
+        // Migration: Persist album primary color seed
+        let _ = conn.execute("ALTER TABLE albums ADD COLUMN main_color INTEGER", []);
 
         // Migration: Add playlist customization columns
         let _ = conn.execute("ALTER TABLE playlists ADD COLUMN customization_type TEXT NOT NULL DEFAULT 'default'", []);
@@ -193,11 +197,22 @@ impl DatabaseManager {
         Ok(())
     }
 
+    pub fn update_album_main_color(&self, album: &str, artist: &str, main_color: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let normalized_album = album.replace("\\", "/");
+        let normalized_artist = artist.replace("\\", "/");
+        conn.execute(
+            "UPDATE albums SET main_color = ?1 WHERE name = ?2 AND artist = ?3",
+            params![main_color, normalized_album, normalized_artist],
+        )?;
+        Ok(())
+    }
+
     pub fn get_tracks_paginated(&self, limit: usize, offset: usize) -> Result<Vec<TrackInfo>> {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, a.main_color, t.disc_number, t.track_number,
              t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
@@ -214,14 +229,15 @@ impl DatabaseManager {
                 album: row.get(3)?,
                 duration_secs: row.get(4)?,
                 cover_image: cover_filename,
-                disc_number: row.get(6).unwrap_or(None),
-                track_number: row.get(7).unwrap_or(None),
-                title_romaji: row.get(8).unwrap_or(None),
-                title_en: row.get(9).unwrap_or(None),
-                artist_romaji: row.get(10).unwrap_or(None),
-                artist_en: row.get(11).unwrap_or(None),
-                album_romaji: row.get(12).unwrap_or(None),
-                album_en: row.get(13).unwrap_or(None),
+                album_main_color: row.get(6).unwrap_or(None),
+                disc_number: row.get(7).unwrap_or(None),
+                track_number: row.get(8).unwrap_or(None),
+                title_romaji: row.get(9).unwrap_or(None),
+                title_en: row.get(10).unwrap_or(None),
+                artist_romaji: row.get(11).unwrap_or(None),
+                artist_en: row.get(12).unwrap_or(None),
+                album_romaji: row.get(13).unwrap_or(None),
+                album_en: row.get(14).unwrap_or(None),
                 playlist_track_id: None,
             })
         })?;
@@ -245,7 +261,7 @@ impl DatabaseManager {
         let search_query = format!("%{}%", query);
 
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, a.main_color, t.disc_number, t.track_number,
              t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
@@ -265,14 +281,15 @@ impl DatabaseManager {
                 album: row.get(3)?,
                 duration_secs: row.get(4)?,
                 cover_image: cover_filename,
-                disc_number: row.get(6).unwrap_or(None),
-                track_number: row.get(7).unwrap_or(None),
-                title_romaji: row.get(8).unwrap_or(None),
-                title_en: row.get(9).unwrap_or(None),
-                artist_romaji: row.get(10).unwrap_or(None),
-                artist_en: row.get(11).unwrap_or(None),
-                album_romaji: row.get(12).unwrap_or(None),
-                album_en: row.get(13).unwrap_or(None),
+                album_main_color: row.get(6).unwrap_or(None),
+                disc_number: row.get(7).unwrap_or(None),
+                track_number: row.get(8).unwrap_or(None),
+                title_romaji: row.get(9).unwrap_or(None),
+                title_en: row.get(10).unwrap_or(None),
+                artist_romaji: row.get(11).unwrap_or(None),
+                artist_en: row.get(12).unwrap_or(None),
+                album_romaji: row.get(13).unwrap_or(None),
+                album_en: row.get(14).unwrap_or(None),
                 playlist_track_id: None,
             })
         })?;
@@ -290,7 +307,7 @@ impl DatabaseManager {
 
         let normalized_path = path.replace("\\", "/");
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, a.main_color, t.disc_number, t.track_number,
              t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
@@ -306,14 +323,15 @@ impl DatabaseManager {
                 album: row.get(3)?,
                 duration_secs: row.get(4)?,
                 cover_image: cover_filename,
-                disc_number: row.get(6).unwrap_or(None),
-                track_number: row.get(7).unwrap_or(None),
-                title_romaji: row.get(8).unwrap_or(None),
-                title_en: row.get(9).unwrap_or(None),
-                artist_romaji: row.get(10).unwrap_or(None),
-                artist_en: row.get(11).unwrap_or(None),
-                album_romaji: row.get(12).unwrap_or(None),
-                album_en: row.get(13).unwrap_or(None),
+                album_main_color: row.get(6).unwrap_or(None),
+                disc_number: row.get(7).unwrap_or(None),
+                track_number: row.get(8).unwrap_or(None),
+                title_romaji: row.get(9).unwrap_or(None),
+                title_en: row.get(10).unwrap_or(None),
+                artist_romaji: row.get(11).unwrap_or(None),
+                artist_en: row.get(12).unwrap_or(None),
+                album_romaji: row.get(13).unwrap_or(None),
+                album_en: row.get(14).unwrap_or(None),
                 playlist_track_id: None,
             })
         })?;
@@ -343,7 +361,7 @@ impl DatabaseManager {
             .unwrap_or(0);
 
         let mut stmt = conn.prepare(
-            "SELECT a.name, a.artist, a.cover_image_path, COUNT(t.path) as track_count
+            "SELECT a.name, a.artist, a.cover_image_path, a.main_color, COUNT(t.path) as track_count
              FROM albums a
              LEFT JOIN tracks t ON t.album = a.name AND t.artist = a.artist
              GROUP BY a.name, a.artist
@@ -357,7 +375,8 @@ impl DatabaseManager {
                 name: row.get(0)?,
                 artist: row.get(1)?,
                 cover_image_path: cover_filename,
-                track_count: row.get(3)?,
+                main_color: row.get(3).unwrap_or(None),
+                track_count: row.get(4)?,
             })
         })?;
 
@@ -435,6 +454,7 @@ impl DatabaseManager {
                 album: row.get(3)?,
                 duration_secs: row.get(4)?,
                 cover_image: None, // Loaded on demand
+                album_main_color: None,
                 disc_number: row.get(5)?,
                 track_number: row.get(6)?,
                 title_romaji: row.get(7).unwrap_or(None),
@@ -460,7 +480,7 @@ impl DatabaseManager {
 
         // Join tracks with albums to get the cover image path
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, a.main_color, t.disc_number, t.track_number,
              t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en
              FROM tracks t 
              LEFT JOIN albums a ON t.album = a.name AND t.artist = a.artist
@@ -477,14 +497,15 @@ impl DatabaseManager {
                 album: row.get(3)?,
                 duration_secs: row.get(4)?,
                 cover_image: cover_filename,
-                disc_number: row.get(6).unwrap_or(None),
-                track_number: row.get(7).unwrap_or(None),
-                title_romaji: row.get(8).unwrap_or(None),
-                title_en: row.get(9).unwrap_or(None),
-                artist_romaji: row.get(10).unwrap_or(None),
-                artist_en: row.get(11).unwrap_or(None),
-                album_romaji: row.get(12).unwrap_or(None),
-                album_en: row.get(13).unwrap_or(None),
+                album_main_color: row.get(6).unwrap_or(None),
+                disc_number: row.get(7).unwrap_or(None),
+                track_number: row.get(8).unwrap_or(None),
+                title_romaji: row.get(9).unwrap_or(None),
+                title_en: row.get(10).unwrap_or(None),
+                artist_romaji: row.get(11).unwrap_or(None),
+                artist_en: row.get(12).unwrap_or(None),
+                album_romaji: row.get(13).unwrap_or(None),
+                album_en: row.get(14).unwrap_or(None),
                 playlist_track_id: None,
             })
         })?;
@@ -756,7 +777,7 @@ impl DatabaseManager {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
-            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, t.disc_number, t.track_number,
+            "SELECT t.path, t.title, t.artist, t.album, t.duration_secs, a.cover_image_path, a.main_color, t.disc_number, t.track_number,
              t.title_romaji, t.title_en, t.artist_romaji, t.artist_en, t.album_romaji, t.album_en, pt.id as playlist_track_id
              FROM playlist_tracks pt
              LEFT JOIN tracks t ON pt.track_path = t.path
@@ -779,15 +800,16 @@ impl DatabaseManager {
                     album: row.get(3)?,
                     duration_secs: row.get(4)?,
                     cover_image: cover_filename,
-                    disc_number: row.get(6).unwrap_or(None),
-                    track_number: row.get(7).unwrap_or(None),
-                    title_romaji: row.get(8).unwrap_or(None),
-                    title_en: row.get(9).unwrap_or(None),
-                    artist_romaji: row.get(10).unwrap_or(None),
-                    artist_en: row.get(11).unwrap_or(None),
-                    album_romaji: row.get(12).unwrap_or(None),
-                    album_en: row.get(13).unwrap_or(None),
-                    playlist_track_id: Some(row.get(14)?),
+                    album_main_color: row.get(6).unwrap_or(None),
+                    disc_number: row.get(7).unwrap_or(None),
+                    track_number: row.get(8).unwrap_or(None),
+                    title_romaji: row.get(9).unwrap_or(None),
+                    title_en: row.get(10).unwrap_or(None),
+                    artist_romaji: row.get(11).unwrap_or(None),
+                    artist_en: row.get(12).unwrap_or(None),
+                    album_romaji: row.get(13).unwrap_or(None),
+                    album_en: row.get(14).unwrap_or(None),
+                    playlist_track_id: Some(row.get(15)?),
                 })
             } else {
                 // Return dummy or empty track for missing file?
@@ -800,6 +822,7 @@ impl DatabaseManager {
                     album: "Unknown".to_string(),
                     duration_secs: 0.0,
                     cover_image: None,
+                    album_main_color: None,
                     disc_number: None,
                     track_number: None,
                     title_romaji: None,
@@ -808,7 +831,7 @@ impl DatabaseManager {
                     artist_en: None,
                     album_romaji: None,
                     album_en: None,
-                    playlist_track_id: Some(row.get(14)?),
+                    playlist_track_id: Some(row.get(15)?),
                 })
             }
         })?;

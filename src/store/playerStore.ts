@@ -50,6 +50,7 @@ const broadcastQueueUpdate = async (queue: TrackDisplay[]) => {
                 album: t.album,
                 durationSecs: t.duration_secs,
                 coverImage: t.cover_image || null,
+                albumMainColor: t.album_main_color ?? null,
                 discNumber: t.disc_number || null,
                 trackNumber: t.track_number || null,
                 titleRomaji: t.title_romaji || null,

@@ -105,7 +105,7 @@ fn broadcast_state_to_ws(state: &AppState) {
     let Some(tx) = tx else { return };
 
     // Build media session event
-    let (track_id, title, artist, album, duration, cover_url,
+    let (track_id, title, artist, album, duration, cover_url, album_main_color,
          title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
          is_playing, position, volume) = {
         if let Ok(g) = state.player.lock() {
@@ -116,12 +116,13 @@ fn broadcast_state_to_ws(state: &AppState) {
                     (t.path.clone(), t.title.clone(), t.artist.clone(), t.album.clone(),
                      t.duration_secs,
                      Some(format!("/cover/{}", urlencoding::encode(t.cover_image.as_deref().unwrap_or(&t.path)))),
+                     t.album_main_color,
                      t.title_romaji.clone(), t.title_en.clone(),
                      t.artist_romaji.clone(), t.artist_en.clone(),
                      t.album_romaji.clone(), t.album_en.clone(),
                      playing, s.position_secs, s.volume)
                 } else {
-                    (String::new(), String::new(), String::new(), String::new(), 0.0, None,
+                    (String::new(), String::new(), String::new(), String::new(), 0.0, None, None,
                      None, None, None, None, None, None, false, 0.0, s.volume)
                 }
             } else { return; }
@@ -143,6 +144,7 @@ fn broadcast_state_to_ws(state: &AppState) {
 
     let _ = tx.send(server::ServerEvent::MediaSession {
         track_id, title, artist, album, duration, cover_url,
+        album_main_color,
         title_romaji, title_en, artist_romaji, artist_en, album_romaji, album_en,
         is_playing, position, timestamp,
         sample_rate_hz: None,
@@ -625,6 +627,7 @@ fn get_queue_state(state: State<AppState>) -> serde_json::Value {
             "album": t.album,
             "duration_secs": t.duration_secs,
             "cover_image": t.cover_image,
+            "albumMainColor": t.album_main_color,
             "disc_number": t.disc_number,
             "track_number": t.track_number,
             "title_romaji": t.title_romaji,
@@ -1087,6 +1090,7 @@ fn get_track_metadata_helper(path_str: &str) -> Result<(TrackInfo, Option<Vec<u8
             album,
             duration_secs,
             cover_image: None, // Will be populated from DB later
+            album_main_color: None,
             disc_number,
             track_number,
             title_romaji: None,
@@ -1176,6 +1180,7 @@ fn get_track_metadata_helper_fast(path_str: &str) -> Result<TrackInfo, String> {
         album,
         duration_secs,
         cover_image: cover_image_path.map(|p| p.replace("\\", "/")), // Normalize external cover path too
+        album_main_color: None,
         disc_number,
         track_number,
         title_romaji: None,
@@ -2175,6 +2180,7 @@ pub fn run() {
                                 album,
                                 duration_secs,
                                 cover_image: t.get("coverImage").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                album_main_color: t.get("albumMainColor").and_then(|v| v.as_i64()),
                                 disc_number: t.get("discNumber").and_then(|v| v.as_u64()).map(|n| n as u32),
                                 track_number: t.get("trackNumber").and_then(|v| v.as_u64()).map(|n| n as u32),
                                 title_romaji: t.get("titleRomaji").and_then(|v| v.as_str()).map(|s| s.to_string()),
