@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@100;300;400;500;700;800;900&display=swap')
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@8..144,100..1000&display=swap')
 layer(base);
 
 @import 'tailwindcss';
@@ -6,7 +6,7 @@ layer(base);
 @plugin '@tailwindcss/typography';
 
 @theme {
-  --font-outfit: 'M PLUS Rounded 1c', sans-serif;
+  --font-outfit: 'Google Sans Flex', sans-serif;
 
   --text-display-hero: 96px;
   --text-display-hero--line-height: 112px;
@@ -167,7 +167,7 @@ layer(base);
 @layer base {
     :root {
         /* Font Family */
-        --font-outfit: 'M PLUS Rounded 1c', sans-serif;
+        --font-outfit: 'Google Sans Flex', sans-serif;
 
         /* Material 3 expressive dark fallback values */
         --md-sys-color-surface: #121214;

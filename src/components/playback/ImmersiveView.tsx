@@ -164,7 +164,7 @@ export function ImmersiveView() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             className="fixed inset-0 z-100 flex overflow-hidden select-none bg-black text-white"
-            style={{ fontFamily: "'M PLUS Rounded 1c', sans-serif" }}
+            style={{ fontFamily: "'Google Sans Flex', sans-serif" }}
         >
             {/* === TECHNICAL BACKGROUND === */}
             <AmbientBackground coverUrl={coverUrl} colors={colors} />
